@@ -50,18 +50,10 @@ Only the Wi-Fi needs a choice when no default Wi-Fi is built in; everything else
 
 ## 2. The web console (on Wi-Fi)
 
-`http://<camera IP>/` (the IP is in the boot log and the serial `info`), while the camera is awake on Wi-Fi: always in
-powered mode, during the awake window in battery mode (a signed-in visit keeps it awake 2 minutes). Not over 4G. The
-same layout as the AMB82 console: a sign-in gate (the first visit sets the admin password, 8-64 characters with letters
-and digits; 5 wrong passwords lock sign-in for 5 minutes), "Live View" (JPEG preview at QVGA to HD, snapshot to FlyBot,
-status side panel) and "Configuration" with System (device information, time, maintenance & upgrade, log), Network
-(Wi-Fi / TCP/IP with a scan table, 4G, cloud platform), Image (display), Power & location (power & schedule, GPS) and
-Security (account). Every POST needs `X-Requested-With: camos`; sessions are an `HttpOnly; SameSite=Strict` cookie.
-
-API: `GET /api/session`, `POST /api/activate`, `/api/login`, `/api/logout`, `/api/password`, `/api/lang`,
-`GET /api/status`, `GET|POST /api/config`, `POST /api/cert`, `GET /api/wifi/scan`, `POST /api/image`,
-`GET /api/frame.jpg?w=&h=`, `POST /api/snapshot`, `/api/pair`, `/api/gps`, `/api/ota`, `/api/reboot`,
-`/api/factory-reset`, `GET /api/logs?since=`, `GET /api/qr.svg` (details at the top of `firmware/main/web.c`).
+`http://<camera IP>/` while the camera is awake on Wi-Fi: always in powered mode, during the awake window in battery
+mode. Activation (the first visit sets the admin password), sign-in, Live View (MJPEG), Playback (photos on the microSD
+card) and Configuration (System, Network, Image, Event, Storage, Power & location, Security). Every page, the API and
+the measured live-view frame rates: [WEB_CONSOLE.md](WEB_CONSOLE.md).
 
 Forgot the admin password: hold BOOT 3 s (portal) or use the serial console `factory`.
 
@@ -95,9 +87,10 @@ chip stays awake 5 minutes (`tools/serial_log.py` sends a newline first for that
 
 Strings: `serial`, `vcode`, `wifi_ssid`, `wifi_pass`, `apn`, `sim_pin`, `api_base`, `token`, `prov_token`, `mqtt_host`,
 `thing`, `kvs_chan`, `kvs_region`, `role_alias`, `cred_host`, `claim_url`, `tz`, `tz_auto`, `tz_posix`, `tz_src`,
-`ui_lang`, `ap_pass`, `wifi_err`, `reg_err`, `admin_salt`, `admin_hash`, `cert`, `key` (PEM). Integers: `interval`,
-`power_mode` (0 auto, 1 battery, 2 powered), `cellular`, `gps`, `led`, `batt_mon`, `claimed`, `wifi_new`,
-`modem_absent`, `gps_absent`, `portal`, `boots`. Blobs: `settings` (the persisted shadow), `gps_fix`.
+`ui_lang`, `ap_pass`, `wifi_err`, `reg_err`, `admin_salt`, `admin_hash`, `mo_roi`, `st_ip`, `st_mask`, `st_gw`,
+`st_dns`, `cert`, `key` (PEM). Integers: `interval`, `power_mode` (0 auto, 1 battery, 2 powered), `cellular`, `gps`,
+`led`, `batt_mon`, `claimed`, `sd_save`, `sched_from`, `sched_to`, `motion`, `mo_sens`, `mo_cool`, `mo_upload`, `mo_sd`,
+`ip_mode`, `wifi_new`, `modem_absent`, `gps_absent`, `portal`, `boots`. Blobs: `settings` (the persisted shadow), `gps_fix`.
 The factory partition `fctry` (0x14000, 0x6000, read-only) uses the same namespace and keys (`serial`, `vcode`, `cert`,
 `key`, `thing`, `mqtt_host`, `claimed`). `idf.py flash` never touches either partition; `idf.py erase-flash` and the
 browser "install" image wipe both; `factory` (console, web console, RPC) keeps the identity keys.

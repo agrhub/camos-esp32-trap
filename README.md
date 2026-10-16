@@ -31,9 +31,12 @@ The owner's own fleet can skip registration with a pre-provisioned certificate: 
   Every other setting sits under "Advanced settings", pre-filled with its effective value and a "default" badge. English
   by default, Vietnamese one tap away (remembered on the camera and in the browser). Protocol 12.3 `GET /info` and
   `POST /provision` kept.
-- **Web console** on Wi-Fi (`http://<camera IP>/`), the AMB82 console layout: admin activation / sign-in, Live View
-  (JPEG preview, snapshot to FlyBot), Configuration (device, time, maintenance, log, Wi-Fi, 4G, cloud, image, power &
-  schedule, GPS, account).
+- **Web console** on Wi-Fi (`http://<camera IP>/`, [docs/WEB_CONSOLE.md](docs/WEB_CONSOLE.md)), the AMB82 console
+  layout: admin activation / sign-in, Live View (MJPEG, about 11 fps at VGA, one viewer at a time, clock overlay, save
+  picture, send to FlyBot, full screen), Playback (photos on the microSD card by day, time line, download, delete),
+  Configuration (device, time, firmware upload and OTA, events, log, Wi-Fi with DHCP / static TCP/IP, 4G, cloud, image
+  settings with a live preview, motion detection with an area drawn on the picture, capture schedule, SD card storage,
+  power, GPS, account).
 - **Self-registration**: ECDSA P-256 key and CSR made on the device, `POST /api/device/register`, back-off on 429 / 5xx,
   409 shown on the pages with a red LED; unclaimed mode follows FlyBot's `nextWakeAt`. Claim QR rendered on the device.
 - **Network**: 4G first when on (esp_modem PPP, A76xx AT set with the SIM7600 profile, CMUX when the module accepts it,
@@ -137,6 +140,9 @@ flashes it at 0x14000. It prints the flybot-aws command that registers the certi
 owner's AWS profile: it creates resources). A camera with a factory certificate never self-registers.
 
 ## Status (16 Oct 2026)
+
+Firmware 0.4.0: the web console's MJPEG live view, image settings, motion detection, schedule, events, firmware upload
+and static IP verified on the Freenove board from a laptop browser; the microSD code builds but has not met a card yet.
 
 Builds for the Freenove ESP32-S3, the generic ESP32-S3 CAM and the ESP32-CAM presets. Verified on the Freenove board:
 boot, 8 MB PSRAM, 16 MB flash, OV5640 capture, portal with the Wi-Fi scan, LED states (from the log), CSR (checked with

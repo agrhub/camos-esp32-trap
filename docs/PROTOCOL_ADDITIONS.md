@@ -50,6 +50,22 @@ The token is only ever sent to `apiBase` (protocol 11.4).
 
 Priority for the interval and the power mode: shadow > portal > Kconfig default.
 
+`video.image`: the protocol 8 keys `brightness` (-64..64), `contrast`, `saturation`, `sharpness` (0..100) and
+`orientation` (0 normal, 1 mirror, 2 flip, 3 both) are applied, plus these ESP32 additions (the web console sets the
+same keys locally; a later shadow wins):
+
+| Key | Values | OV5640 mapping |
+|---|---|---|
+| `whiteBalance` | `"auto"` \| `"sunny"` \| `"cloudy"` \| `"office"` \| `"home"` | AWB mode |
+| `effect` | `"none"` \| `"negative"` \| `"grayscale"` \| `"red"` \| `"green"` \| `"blue"` \| `"sepia"` | special effect |
+| `aeLevel` | -5..5 (other sensors -2..2) | exposure compensation |
+| `exposureAuto`, `exposure` | bool, 0..1200 | AEC on, or the manual exposure value |
+| `gainAuto`, `gain` | bool, 0..30 | AGC on, or the manual gain |
+| `gainCeiling` | 0..6 (2x..128x) | AGC ceiling |
+| `denoise` | 0..8 | noise reduction |
+
+`flicker`, `wdr` and `ldc` have no control in esp32-camera: `NOT_SUPPORTED`. `reported.video.image` carries every key.
+
 `claimed` (bool) is also accepted (section 8).
 
 `reported` (and the retained `state`) carry, next to the existing `version`, `appliedAt`, `errors`, `video.image`, `capture`:
@@ -87,7 +103,12 @@ Unchanged: `ping`, `state`, `capture`. Everything else answers `NOT_SUPPORTED`.
 ## 5. Events (protocol 5)
 
 - `capture` (schedule and boot): `trigger` is `"schedule"` or `"boot"` (addition), `detectionId` is the schedule id or
-  `"interval"` for the all-day interval, `image.key` = `snapshotId`, plus a top-level `snapshotId`.
+  `"interval"` for the all-day interval, `image.key` = `snapshotId`, plus a top-level `snapshotId`. A capture after
+  motion (web console option) has `trigger: "motion"`; its CONTRACTS section 2 `meta.trigger` is `"rpc"`, the closest
+  value the contract has, until FlyBot accepts `"motion"`.
+- `motion` (addition) `{level, sensitivity, roi: [x, y, w, h], sdFile?, detail}`: frame-difference motion inside the
+  area (percent of the picture), `level` in per mille of the area, `sdFile` = `YYYYMMDD/HHMMSSM.JPG` when the picture
+  was saved on the microSD card. At most one per cooldown (web console setting, default 60 s).
 - `location_changed` `{lat, lon, distanceM}` when a new fix is more than 50 m from the previous one.
 - `ota_result` `{target:"firmware", version, ok, stage, error?, detail?}`.
 - `boot` `{reason, fw}`: `reason` now also `"ota"` after a successful update.

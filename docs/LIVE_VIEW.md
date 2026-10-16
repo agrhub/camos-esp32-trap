@@ -5,6 +5,13 @@ and writes it into the shadow (`kvs.channelName`, `kvs.region`; also stored by p
 `power.mode` is powered, or for `live.start {minutes}` / `live.requested` otherwise, and encodes only while a VIEWER is
 connected. Timebox: 2 days of firmware work (21-22 Oct); fallback: RPC `snapshot.now`.
 
+## Live picture on the LAN (MJPEG, firmware 0.4.0)
+
+Independent of KVS: the web console streams `GET /api/stream` (multipart/x-mixed-replace JPEG) to one browser on the
+same network, about 11 fps at VGA and 12.7 fps at 1280x720 measured on the Freenove board. Details and measurements:
+[WEB_CONSOLE.md](WEB_CONSOLE.md). A KVS live session takes the camera over: the LAN stream ends (and answers `BUSY`)
+while it runs.
+
 ## What the firmware has today (16 Oct)
 
 - `live.c`: the session logic (`live.start` / `live.stop` / `live.requested`, the awake timer, the shadow `live` block

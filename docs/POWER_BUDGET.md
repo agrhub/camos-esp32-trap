@@ -76,6 +76,10 @@ MQTT always connected, no deep sleep, light sleep between beacons (Wi-Fi) or the
 | Live view, 5 min/day averaged (ESP32-S3 encoding + Wi-Fi/4G transmit about 350 mA during the session) | 1.2 mA | 1.2 mA |
 | **Average** | **about 38 mA** | **about 64 mA** |
 
+Motion detection (web console) keeps the camera powered at QVGA and decodes about two pictures a second; the LAN live
+picture keeps the camera powered and Wi-Fi power save off while someone watches. Neither current is measured yet; both
+run only in powered mode (motion) or while a viewer is connected (stream).
+
 A 2000 mAh cell alone lasts 1.9 days (Wi-Fi) or 1.1 days (4G) in powered mode: this mode is for a camera on solar with a
 healthy cell, which is exactly what `auto` enforces (powered only above `highMv`, back to battery below `lowMv`).
 
