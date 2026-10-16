@@ -96,7 +96,7 @@ void gps_state_json(cJSON *parent)
 
 bool gps_available(void)
 {
-	return CONFIG_CAMOS_GPS_RX_GPIO >= 0;
+	return CONFIG_CAMOS_GPS_RX_GPIO >= 0 && g_cfg.gps && !store_get_flag("gps_absent");
 }
 
 static void gps_power(bool on)
@@ -185,12 +185,16 @@ bool gps_fix(int timeout_s, gps_fix_t *out)
 	gps_power(false);
 	if (!ok) {
 		ESP_LOGW(TAG, "no fix in %d s (%d sentences seen%s)", timeout_s, sentences, sentences ? "" : ": is the module powered and TX wired to the RX pin?");
+		if (sentences == 0 && timeout_s >= 30) {
+			store_set_flag("gps_absent", 1); /* no NMEA at all: no module; set gps on again in the portal to retry */
+			ESP_LOGW(TAG, "no GPS module answered: GPS skipped from now on (portal / console `set gps 1` to retry)");
+		}
 		return false;
 	}
 	if (!clock_synced() && fix.epoch > 1735689600) {
 		struct timeval tv = { .tv_sec = (time_t)fix.epoch };
 		settimeofday(&tv, NULL);
-		ESP_LOGI(TAG, "clock set from GPS");
+		clock_set_source("gps");
 	}
 	load_last();
 	gps_fix_t prev = rtc_fix;

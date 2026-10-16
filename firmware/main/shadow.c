@@ -41,12 +41,26 @@ static void defaults(settings_t *s)
 	s->contrast = 50;
 	s->saturation = 50;
 	s->power_mode = -1;
+	s->claimed = -1;
 }
 
-static void apply_tz(const settings_t *s)
+/* The shadow's `timezone`, when the cloud set one (tz.c decides between it, a manual override and /api/device/time) */
+bool shadow_tz(char *iana, size_t in, char *posix, size_t pn)
 {
-	setenv("TZ", s->tz, 1);
-	tzset();
+	if (!lock || !cur.tz_set) {
+		return false;
+	}
+	xSemaphoreTake(lock, portMAX_DELAY);
+	strlcpy(iana, cur.tz_iana, in);
+	strlcpy(posix, cur.tz, pn);
+	xSemaphoreGive(lock);
+	return true;
+}
+
+/* claimed in FlyBot (CONTRACTS 2a.4): the shadow's `claimed` once it said so, else the registration result */
+bool shadow_claimed(void)
+{
+	return cur.claimed >= 0 ? cur.claimed != 0 : g_cfg.claimed != 0;
 }
 
 void shadow_init(void)
@@ -62,14 +76,7 @@ void shadow_init(void)
 		ESP_LOGI(TAG, "settings from NVS: version %d, %d schedule(s), tz %s, interval %d, power %d", cur.version, cur.n_sched,
 				 cur.tz, cur.interval_min, cur.power_mode);
 	}
-	/* The portal timezone is the default until a shadow says otherwise */
-	if (cur.version == 0 && g_cfg.tz[0]) {
-		const char *tz = tz_lookup(g_cfg.tz);
-		if (tz && strlen(tz) < sizeof(cur.tz)) {
-			strcpy(cur.tz, tz);
-		}
-	}
-	apply_tz(&cur);
+	tz_apply();
 }
 
 void shadow_get(settings_t *out)
@@ -292,8 +299,12 @@ char *shadow_apply(const char *json, int len, bool persist)
 			get_int(item, 0, 2147483647, &s.version);
 		} else if (!strcmp(k, "timezone")) {
 			const char *tz = cJSON_IsString(item) ? tz_lookup(item->valuestring) : NULL;
-			if (tz && strlen(tz) < sizeof(s.tz)) {
+			if (cJSON_IsNull(item)) {
+				s.tz_set = false; /* back to the automatic timezone */
+			} else if (tz && strlen(tz) < sizeof(s.tz) && strlen(item->valuestring) < sizeof(s.tz_iana)) {
 				strcpy(s.tz, tz);
+				strcpy(s.tz_iana, item->valuestring);
+				s.tz_set = true;
 			} else {
 				add_error(errors, "timezone", "BAD_VALUE"); /* unknown zone: add it to tz.c */
 			}
@@ -303,6 +314,15 @@ char *shadow_apply(const char *json, int len, bool persist)
 			apply_capture(item, &s, errors);
 		} else if (!strcmp(k, "power") && cJSON_IsObject(item)) {
 			apply_power(item, &s, errors);
+		} else if (!strcmp(k, "claimed")) {
+			if (cJSON_IsBool(item)) {
+				s.claimed = cJSON_IsTrue(item);
+				if (s.claimed != g_cfg.claimed) {
+					store_apply_kv("claimed", s.claimed ? "1" : "0");
+				}
+			} else {
+				add_error(errors, "claimed", "BAD_VALUE");
+			}
 		} else if (!strcmp(k, "live") && cJSON_IsObject(item)) {
 			const cJSON *r = cJSON_GetObjectItem(item, "requested");
 			if (r && !cJSON_IsBool(r)) {
@@ -341,7 +361,7 @@ char *shadow_apply(const char *json, int len, bool persist)
 	cJSON_Delete(last_errors);
 	last_errors = errors;
 	xSemaphoreGive(lock);
-	apply_tz(&s);
+	tz_apply();
 	if (persist) {
 		store_set_blob("settings", &s, sizeof(s));
 	}
@@ -392,7 +412,17 @@ void shadow_additions_json(cJSON *parent)
 	cJSON_AddStringToObject(kvs, "channelName", g_cfg.kvs_channel);
 	cJSON_AddStringToObject(kvs, "region", g_cfg.kvs_region);
 	gps_json(parent);
-	cJSON_AddStringToObject(parent, "net", net_type_name());
+	cJSON_AddStringToObject(parent, "net", net_type_name()); /* CONTRACTS 3: the string stays */
+	char ip[16];
+	net_ip(ip, sizeof(ip));
+	cJSON_AddStringToObject(parent, "localIp", ip);          /* 2a.6: the DHCP / PPP address */
+	if (g_public_ip[0]) {
+		cJSON_AddStringToObject(parent, "publicIp", g_public_ip); /* as FlyBot saw it (/api/device/time) */
+	}
+	cJSON_AddStringToObject(parent, "timezone", tz_effective_iana());
+	cJSON_AddStringToObject(parent, "tzSource", tz_effective_source());
+	cJSON_AddStringToObject(parent, "clockSource", clock_source());
+	cJSON_AddBoolToObject(parent, "claimed", shadow_claimed());
 	battery_json(parent);
 	time_t next = sched_next_capture();
 	if (next) {

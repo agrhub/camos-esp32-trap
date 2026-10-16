@@ -27,6 +27,7 @@
 
 static const char *TAG = "sched";
 static SemaphoreHandle_t cam_mutex;
+static void stop_preview_locked(void);
 static TaskHandle_t sched_task_handle;
 static volatile int64_t last_activity_s; /* uptime second of the last capture end */
 static volatile int64_t keep_awake_until_s;
@@ -70,6 +71,8 @@ esp_err_t capture_now(const char *trigger, upload_t *out)
 	}
 	sched_init_lock();
 	xSemaphoreTake(cam_mutex, portMAX_DELAY);
+	stop_preview_locked(); /* a web preview gives way to a real capture */
+	led_flash(LED_FLASH_CAPTURE);
 	settings_t s;
 	shadow_get(&s);
 	camera_fb_t *fb = NULL;
@@ -114,10 +117,105 @@ esp_err_t capture_now(const char *trigger, upload_t *out)
 		}
 		cam_release(fb);
 	}
+	if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+		led_flash(LED_FLASH_ERROR); /* camera or upload failed */
+	}
 	last_activity_s = esp_timer_get_time() / 1000000;
 	xSemaphoreGive(cam_mutex);
 	sched_changed();
 	return err;
+}
+
+/* ------------------------------------------------------------------ web console preview (same camera lock) */
+
+static bool preview_on;
+static int pv_w, pv_h;
+static volatile int64_t pv_last_us;
+static esp_timer_handle_t pv_timer;
+
+static void stop_preview_locked(void)
+{
+	if (preview_on) {
+		cam_stream_stop();
+		preview_on = false;
+		ESP_LOGI(TAG, "preview stopped");
+	}
+}
+
+/* Nobody asked for a frame for 15 s: power the sensor down (try-lock: a capture in progress owns the camera) */
+static void pv_idle_cb(void *arg)
+{
+	if (preview_on && esp_timer_get_time() - pv_last_us > 15LL * 1000000 && xSemaphoreTake(cam_mutex, 0) == pdTRUE) {
+		stop_preview_locked();
+		xSemaphoreGive(cam_mutex);
+	}
+	if (!preview_on && pv_timer) {
+		esp_timer_stop(pv_timer);
+	}
+}
+
+bool preview_active(void) { return preview_on; }
+
+esp_err_t preview_frame(int w, int h, int quality, camera_fb_t **fb)
+{
+	*fb = NULL;
+	if (live_active()) {
+		return ESP_ERR_INVALID_STATE;
+	}
+	sched_init_lock();
+	if (xSemaphoreTake(cam_mutex, pdMS_TO_TICKS(10000)) != pdTRUE) {
+		return ESP_ERR_TIMEOUT; /* a capture + upload is running */
+	}
+	if (preview_on && (w != pv_w || h != pv_h)) {
+		stop_preview_locked();
+	}
+	if (!preview_on) {
+		esp_err_t e = cam_stream_start(w, h, quality);
+		if (e != ESP_OK) {
+			xSemaphoreGive(cam_mutex);
+			return e;
+		}
+		preview_on = true;
+		pv_w = w, pv_h = h;
+		for (int i = 0; i < 2; i++) { /* exposure settles */
+			camera_fb_t *f = esp_camera_fb_get();
+			if (f) {
+				esp_camera_fb_return(f);
+			}
+		}
+		if (!pv_timer) {
+			const esp_timer_create_args_t a = { .callback = pv_idle_cb, .name = "preview-idle" };
+			esp_timer_create(&a, &pv_timer);
+		}
+		if (pv_timer) {
+			esp_timer_stop(pv_timer);
+			esp_timer_start_periodic(pv_timer, 5000000);
+		}
+		ESP_LOGI(TAG, "preview %dx%d started", w, h);
+	}
+	pv_last_us = esp_timer_get_time();
+	*fb = esp_camera_fb_get();
+	if (!*fb) {
+		xSemaphoreGive(cam_mutex);
+		return ESP_FAIL;
+	}
+	return ESP_OK; /* the lock is held until preview_release */
+}
+
+void preview_release(camera_fb_t *fb)
+{
+	if (fb) {
+		esp_camera_fb_return(fb);
+	}
+	xSemaphoreGive(cam_mutex);
+}
+
+void preview_stop(void)
+{
+	sched_init_lock();
+	xSemaphoreTake(cam_mutex, portMAX_DELAY);
+	stop_preview_locked();
+	xSemaphoreGive(cam_mutex);
 }
 
 static void scheduled_capture(const char *detection_id, const char *trigger)
@@ -181,7 +279,11 @@ static int schedules(const settings_t *s, sched_t out[MAX_SCHED])
 		memcpy(out, s->sched, sizeof(sched_t) * s->n_sched);
 		return s->n_sched;
 	}
-	sched_t t = { .every_min = shadow_interval_min(), .from_min = 0, .to_min = 24 * 60 - 1 };
+	int every = shadow_interval_min();
+	if (!shadow_claimed() && every < 60) {
+		every = 60; /* CONTRACTS 2a.3: an unclaimed camera uploads at most once an hour */
+	}
+	sched_t t = { .every_min = every, .from_min = 0, .to_min = 24 * 60 - 1 };
 	strcpy(t.id, "interval");
 	out[0] = t;
 	return 1;
@@ -210,7 +312,13 @@ static bool may_sleep(void)
 	if (connected_s >= CONFIG_CAMOS_AWAKE_WINDOW_S) {
 		return true;
 	}
-	return connected_s < 0 && up >= CONNECT_GIVEUP_S;
+	if (connected_s < 0 && up >= CONNECT_GIVEUP_S) {
+		ESP_LOGW(TAG, "no MQTT after %d s awake: giving up until the next wake", CONNECT_GIVEUP_S);
+		led_set(LED_ERROR);
+		vTaskDelay(pdMS_TO_TICKS(2500)); /* one red double blink is visible before the sleep */
+		return true;
+	}
+	return false;
 }
 
 /* `until`: wall-clock second to be awake for. The wake-up is early by `lead` (boot, camera warm-up, and the drift of
@@ -233,6 +341,7 @@ static void deep_sleep_until(time_t until, time_t now, bool with_lead)
 	}
 	net_sleep_prepare(); /* modem off through PWRKEY and its rail, Wi-Fi stopped */
 	cam_sleep_prepare();
+	led_sleep_prepare(battery_mv() >= 0 && battery_mv() < CONFIG_CAMOS_BATT_LOW_MV);
 	esp_sleep_enable_timer_wakeup((uint64_t)sleep_s * 1000000ULL);
 	esp_deep_sleep_start();
 }
@@ -262,8 +371,9 @@ static void sched_task(void *arg)
 				best = t, best_i = i;
 			}
 		}
-		if (wake_hint > now && (!best || wake_hint < best)) {
-			best = wake_hint, best_i = 0; /* FlyBot asked for an earlier wake */
+		if (wake_hint > now && (!best || wake_hint < best || !shadow_claimed())) {
+			/* FlyBot asked for an earlier wake; an unclaimed camera follows nextWakeAt even when it is later */
+			best = wake_hint, best_i = 0;
 		} else if (wake_hint && wake_hint <= now) {
 			wake_hint = 0;
 		}

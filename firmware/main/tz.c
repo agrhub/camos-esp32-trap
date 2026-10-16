@@ -61,3 +61,93 @@ const char *tz_lookup(const char *name)
 	}
 	return NULL;
 }
+
+/* ------------------------------------------------------------------ effective timezone (CONTRACTS 2a.6) */
+
+#include <stdlib.h>
+#include <time.h>
+#include "esp_log.h"
+#include "camos_defaults.h"
+
+static const char *TZTAG = "tz";
+static char auto_iana[48], auto_posix[64], auto_src[16];
+static bool auto_loaded;
+static char eff_iana[48], eff_src[16], eff_posix[64];
+static const char *clk_src = "none";
+
+const char *clock_source(void) { return clk_src; }
+
+void clock_set_source(const char *src)
+{
+	if (!strcmp(clk_src, src)) {
+		return; /* a resync from the same source */
+	}
+	clk_src = src;
+	time_t now = time(NULL);
+	char ts[25];
+	iso8601(now, ts);
+	ESP_LOGI(TZTAG, "clock set from %s: %s", src, ts);
+}
+
+static void load_auto(void)
+{
+	if (auto_loaded) {
+		return;
+	}
+	auto_loaded = true;
+	nvs_tz_read(auto_iana, sizeof(auto_iana), auto_posix, sizeof(auto_posix), auto_src, sizeof(auto_src));
+}
+
+void tz_auto_set(const char *iana, const char *posix, const char *source)
+{
+	load_auto();
+	const char *p = posix && posix[0] ? posix : (iana ? tz_lookup(iana) : NULL);
+	if (!p || strlen(p) >= sizeof(auto_posix)) {
+		ESP_LOGW(TZTAG, "device/time gave no usable timezone (%s / %s)", iana ? iana : "-", posix ? posix : "-");
+		return;
+	}
+	bool changed = strcmp(auto_posix, p) || strcmp(auto_iana, iana ? iana : "");
+	strlcpy(auto_iana, iana ? iana : "", sizeof(auto_iana));
+	strlcpy(auto_posix, p, sizeof(auto_posix));
+	strlcpy(auto_src, source && source[0] ? source : "flybot", sizeof(auto_src));
+	if (changed) {
+		nvs_tz_write(auto_iana, auto_posix, auto_src);
+	}
+	tz_apply();
+}
+
+void tz_apply(void)
+{
+	load_auto();
+	char siana[48] = "", sposix[64] = "";
+	const char *posix = NULL;
+	if (store_overridden("timezone") && (posix = tz_lookup(g_cfg.tz)) != NULL) {
+		strlcpy(eff_iana, g_cfg.tz, sizeof(eff_iana));
+		strlcpy(eff_src, "manual", sizeof(eff_src));
+	} else if (shadow_tz(siana, sizeof(siana), sposix, sizeof(sposix))) {
+		posix = sposix;
+		strlcpy(eff_iana, siana, sizeof(eff_iana));
+		strlcpy(eff_src, "shadow", sizeof(eff_src));
+	} else if (auto_posix[0]) {
+		posix = auto_posix;
+		strlcpy(eff_iana, auto_iana[0] ? auto_iana : auto_posix, sizeof(eff_iana));
+		strlcpy(eff_src, auto_src, sizeof(eff_src));
+	} else {
+		posix = tz_lookup(CAMOS_DEFAULT_TIMEZONE);
+		strlcpy(eff_iana, CAMOS_DEFAULT_TIMEZONE, sizeof(eff_iana));
+		strlcpy(eff_src, "build", sizeof(eff_src));
+	}
+	if (!posix) {
+		posix = "UTC0";
+	}
+	if (strcmp(eff_posix, posix)) {
+		strlcpy(eff_posix, posix, sizeof(eff_posix));
+		setenv("TZ", posix, 1);
+		tzset();
+		ESP_LOGI(TZTAG, "timezone %s (%s) from %s", eff_iana, posix, eff_src);
+		sched_changed();
+	}
+}
+
+const char *tz_effective_iana(void) { return eff_iana[0] ? eff_iana : CAMOS_DEFAULT_TIMEZONE; }
+const char *tz_effective_source(void) { return eff_src[0] ? eff_src : "build"; }

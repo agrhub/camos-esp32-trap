@@ -1,0 +1,93 @@
+name: release
+# On a tag v*: build the public firmware (defaults.example.json, no secrets) for the Freenove ESP32-S3 CAM and the
+# AI-Thinker ESP32-CAM, attach the images to the GitHub Release and publish the browser flasher (ESP Web Tools) with
+# the same images on GitHub Pages (Settings > Pages > Source: GitHub Actions).
+#   install image  merged from 0x0: bootloader + partition table + otadata + app, gaps 0xFF = empty NVS and fctry
+#   update image   the app alone at 0x20000: keeps the camera's identity (serial, verify code, certificate)
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - board: freenove
+            target: esp32s3
+            chip: ESP32-S3
+            defaults: sdkconfig.defaults;sdkconfig.defaults.freenove_esp32s3_cam
+            name: Freenove ESP32-S3 CAM (FNK0085)
+          - board: esp32cam
+            target: esp32
+            chip: ESP32
+            defaults: sdkconfig.defaults;sdkconfig.defaults.esp32cam
+            name: AI-Thinker ESP32-CAM
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.4.2
+          target: ${{ matrix.target }}
+          path: firmware
+          command: >-
+            idf.py -B build-${{ matrix.board }} -DSDKCONFIG=build-${{ matrix.board }}/sdkconfig
+            -DSDKCONFIG_DEFAULTS="${{ matrix.defaults }}" set-target ${{ matrix.target }} build &&
+            cd build-${{ matrix.board }} &&
+            python -m esptool --chip ${{ matrix.target }} merge_bin -o ../camos-${{ matrix.board }}-install.bin @flash_args &&
+            cp camos-esp32.bin ../camos-${{ matrix.board }}-update.bin
+      - name: manifests
+        run: |
+          set -eu
+          VER="${GITHUB_REF_NAME#v}"; [ "$GITHUB_REF_TYPE" = tag ] || VER="0.0.0-dev"
+          cd firmware
+          ls -l camos-${{ matrix.board }}-*.bin
+          sha256sum camos-${{ matrix.board }}-*.bin > camos-${{ matrix.board }}.sha256
+          cat > manifest-${{ matrix.board }}-install.json <<EOF
+          {"name":"CamOS trap camera, ${{ matrix.name }}","version":"$VER","new_install_prompt_erase":false,
+           "builds":[{"chipFamily":"${{ matrix.chip }}","parts":[{"path":"camos-${{ matrix.board }}-install.bin","offset":0}]}]}
+          EOF
+          cat > manifest-${{ matrix.board }}-update.json <<EOF
+          {"name":"CamOS trap camera, ${{ matrix.name }} (update, keeps the camera's identity)","version":"$VER","new_install_prompt_erase":false,
+           "builds":[{"chipFamily":"${{ matrix.chip }}","parts":[{"path":"camos-${{ matrix.board }}-update.bin","offset":131072}]}]}
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fw-${{ matrix.board }}
+          path: |
+            firmware/camos-${{ matrix.board }}-*.bin
+            firmware/camos-${{ matrix.board }}.sha256
+            firmware/manifest-${{ matrix.board }}-*.json
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: release assets
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+      - name: pages site
+        run: |
+          mkdir -p site/firmware
+          cp docs/flash/index.html site/
+          cp dist/* site/firmware/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: pages
+        uses: actions/deploy-pages@v4

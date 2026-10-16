@@ -1,18 +1,22 @@
 /*
- * Setup portal (protocol 12.3 SoftAP): Wi-Fi CAM-xxxx (last 4 characters of the serial), a catch-all DNS answer so
- * phones open the page by themselves, and the page at http://192.168.4.1/ (portal.html, embedded) with a JSON API:
+ * Setup portal (protocol 12.3 SoftAP), same look and flow as the AMB82 camera's setup page: Wi-Fi CAM-xxxx (last 4
+ * characters of the serial, WPA2), a catch-all DNS answer so phones open the page by themselves, and the page at
+ * http://192.168.4.1/ (portal.html, embedded). The radio runs APSTA, so the Wi-Fi scan happens with the SoftAP up.
  *
- *   GET  /api/config              every setting (secrets as set / not set), serial, verify code, label QR text
- *   POST /api/config {key: value} any subset of ssid password apn simPin apiBase provisionToken intervalMin powerMode
- *                                 timezone iotHost thingName kvsChannel kvsRegion roleAlias credHost apPassword
- *   POST /api/cert {cert, key}    device certificate and private key (PEM)
- *   POST /api/pair                joins the configured Wi-Fi (the AP stays up) and calls POST /api/device/pair
+ *   GET  /api/config              every setting with its effective value (secrets as set / not set), the keys that
+ *                                 are build defaults, serial, verify code, label QR text, claim URL, last errors
+ *   POST /api/config {key: value} any subset of the portal keys (docs/PORTAL.md)
+ *   GET  /api/wifi/scan[?refresh=1]  [{ssid, rssi, secure, channel}] deduplicated, strongest first (scanned at start)
+ *   POST /api/connect {ssid, password, ...}  save everything and restart onto that network (AMB82 "Kết nối")
+ *   POST /api/cert {cert, key}    device certificate and private key (PEM) for the owner path
+ *   POST /api/pair                join the Wi-Fi (AP stays up) and POST /api/device/pair with a provisioning token
  *   POST /api/restart
+ *   GET  /api/qr.svg?what=claim|label
  *   GET  /info                    protocol 12.3 {serial, model, fw, wifiScan}
  *   POST /provision               protocol 12.3 {ssid, password, provisionToken?, endpoint?, apn?} -> {ok}, restarts
  *   GET  /                        the page; any other URL redirects there (captive portal)
  *
- * The portal closes after 10 minutes (protocol 12.3) or on /api/restart.
+ * The portal closes after 10 minutes (protocol 12.3) or on connect / restart.
  */
 #include <string.h>
 #include <stdlib.h>
@@ -32,10 +36,17 @@
 static const char *TAG = "portal";
 extern const char portal_html_start[] asm("_binary_portal_html_start");
 extern const char portal_html_end[] asm("_binary_portal_html_end");
-#define MAX_SCAN 20
-static wifi_ap_record_t aps[MAX_SCAN];
-static uint16_t n_aps;
 static volatile bool sta_up;
+static char ap_ssid[16];
+
+const char *portal_ssid(void)
+{
+	if (!ap_ssid[0]) {
+		size_t n = strlen(g_cfg.serial);
+		snprintf(ap_ssid, sizeof(ap_ssid), "CAM-%.4s", g_cfg.serial + (n > 4 ? n - 4 : 0));
+	}
+	return ap_ssid;
+}
 
 static void restart_cb(void *arg)
 {
@@ -96,73 +107,12 @@ static void dns_task(void *arg)
 	}
 }
 
-/* ------------------------------------------------------------------ HTTP helpers */
-
-static void scan_now(void)
-{
-	n_aps = MAX_SCAN;
-	if (esp_wifi_scan_start(NULL, true) != ESP_OK || esp_wifi_scan_get_ap_records(&n_aps, aps) != ESP_OK) {
-		n_aps = 0;
-	}
-}
-
-static esp_err_t send_json(httpd_req_t *req, cJSON *o)
-{
-	char *s = cJSON_PrintUnformatted(o);
-	cJSON_Delete(o);
-	httpd_resp_set_type(req, "application/json");
-	httpd_resp_set_hdr(req, "Cache-Control", "no-store");
-	esp_err_t e = httpd_resp_sendstr(req, s ? s : "{}");
-	free(s);
-	return e;
-}
-
-static esp_err_t send_ok(httpd_req_t *req)
-{
-	cJSON *o = cJSON_CreateObject();
-	cJSON_AddTrueToObject(o, "ok");
-	return send_json(req, o);
-}
-
-static esp_err_t send_error(httpd_req_t *req, const char *status, const char *error)
-{
-	cJSON *o = cJSON_CreateObject();
-	cJSON_AddFalseToObject(o, "ok");
-	cJSON_AddStringToObject(o, "error", error);
-	httpd_resp_set_status(req, status);
-	return send_json(req, o);
-}
-
-/* Reads a JSON body (up to `max` bytes, malloc) */
-static cJSON *read_json(httpd_req_t *req, size_t max)
-{
-	if (req->content_len == 0 || req->content_len > max) {
-		return NULL;
-	}
-	char *buf = malloc(req->content_len + 1);
-	if (!buf) {
-		return NULL;
-	}
-	size_t got = 0;
-	while (got < req->content_len) {
-		int r = httpd_req_recv(req, buf + got, req->content_len - got);
-		if (r <= 0) {
-			free(buf);
-			return NULL;
-		}
-		got += r;
-	}
-	buf[got] = 0;
-	cJSON *j = cJSON_Parse(buf);
-	free(buf);
-	return j;
-}
-
 /* ------------------------------------------------------------------ handlers */
 
 static esp_err_t page_get(httpd_req_t *req)
 {
 	httpd_resp_set_type(req, "text/html; charset=utf-8");
+	httpd_resp_set_hdr(req, "Cache-Control", "no-store");
 	return httpd_resp_send(req, portal_html_start, portal_html_end - portal_html_start - 1);
 }
 
@@ -170,25 +120,45 @@ static esp_err_t config_get(httpd_req_t *req)
 {
 	cJSON *o = cJSON_CreateObject();
 	store_config_json(o, false);
-	return send_json(req, o);
+	cJSON_AddStringToObject(o, "timezoneAuto", tz_effective_iana());
+	cJSON_AddStringToObject(o, "timezoneSource", tz_effective_source());
+	return web_send_json(req, o);
 }
 
-static esp_err_t config_post(httpd_req_t *req)
+/* AMB82 flow: pick a network, type the password, "Kết nối": the camera saves, closes this network and joins.
+ * A wrong password brings the portal back in about a minute with the error (wifi.c). */
+static esp_err_t connect_post(httpd_req_t *req)
 {
-	cJSON *j = read_json(req, 2048);
+	cJSON *j = web_read_json(req, 4096);
 	if (!cJSON_IsObject(j)) {
 		cJSON_Delete(j);
-		return send_error(req, "400 Bad Request", "JSON object expected");
+		return web_send_error(req, "400 Bad Request", "BAD_PARAMS", NULL);
 	}
-	const cJSON *item;
+	const char *ssid = cJSON_GetStringValue(cJSON_GetObjectItem(j, "ssid"));
+	const char *pass = cJSON_GetStringValue(cJSON_GetObjectItem(j, "password"));
+	bool cell = g_cfg.cellular && CAMOS_MODEM;
+	if ((!ssid || !ssid[0]) && !g_cfg.wifi_ssid[0] && !cell) {
+		cJSON_Delete(j);
+		return web_send_error(req, "400 Bad Request", "CHOOSE_NETWORK", NULL);
+	}
+	if (ssid && ssid[0] && pass && pass[0] && strlen(pass) < 8) {
+		cJSON_Delete(j);
+		return web_send_error(req, "400 Bad Request", "SHORT_PASSWORD", NULL);
+	}
 	char bad[160] = "";
+	const cJSON *item;
 	cJSON_ArrayForEach(item, j)
 	{
 		char value[256];
 		if (cJSON_IsString(item)) {
+			if (!strcmp(item->string, "password") && !item->valuestring[0] && !(ssid && strcmp(ssid, g_cfg.wifi_ssid))) {
+				continue; /* empty = keep the stored password of the same network */
+			}
 			strlcpy(value, item->valuestring, sizeof(value));
 		} else if (cJSON_IsNumber(item)) {
 			snprintf(value, sizeof(value), "%d", (int)item->valuedouble);
+		} else if (cJSON_IsBool(item)) {
+			strlcpy(value, cJSON_IsTrue(item) ? "1" : "0", sizeof(value));
 		} else {
 			continue;
 		}
@@ -199,26 +169,13 @@ static esp_err_t config_post(httpd_req_t *req)
 	}
 	cJSON_Delete(j);
 	if (bad[0]) {
-		char e[200];
-		snprintf(e, sizeof(e), "rejected: %s", bad);
-		return send_error(req, "400 Bad Request", e);
+		return web_send_error(req, "400 Bad Request", "BAD_VALUE", bad);
 	}
-	ESP_LOGI(TAG, "configuration saved");
-	return send_ok(req);
-}
-
-static esp_err_t cert_post(httpd_req_t *req)
-{
-	cJSON *j = read_json(req, 12000);
-	const char *cert = cJSON_GetStringValue(cJSON_GetObjectItem(j, "cert"));
-	const char *key = cJSON_GetStringValue(cJSON_GetObjectItem(j, "key"));
-	bool ok = store_set_pem(cert, key);
-	cJSON_Delete(j);
-	if (!ok) {
-		return send_error(req, "400 Bad Request", "cert must be a CERTIFICATE PEM and key a PRIVATE KEY PEM (each < 6000 bytes)");
-	}
-	ESP_LOGI(TAG, "certificate and key stored");
-	return send_ok(req);
+	ESP_LOGI(TAG, "connect: Wi-Fi \"%s\"%s, restarting", g_cfg.wifi_ssid, cell ? " (4G first when a SIM answers)" : "");
+	store_set_flag("portal", 0);
+	led_set(LED_CONNECTING);
+	schedule_restart(1500);
+	return web_send_ok(req);
 }
 
 static void sta_event(void *arg, esp_event_base_t base, int32_t id, void *data)
@@ -230,21 +187,21 @@ static void sta_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 	}
 }
 
-/* Joins the configured Wi-Fi in APSTA mode (the portal stays reachable) and pairs. The STA channel follows the
- * router, so the AP moves channel too: phones usually follow; the page polls the result. */
+/* Owner path: join the configured Wi-Fi in APSTA mode (the portal stays reachable) and pair with a provisioning
+ * token. The STA channel follows the router, so the AP moves channel too: phones usually follow. */
 static esp_err_t pair_post(httpd_req_t *req)
 {
-	cJSON *j = read_json(req, 512);
+	cJSON *j = web_read_json(req, 512);
 	const char *tok = cJSON_GetStringValue(cJSON_GetObjectItem(j, "provisionToken"));
 	if (tok && tok[0]) {
 		store_apply_kv("provisionToken", tok);
 	}
 	cJSON_Delete(j);
 	if (!g_cfg.wifi_ssid[0]) {
-		return send_error(req, "400 Bad Request", "no Wi-Fi configured (over 4G the camera pairs at the next boot)");
+		return web_send_error(req, "400 Bad Request", "CHOOSE_NETWORK", "no Wi-Fi configured (over 4G the camera pairs at the next boot)");
 	}
 	if (!g_cfg.api_base[0] || !g_cfg.prov_token[0]) {
-		return send_error(req, "400 Bad Request", "FlyBot URL and provisioning token are needed");
+		return web_send_error(req, "400 Bad Request", "BAD_PARAMS", "FlyBot URL and provisioning token are needed");
 	}
 	static bool sta_configured;
 	if (!sta_configured) {
@@ -264,32 +221,32 @@ static esp_err_t pair_post(httpd_req_t *req)
 		vTaskDelay(pdMS_TO_TICKS(1000));
 	}
 	if (!sta_up) {
-		return send_error(req, "502 Bad Gateway", "could not join the Wi-Fi (name / password?)");
+		return web_send_error(req, "502 Bad Gateway", "JOIN_FAILED", g_cfg.wifi_ssid);
 	}
-	/* a valid clock for the TLS certificate dates */
 	time_sync_start();
 	for (int i = 0; i < 20 && !clock_synced(); i++) {
 		vTaskDelay(pdMS_TO_TICKS(1000));
 	}
-	if (!clock_synced() && flybot_time() != ESP_OK) {
-		return send_error(req, "502 Bad Gateway", "no time source (NTP and FlyBot unreachable)");
+	if (!clock_synced() && flybot_time(true) != ESP_OK) {
+		return web_send_error(req, "502 Bad Gateway", "NO_TIME", "NTP and FlyBot unreachable");
 	}
 	char err[96];
 	if (flybot_pair(err, sizeof(err)) != ESP_OK) {
-		return send_error(req, "502 Bad Gateway", err);
+		return web_send_error(req, "502 Bad Gateway", "PAIR_FAILED", err);
 	}
 	cJSON *o = cJSON_CreateObject();
 	cJSON_AddTrueToObject(o, "ok");
 	cJSON_AddStringToObject(o, "thingName", g_cfg.thing_name);
 	cJSON_AddStringToObject(o, "iotHost", g_cfg.mqtt_host);
 	cJSON_AddStringToObject(o, "kvsChannel", g_cfg.kvs_channel);
-	return send_json(req, o);
+	return web_send_json(req, o);
 }
 
 static esp_err_t restart_post(httpd_req_t *req)
 {
+	store_set_flag("portal", 0);
 	schedule_restart(1000);
-	return send_ok(req);
+	return web_send_ok(req);
 }
 
 /* GET /info (protocol 12.3) */
@@ -299,21 +256,26 @@ static esp_err_t info_get(httpd_req_t *req)
 	cJSON_AddStringToObject(o, "serial", g_cfg.serial);
 	cJSON_AddStringToObject(o, "model", CONFIG_CAMOS_MODEL);
 	cJSON_AddStringToObject(o, "fw", fw_version());
+	wifi_net_t nets[WIFI_SCAN_MAX];
+	int n = wifi_scan(nets, WIFI_SCAN_MAX);
+	if (n >= 0) {
+		web_scan_cache_set(nets, n);
+	}
 	cJSON *arr = cJSON_AddArrayToObject(o, "wifiScan");
-	for (int i = 0; i < n_aps; i++) {
+	for (int i = 0; i < n; i++) {
 		cJSON *a = cJSON_CreateObject();
-		cJSON_AddStringToObject(a, "ssid", (const char *)aps[i].ssid);
-		cJSON_AddNumberToObject(a, "rssi", aps[i].rssi);
-		cJSON_AddBoolToObject(a, "secure", aps[i].authmode != WIFI_AUTH_OPEN);
+		cJSON_AddStringToObject(a, "ssid", nets[i].ssid);
+		cJSON_AddNumberToObject(a, "rssi", nets[i].rssi);
+		cJSON_AddBoolToObject(a, "secure", nets[i].secure);
 		cJSON_AddItemToArray(arr, a);
 	}
-	return send_json(req, o);
+	return web_send_json(req, o);
 }
 
 /* POST /provision {ssid, password, provisionToken?, endpoint?, apn?} (protocol 12.3) */
 static esp_err_t provision_post(httpd_req_t *req)
 {
-	cJSON *j = read_json(req, 1024);
+	cJSON *j = web_read_json(req, 1024);
 	const char *ssid = cJSON_GetStringValue(cJSON_GetObjectItem(j, "ssid"));
 	const char *pass = cJSON_GetStringValue(cJSON_GetObjectItem(j, "password"));
 	const char *tok = cJSON_GetStringValue(cJSON_GetObjectItem(j, "provisionToken"));
@@ -336,10 +298,11 @@ static esp_err_t provision_post(httpd_req_t *req)
 	}
 	cJSON_Delete(j);
 	if (!ok) {
-		return send_error(req, "400 Bad Request", "ssid/password/apn");
+		return web_send_error(req, "400 Bad Request", "BAD_PARAMS", "ssid/password/apn");
 	}
+	store_set_flag("portal", 0);
 	schedule_restart(1500);
-	return send_ok(req);
+	return web_send_ok(req);
 }
 
 /* Captive portal: any other URL goes to the page */
@@ -352,18 +315,20 @@ static esp_err_t redirect(httpd_req_t *req, httpd_err_code_t err)
 
 void portal_run(void)
 {
-	char ssid[16];
-	size_t n = strlen(g_cfg.serial);
-	snprintf(ssid, sizeof(ssid), "CAM-%.4s", g_cfg.serial + (n > 4 ? n - 4 : 0));
+	const char *ssid = portal_ssid();
 	ESP_LOGW(TAG, "setup portal: Wi-Fi %s, open http://192.168.4.1/  (serial %s, verify code %s)", ssid, g_cfg.serial,
 			 g_cfg.verify_code);
+	if (g_wifi_error[0]) {
+		ESP_LOGW(TAG, "last attempt: could not join \"%s\"", g_wifi_error);
+	}
+	led_set(LED_PORTAL);
 	store_set_flag("portal", 0);
 
 	esp_netif_create_default_wifi_ap();
 	esp_netif_create_default_wifi_sta();
 	wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
 	ESP_ERROR_CHECK(esp_wifi_init(&init));
-	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
+	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA)); /* AP for the phone + STA for scans and pairing */
 	const char *pass = g_cfg.ap_pass[0] ? g_cfg.ap_pass : CONFIG_CAMOS_AP_PASSWORD;
 	wifi_config_t ap = { 0 };
 	strlcpy((char *)ap.ap.ssid, ssid, sizeof(ap.ap.ssid));
@@ -379,22 +344,26 @@ void portal_run(void)
 	}
 	ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap));
 	ESP_ERROR_CHECK(esp_wifi_start());
-	scan_now();
+	wifi_net_t nets[WIFI_SCAN_MAX];
+	web_scan_cache_set(nets, wifi_scan(nets, WIFI_SCAN_MAX)); /* the list is ready when the phone opens the page */
 
 	httpd_handle_t srv;
 	httpd_config_t hc = HTTPD_DEFAULT_CONFIG();
-	hc.max_uri_handlers = 12;
+	hc.max_uri_handlers = 16;
 	hc.lru_purge_enable = true;
 	hc.stack_size = 10240; /* pairing (TLS) runs inside the handler */
 	hc.recv_wait_timeout = 30;
 	ESP_ERROR_CHECK(httpd_start(&srv, &hc));
-	httpd_uri_t uris[] = {
+	const httpd_uri_t uris[] = {
 		{ .uri = "/", .method = HTTP_GET, .handler = page_get },
 		{ .uri = "/api/config", .method = HTTP_GET, .handler = config_get },
-		{ .uri = "/api/config", .method = HTTP_POST, .handler = config_post },
-		{ .uri = "/api/cert", .method = HTTP_POST, .handler = cert_post },
+		{ .uri = "/api/config", .method = HTTP_POST, .handler = web_config_post },
+		{ .uri = "/api/wifi/scan", .method = HTTP_GET, .handler = web_scan_get },
+		{ .uri = "/api/connect", .method = HTTP_POST, .handler = connect_post },
+		{ .uri = "/api/cert", .method = HTTP_POST, .handler = web_cert_post },
 		{ .uri = "/api/pair", .method = HTTP_POST, .handler = pair_post },
 		{ .uri = "/api/restart", .method = HTTP_POST, .handler = restart_post },
+		{ .uri = "/api/qr.svg", .method = HTTP_GET, .handler = web_qr_get },
 		{ .uri = "/info", .method = HTTP_GET, .handler = info_get },
 		{ .uri = "/provision", .method = HTTP_POST, .handler = provision_post },
 	};

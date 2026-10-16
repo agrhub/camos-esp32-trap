@@ -38,18 +38,21 @@ static void power_setup(void)
 #endif
 }
 
-/* A provisioning token without a device token: pair as soon as the network is up (works over 4G, where the
- * portal cannot do it). The MQTT agent starts afterwards with the endpoint pairing returned. */
+/* Owner path (CONTRACTS 2 / 2a.7): a provisioning token from FlyBot "add camera" pairs the camera to that account */
 static void pair_task(void *arg)
 {
 	sched_keep_awake(180);
 	net_ensure();
 	if (net_wait_up(150)) {
 		char err[96];
+		bool had_mqtt = g_cfg.mqtt_host[0] && g_cfg.cert;
 		if (flybot_pair(err, sizeof(err)) == ESP_OK) {
-			ESP_LOGI(TAG, "paired, restarting to connect to IoT Core");
-			vTaskDelay(pdMS_TO_TICKS(500));
-			esp_restart();
+			if (!had_mqtt) {
+				ESP_LOGI(TAG, "paired, restarting to connect to IoT Core");
+				vTaskDelay(pdMS_TO_TICKS(500));
+				esp_restart();
+			}
+			ESP_LOGI(TAG, "paired with the provisioning token");
 		} else {
 			ESP_LOGE(TAG, "pairing failed: %s (fix it in the portal: hold the button 3 s)", err);
 		}
@@ -69,7 +72,9 @@ void app_main(void)
 	ESP_ERROR_CHECK(esp_netif_init());
 	ESP_ERROR_CHECK(esp_event_loop_create_default());
 
+	log_capture_start(); /* the web console's log page */
 	store_load();
+	led_init();
 	ESP_LOGI(TAG, "camos-esp32-trap %s fw %s serial %s", CONFIG_CAMOS_MODEL, fw_version(), g_cfg.serial);
 
 	uint32_t flash_size = 0;
@@ -77,6 +82,7 @@ void app_main(void)
 	ESP_LOGI(TAG, "flash %u MB, PSRAM %u KB%s", (unsigned)(flash_size >> 20), (unsigned)(esp_psram_get_size() >> 10),
 			 esp_psram_is_initialized() ? "" : " (NOT initialized: wrong PSRAM mode in sdkconfig? N16R8 / N8R8 are octal)");
 
+	/* a default / saved Wi-Fi or 4G (on by default, APN auto) is enough to start: the portal opens when neither works */
 	bool configured = g_cfg.wifi_ssid[0] || modem_available();
 	if (!configured || store_get_flag("portal") || button_held(3000)) {
 		portal_run(); /* does not return: restarts after /api/restart or after 10 minutes */
@@ -91,9 +97,12 @@ void app_main(void)
 	proto_start();
 
 	bool timer_wake = esp_reset_reason() == ESP_RST_DEEPSLEEP && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER;
-	if (!store_paired() && g_cfg.prov_token[0] && g_cfg.api_base[0]) {
+	if (!g_cfg.cert || !g_cfg.key) {
+		register_start(); /* CONTRACTS 2a: zero-touch, brings the network up itself */
+	} else if (g_cfg.prov_token[0] && !g_cfg.token[0] && g_cfg.api_base[0]) {
 		xTaskCreate(pair_task, "pair", 8192, NULL, 4, NULL);
-	} else if (!power_may_deep_sleep() || !timer_wake || !clock_synced()) {
+	}
+	if (!power_may_deep_sleep() || !timer_wake || !clock_synced()) {
 		/* Powered mode, a power-on / reset, or a lost clock: network now (state, shadow, time first).
 		 * Battery mode after a timer wake-up: the network can wait for the JPEG (capture_now starts it). */
 		net_start();

@@ -15,6 +15,10 @@ import serial
 
 
 def main():
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # QR block characters on a cp1252 console
+    except Exception:
+        pass
     ap = argparse.ArgumentParser()
     ap.add_argument('port')
     ap.add_argument('--baud', type=int, default=115200)
@@ -62,6 +66,8 @@ def main():
 
         if a.cmd:
             pump(time.time() + 1.0)
+            s.write(b'\n')  # wakes the chip from light sleep (that first byte may be lost)
+            pump(time.time() + 0.5)
             for c in a.cmd:
                 emit('>>> ' + c)
                 s.write((c + '\r\n').encode())

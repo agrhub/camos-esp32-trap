@@ -112,6 +112,10 @@ static int read_divider_mv(int gpio, int r_top_k, int r_bottom_k)
 
 bool battery_sample(void)
 {
+	if (!g_cfg.batt_mon) {
+		last_mv = last_solar = last_charging = -1; /* no divider fitted: report nothing rather than noise */
+		return false;
+	}
 	int mv = read_divider_mv(CONFIG_CAMOS_BATT_ADC_GPIO, CONFIG_CAMOS_BATT_R_TOP_K, CONFIG_CAMOS_BATT_R_BOTTOM_K);
 	if (mv >= 0) {
 		last_mv = mv;

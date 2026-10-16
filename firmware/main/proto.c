@@ -434,6 +434,7 @@ static void on_message(const char *topic, const char *data, int len)
 
 static void on_connected(void)
 {
+	led_set(LED_ONLINE);
 	connected = true;
 	down_since_ms = 0;
 	connected_at_ms = esp_timer_get_time() / 1000;
@@ -473,6 +474,9 @@ static void mqtt_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 		on_connected();
 		break;
 	case MQTT_EVENT_DISCONNECTED:
+		if (led_get() == LED_ONLINE) {
+			led_set(LED_CONNECTING);
+		}
 		if (connected) {
 			ESP_LOGW(TAG, "disconnected");
 			down_since_ms = esp_timer_get_time() / 1000;

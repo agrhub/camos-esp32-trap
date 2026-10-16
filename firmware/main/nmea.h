@@ -24,3 +24,6 @@ int nmea_parse_line(const char *line, nmea_fix_t *fix);
 /* "ddmm.mmmm" + hemisphere -> decimal degrees; returns false when malformed */
 bool nmea_coord(const char *field, char hemi, double *out);
 int64_t nmea_epoch(int year, int mon, int day, int hour, int min, int sec); /* UTC */
+/* SIMCom AT+CCLK? answer `+CCLK: "26/10/16,15:00:00+28"` (local time, zone in quarter hours, NITZ) -> UTC epoch;
+ * 0 when malformed or before 2025 (a modem without network time says 1980/2004 ...) */
+int64_t cclk_to_epoch(const char *answer);

@@ -1,0 +1,16 @@
+{
+  "_comment": "Build-time defaults of the public firmware (CONTRACTS 2a). No secrets here: certificates, keys and tokens are per device. Copy to defaults.local.json (git-ignored) to add your bench Wi-Fi. NVS values set in the portal or console override these; factory reset returns to them.",
+  "apiBase": "https://flybot.agrhub.com",
+  "iotHost": "a38gyfo6dhqxf4-ats.iot.ap-southeast-2.amazonaws.com",
+  "kvsRegion": "ap-southeast-2",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "intervalMin": 60,
+  "powerMode": "auto",
+  "cellular": true,
+  "apn": "",
+  "gps": true,
+  "ledEnabled": true,
+  "batteryMonitor": false,
+  "ssid": "",
+  "password": ""
+}

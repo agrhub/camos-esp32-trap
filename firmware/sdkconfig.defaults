@@ -37,3 +37,6 @@ CONFIG_LWIP_SNTP_MAX_SERVERS=2
 
 # Serial console (esp_console REPL on UART0)
 CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+
+# The default event loop task runs the Wi-Fi / IP handlers (LED, time sync start): 2304 bytes overflowed
+CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=4096

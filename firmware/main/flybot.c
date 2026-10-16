@@ -52,7 +52,7 @@ static esp_http_client_handle_t open_client(const char *path, esp_http_client_me
 }
 
 /* Sends an optional JSON body, reads the response; returns the HTTP status or -1 */
-static int request(const char *path, esp_http_client_method_t method, const char *body, char *resp, size_t respn,
+int flybot_request(const char *path, esp_http_client_method_t method, const char *body, char *resp, size_t respn,
 				   int timeout_ms)
 {
 	if (!g_cfg.api_base[0]) {
@@ -252,7 +252,7 @@ esp_err_t flybot_pair(char *err, size_t errn)
 	char *body = cJSON_PrintUnformatted(b);
 	cJSON_Delete(b);
 	char resp[RESP_MAX];
-	int status = request("/api/device/pair", HTTP_METHOD_POST, body, resp, sizeof(resp), 20000);
+	int status = flybot_request("/api/device/pair", HTTP_METHOD_POST, body, resp, sizeof(resp), 20000);
 	free(body);
 	if (status < 0) {
 		strlcpy(err, "no connection to FlyBot", errn);
@@ -301,23 +301,39 @@ esp_err_t flybot_pair(char *err, size_t errn)
 		return ESP_FAIL;
 	}
 	store_apply_kv("provisionToken", ""); /* used once */
+	store_apply_kv("claimed", "1"); /* the owner path: paired to the account that issued the token */
 	ESP_LOGI(TAG, "paired: thing %s, iot %s, kvs %s", g_cfg.thing_name, g_cfg.mqtt_host, g_cfg.kvs_channel);
 	return ESP_OK;
 }
 
 /* ------------------------------------------------------------------ time */
 
-esp_err_t flybot_time(void)
+/* GET /api/device/time (CONTRACTS 2 and 2a.6, no auth, works before registration): the clock when set_clock (the last
+ * source of the chain), and always the timezone (IANA + POSIX + source) and the public IP FlyBot saw. */
+esp_err_t flybot_time(bool set_clock)
 {
-	char resp[256];
-	int status = request("/api/device/time", HTTP_METHOD_GET, NULL, resp, sizeof(resp), 10000);
+	char resp[512];
+	int status = flybot_request("/api/device/time", HTTP_METHOD_GET, NULL, resp, sizeof(resp), 10000);
 	if (status != 200) {
 		return ESP_FAIL;
 	}
 	cJSON *j = cJSON_Parse(resp);
 	cJSON *epoch = cJSON_GetObjectItem(j, "epoch");
 	time_t t = cJSON_IsNumber(epoch) ? (time_t)epoch->valuedouble : parse_iso8601(cJSON_GetStringValue(cJSON_GetObjectItem(j, "now")));
+	const char *iana = cJSON_GetStringValue(cJSON_GetObjectItem(j, "timezone"));
+	const char *posix = cJSON_GetStringValue(cJSON_GetObjectItem(j, "posix"));
+	const char *src = cJSON_GetStringValue(cJSON_GetObjectItem(j, "tzSource"));
+	const char *pub = cJSON_GetStringValue(cJSON_GetObjectItem(j, "publicIp"));
+	if (pub) {
+		strlcpy(g_public_ip, pub, sizeof(g_public_ip));
+	}
+	if (iana || posix) {
+		tz_auto_set(iana, posix, src);
+	}
 	cJSON_Delete(j);
+	if (!set_clock) {
+		return ESP_OK;
+	}
 	if (t < 1735689600) {
 		return ESP_FAIL;
 	}
@@ -331,7 +347,7 @@ esp_err_t flybot_time(void)
 bool flybot_ota_check(char *fw, size_t fwn, char *url, size_t urln, char *sha256, size_t shan)
 {
 	char resp[RESP_MAX];
-	int status = request("/api/device/ota", HTTP_METHOD_GET, NULL, resp, sizeof(resp), 10000);
+	int status = flybot_request("/api/device/ota", HTTP_METHOD_GET, NULL, resp, sizeof(resp), 10000);
 	if (status != 200) {
 		return false; /* 204: nothing to apply */
 	}

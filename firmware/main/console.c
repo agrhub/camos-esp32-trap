@@ -33,6 +33,9 @@
 #include "esp_sleep.h"
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
+#include "esp_pm.h"
+#include "esp_sleep.h"
+#include "driver/uart.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "camos.h"
@@ -54,6 +57,8 @@ static int cmd_info(int argc, char **argv)
 	printf("clock %s  uptime %lld s  free heap %u (min %u)  free PSRAM %u\n", ts, (long long)(esp_timer_get_time() / 1000000),
 		   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL), (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
 		   (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+	printf("timezone %s (from %s), clock from %s, public IP %s, claimed %s\n", tz_effective_iana(), tz_effective_source(),
+		   clock_source(), g_public_ip[0] ? g_public_ip : "?", shadow_claimed() ? "yes" : "no");
 	printf("battery %d mV %d %%  solar %d mV  charging %s  power.mode %s -> effective %s\n", battery_mv(), battery_pct(),
 		   solar_mv(), battery_charging() ? "yes" : "no", power_mode_name(shadow_power_mode()), power_mode_name(power_effective()));
 	time_t next = sched_next_capture();
@@ -190,7 +195,7 @@ static int cmd_time(int argc, char **argv)
 	}
 	printf("clock %s\n", ts);
 	if (argc > 1 && !strcmp(argv[1], "flybot")) {
-		printf("GET /api/device/time: %s\n", flybot_time() == ESP_OK ? "ok" : "failed");
+		printf("GET /api/device/time: %s\n", flybot_time(true) == ESP_OK ? "ok" : "failed");
 	}
 	return 0;
 }
@@ -392,10 +397,154 @@ static int cmd_factory(int argc, char **argv)
 	return 0;
 }
 
+/* led [portal|connecting|online|error|ota|off|capture|uploaderr|lowbatt|on|disable]: show a state to check the colours */
+static int cmd_led(int argc, char **argv)
+{
+	if (argc < 2) {
+		printf("led %s, state %s\n", led_enabled() ? "enabled" : "disabled", led_state_name(led_get()));
+		return 0;
+	}
+	const char *a = argv[1];
+	static const struct { const char *name; int state; } states[] = {
+		{ "off", LED_OFF }, { "portal", LED_PORTAL }, { "connecting", LED_CONNECTING }, { "online", LED_ONLINE },
+		{ "error", LED_ERROR }, { "ota", LED_OTA },
+	};
+	for (size_t i = 0; i < sizeof(states) / sizeof(states[0]); i++) {
+		if (!strcmp(a, states[i].name)) {
+			led_set((led_state_t)states[i].state);
+			return 0;
+		}
+	}
+	if (!strcmp(a, "capture")) {
+		led_flash(LED_FLASH_CAPTURE);
+	} else if (!strcmp(a, "uploaderr")) {
+		led_flash(LED_FLASH_ERROR);
+	} else if (!strcmp(a, "lowbatt")) {
+		led_flash(LED_FLASH_LOWBATT);
+	} else if (!strcmp(a, "on")) {
+		store_apply_kv("ledEnabled", "1");
+	} else if (!strcmp(a, "disable")) {
+		store_apply_kv("ledEnabled", "0");
+	} else {
+		printf("usage: led [portal|connecting|online|error|ota|off|capture|uploaderr|lowbatt|on|disable]\n");
+		return 1;
+	}
+	return 0;
+}
+
+static int cmd_scan(int argc, char **argv)
+{
+	wifi_net_t nets[WIFI_SCAN_MAX];
+	int n = wifi_scan(nets, WIFI_SCAN_MAX);
+	if (n < 0) {
+		printf("Wi-Fi not running (4G mode?)\n");
+		return 1;
+	}
+	web_scan_cache_set(nets, n);
+	for (int i = 0; i < n; i++) {
+		printf("%2d  %-32s %4d dBm  ch %2d  %s\n", i + 1, nets[i].ssid, nets[i].rssi, nets[i].channel, nets[i].secure ? "secure" : "open");
+	}
+	printf("%d networks\n", n);
+	return 0;
+}
+
+static int cmd_qr(int argc, char **argv)
+{
+	char text[200];
+	if (argc > 1 && !strcmp(argv[1], "label")) {
+		snprintf(text, sizeof(text), "CAMOS:1;SN:%s;VC:%s;M:%s;;", g_cfg.serial, g_cfg.verify_code, CONFIG_CAMOS_MODEL);
+	} else {
+		store_claim_url(text, sizeof(text));
+	}
+	printf("%s\n", text);
+	qr_print(text);
+	char *svg = qr_svg(text);
+	printf("svg %u bytes\n", svg ? (unsigned)strlen(svg) : 0);
+	free(svg);
+	return 0;
+}
+
+/* csr: the CSR registration would send (makes the device key once if there is none), for openssl req -verify */
+static int cmd_csr(int argc, char **argv)
+{
+	char *pem = register_csr_pem();
+	if (!pem) {
+		printf("CSR failed\n");
+		return 1;
+	}
+	printf("%s", pem);
+	free(pem);
+	return 0;
+}
+
+static int cmd_reg(int argc, char **argv)
+{
+	printf("certificate %s, key %s, token %s, claimed %s, registration %s%s%s\n", g_cfg.cert ? "yes" : "no", g_cfg.key ? "yes" : "no",
+		   g_cfg.token[0] ? "yes" : "no", shadow_claimed() ? "yes" : "no", register_pending() ? "pending" : "idle",
+		   g_reg_error[0] ? ", last error: " : "", g_reg_error);
+	char url[200];
+	store_claim_url(url, sizeof(url));
+	printf("claim at %s (serial %s, verify code %s)\n", url, g_cfg.serial, g_cfg.verify_code);
+	if (argc > 1 && !strcmp(argv[1], "start")) {
+		register_start();
+	}
+	return 0;
+}
+
 static int cmd_restart(int argc, char **argv)
 {
 	esp_restart();
 	return 0;
+}
+
+/* Automatic light sleep (main.c power_setup) stops UART0 between Wi-Fi beacons, and characters typed then are lost.
+ * UART0 wakes the chip (the first character of a burst may be lost), and the chip stays out of light sleep for
+ * CONSOLE_AWAKE_S after boot and after every command, so an interactive session is reliable. */
+#define CONSOLE_AWAKE_S 300
+static esp_pm_lock_handle_t pm_lock;
+static esp_timer_handle_t pm_timer;
+static bool pm_held;
+
+static void pm_release(void *arg)
+{
+	if (pm_held) {
+		esp_pm_lock_release(pm_lock);
+		pm_held = false;
+	}
+}
+
+static void console_touch(void)
+{
+	if (!pm_lock) {
+		return;
+	}
+	if (!pm_held) {
+		esp_pm_lock_acquire(pm_lock);
+		pm_held = true;
+	}
+	esp_timer_stop(pm_timer);
+	esp_timer_start_once(pm_timer, (uint64_t)CONSOLE_AWAKE_S * 1000000ULL);
+}
+
+static int dispatch(void *ctx, int argc, char **argv)
+{
+	console_touch();
+	return ((esp_console_cmd_func_t)ctx)(argc, argv);
+}
+
+static void console_pm_setup(void)
+{
+#if CONFIG_PM_ENABLE
+	if (esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "console", &pm_lock) != ESP_OK) {
+		pm_lock = NULL;
+		return;
+	}
+	const esp_timer_create_args_t a = { .callback = pm_release, .name = "console-pm" };
+	esp_timer_create(&a, &pm_timer);
+	uart_set_wakeup_threshold(UART_NUM_0, 3);
+	esp_sleep_enable_uart_wakeup(UART_NUM_0);
+	console_touch(); /* the first minutes after boot are the bench session */
+#endif
 }
 
 void console_start(void)
@@ -432,11 +581,21 @@ void console_start(void)
 		{ .command = "sleep", .help = "sleep [s]: deep sleep now", .func = cmd_sleep },
 		{ .command = "portal", .help = "restart into the setup portal", .func = cmd_portal },
 		{ .command = "factory", .help = "erase the configuration (keeps serial and verify code)", .func = cmd_factory },
+		{ .command = "led", .help = "led [state|capture|uploaderr|lowbatt|on|disable]: show an LED state", .func = cmd_led },
+		{ .command = "scan", .help = "Wi-Fi scan (APSTA in the portal: the SoftAP stays up)", .func = cmd_scan },
+		{ .command = "qr", .help = "qr [label]: the claim URL (or label) QR on the console", .func = cmd_qr },
+		{ .command = "csr", .help = "print the registration CSR (makes the device key once)", .func = cmd_csr },
+		{ .command = "reg", .help = "reg [start]: registration / claim state", .func = cmd_reg },
 		{ .command = "restart", .help = "restart", .func = cmd_restart },
 	};
 	for (size_t i = 0; i < sizeof(cmds) / sizeof(cmds[0]); i++) {
-		esp_console_cmd_register(&cmds[i]);
+		esp_console_cmd_t c = cmds[i];
+		c.func_w_context = dispatch; /* every command keeps the chip awake for a while (light sleep loses input) */
+		c.context = (void *)cmds[i].func;
+		c.func = NULL;
+		esp_console_cmd_register(&c);
 	}
+	console_pm_setup();
 	esp_console_start_repl(repl);
 }
 

@@ -85,7 +85,12 @@ esp_err_t ota_apply(const char *url, const char *sha256_hex, char *err, size_t e
 	}
 	ESP_LOGI(TAG, "downloading %lld bytes into %s", (long long)total, part->label);
 	esp_ota_handle_t oh;
+	led_state_t led_before = led_get();
+	led_set(LED_OTA);
 	e = esp_ota_begin(part, total > 0 ? (size_t)total : OTA_SIZE_UNKNOWN, &oh);
+	if (e != ESP_OK) {
+		led_set(led_before);
+	}
 	if (e != ESP_OK) {
 		snprintf(err, errn, "ota begin: %s", esp_err_to_name(e));
 		esp_http_client_cleanup(h);
@@ -131,6 +136,8 @@ esp_err_t ota_apply(const char *url, const char *sha256_hex, char *err, size_t e
 	}
 	if (!ok) {
 		esp_ota_abort(oh);
+		led_set(led_before);
+		led_flash(LED_FLASH_ERROR);
 		return ESP_FAIL;
 	}
 	e = esp_ota_end(oh); /* validates the image header and signature chain of the slot */

@@ -3,3 +3,7 @@ dependencies:
   espressif/esp32-camera: "^2.0.0"
   # 4G: SIMCom A7680C over PPP (A76xx AT set, SIM7600 DCE profile). Built into both targets; used when CAMOS_MODEM is on.
   espressif/esp_modem: "^1.4.0"
+  # Status LED: WS2812 on the Freenove board (GPIO48), RMT backend
+  espressif/led_strip: "^3.0.0"
+  # Claim QR as SVG on the portal and console pages (Nayuki qrcodegen)
+  espressif/qrcode: "^0.2.0"

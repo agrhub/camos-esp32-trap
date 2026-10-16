@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CamOS AI Camera</title>
+<style>
+:root{--brand:#18b693;--brand-d:#119a7b;--head:#1c2531;--head2:#252f3d;--side:#f4f6f8;--line:#dfe3e8;--fg:#1f2833;--muted:#6b7684;--bg:#e9ecef;--panel:#fff;--ok:#1a8d3f;--warn:#c27400;--bad:#d1242f}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;font:13px/1.5 "Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--fg)}
+button,input,select{font:inherit;color:inherit}.hidden{display:none!important}a{color:var(--brand-d)}
+.logo-mark{border-radius:6px;display:block}
+.gate{min-height:100%;display:flex;align-items:center;justify-content:center;padding:16px;background:linear-gradient(135deg,#1c2531 0%,#22313f 55%,#185e50 100%)}
+.gate .box{width:100%;max-width:380px;background:#fff;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.35);overflow:hidden}
+.gate .top{display:flex;align-items:center;gap:12px;padding:22px 26px;border-bottom:1px solid var(--line)}
+.gate .top b{display:block;font-size:17px}.gate .top span{color:var(--muted);font-size:12px}
+.gate form{padding:22px 26px 26px}.gate p{color:var(--muted);margin:0 0 14px}
+.gate label{display:block;color:var(--muted);font-size:12px;margin-bottom:3px}
+.gate input,.gate select{width:100%;height:36px;padding:0 10px;border:1px solid #cdd3da;border-radius:3px;margin-bottom:14px;background:#fff}
+.gate .lang{display:flex;justify-content:flex-end;padding:10px 26px 0}.gate .lang select{width:auto;height:28px;margin:0}
+header{height:52px;background:var(--head);color:#cfd6df;display:flex;align-items:center;padding:0 14px;gap:22px;position:sticky;top:0;z-index:5}
+header .logo{display:flex;align-items:center;gap:10px;color:#fff;font-weight:600;white-space:nowrap}
+header .logo small{color:#8e9aab;font-weight:400;margin-left:4px}
+header nav{display:flex;height:100%}
+header nav a{display:flex;align-items:center;padding:0 18px;color:#cfd6df;text-decoration:none;border-bottom:3px solid transparent;cursor:pointer}
+header nav a:hover{color:#fff;background:var(--head2)}header nav a.on{color:#fff;border-bottom-color:var(--brand);background:var(--head2)}
+header .right{margin-left:auto;display:flex;align-items:center;gap:14px}
+header .right select{background:var(--head2);border:1px solid #3a4656;color:#dfe5ec;border-radius:3px;height:28px}
+header .right button{background:none;border:1px solid #3a4656;color:#dfe5ec;border-radius:3px;height:28px;padding:0 10px;cursor:pointer}
+header .user{color:#8e9aab}
+.wrap{display:flex;min-height:calc(100% - 52px)}
+aside{width:220px;background:var(--side);border-right:1px solid var(--line);flex-shrink:0;padding:8px 0}
+aside .grp{padding:12px 16px 4px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+aside a{display:block;padding:7px 16px 7px 26px;color:var(--fg);text-decoration:none;border-left:3px solid transparent;cursor:pointer}
+aside a:hover{background:#e8ecef}aside a.on{background:#fff;border-left-color:var(--brand);color:var(--brand-d);font-weight:600}
+main{flex:1;min-width:0;padding:18px 22px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:3px;margin-bottom:14px}
+.panel>h3{margin:0;padding:10px 16px;border-bottom:1px solid var(--line);font-size:14px;background:#fafbfc}
+.panel .body{padding:12px 16px}
+.crumb{color:var(--muted);margin:0 0 12px;font-size:12px}.crumb b{color:var(--fg);font-size:16px;margin-right:8px}
+.row{display:flex;align-items:center;gap:10px;min-height:38px;flex-wrap:wrap}
+.row>label:first-child{width:210px;color:#46505c;flex-shrink:0}
+.row input[type=text],.row input[type=password],.row input[type=number],.row select{width:260px;max-width:100%;height:30px;padding:0 8px;border:1px solid #cdd3da;border-radius:3px;background:#fff}
+.row input[type=range]{width:220px;accent-color:var(--brand)}
+input[type=checkbox]{accent-color:var(--brand);width:15px;height:15px;vertical-align:-3px}
+.note{color:var(--muted);font-size:12px}
+.actions{padding:10px 16px;border-top:1px solid var(--line);background:#fafbfc;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{height:30px;padding:0 16px;border-radius:3px;border:1px solid #c5ccd4;background:#fff;cursor:pointer}.btn:hover{border-color:#9aa4b0}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}.btn.primary:hover{background:var(--brand-d)}
+.btn.danger{color:var(--bad);border-color:#f1b9bd}.btn:disabled{opacity:.55;cursor:default}.gate .btn{width:100%;height:38px}
+.kv{display:grid;grid-template-columns:200px 1fr;gap:7px 12px}.kv>div:nth-child(odd){color:#46505c}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:#a3acb8}
+.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}.dot.warn{background:var(--warn)}
+.msg{font-size:12px}.msg.ok{color:var(--ok)}.msg.err{color:var(--bad)}
+code{background:#eef1f4;padding:1px 6px;border-radius:3px;font-size:12px;word-break:break-all}
+table{border-collapse:collapse;width:100%}td,th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}th{background:#fafbfc;font-weight:600}
+tr.pick{cursor:pointer}tr.pick:hover{background:#f3f7f6}tr.pick.on{background:#e3f6f1;font-weight:600}
+pre.log{background:#141b23;color:#d3dbe5;padding:12px;height:60vh;overflow:auto;font:12px/1.5 Consolas,ui-monospace,monospace;margin:0;white-space:pre-wrap;word-break:break-all}
+.live{display:flex;gap:14px;padding:14px;min-height:calc(100% - 52px)}
+.player{flex:1;min-width:0;display:flex;flex-direction:column;background:#000;border-radius:3px;overflow:hidden}
+.screen{position:relative;flex:1;display:flex;align-items:center;justify-content:center;min-height:300px}
+.screen img{max-width:100%;max-height:calc(100vh - 150px);display:block}
+.screen .osd{position:absolute;left:10px;top:8px;color:#fff;font-size:12px;text-shadow:0 1px 2px #000}.screen .idle{color:#8e9aab}
+.tools{display:flex;align-items:center;gap:4px;padding:6px 8px;background:#1c2531;color:#cfd6df}
+.tools button,.tools select{background:none;border:0;color:#cfd6df;height:30px;padding:0 10px;border-radius:3px;cursor:pointer}
+.tools select{background:#1c2531}.tools button:hover{background:#2c3846;color:#fff}.tools button.on{color:var(--brand)}.tools .sp{flex:1}
+.side{width:280px;flex-shrink:0}
+.claimq{display:flex;gap:12px;align-items:center}.claimq img{width:110px;height:110px;border:1px solid var(--line);border-radius:3px}
+.badge{display:inline-block;font-size:11px;font-weight:600;color:#5b6672;background:#eef1f4;border-radius:10px;padding:1px 8px;margin-left:6px}
+.badge.warn{background:#fff3df;color:#9a5b00}
+@media (max-width:860px){
+ header{gap:10px;padding:0 8px}header .logo span{display:none}header nav a{padding:0 10px}header .user{display:none}
+ .wrap{display:block}aside{width:auto;display:flex;overflow-x:auto;padding:0;border-right:0;border-bottom:1px solid var(--line)}
+ aside .grp{display:none}aside a{white-space:nowrap;padding:10px 12px;border-left:0;border-bottom:3px solid transparent}aside a.on{border-bottom-color:var(--brand)}
+ main{padding:12px}.row>label:first-child{width:100%}.kv{grid-template-columns:130px 1fr}.live{display:block;padding:8px}.side{width:auto;margin-top:12px}
+}
+.dlg{position:fixed;inset:0;background:rgba(15,20,28,.55);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.dlg .box{background:var(--panel);border-radius:4px;box-shadow:0 10px 40px rgba(0,0,0,.35);max-width:440px;width:100%}
+.dlg .txt{padding:20px 20px 8px;line-height:1.5;white-space:pre-line}.dlg .act{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px 16px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><symbol id="mark" viewBox="0 0 40 40"><rect width="40" height="40" rx="8" fill="#18b693"/><rect x="8" y="13" width="24" height="17" rx="3" fill="#fff"/><rect x="15" y="9" width="10" height="5" rx="1.5" fill="#fff"/><circle cx="20" cy="21.5" r="5.2" fill="#18b693"/><circle cx="20" cy="21.5" r="2.4" fill="#fff"/></symbol></svg>
+
+<div id="gate" class="gate hidden">
+ <div class="box">
+  <div class="lang"><select id="gLang"></select></div>
+  <div class="top"><svg class="logo-mark" width="44" height="44"><use href="#mark"/></svg><div><b>CamOS AI Camera</b><span id="gModel"></span></div></div>
+  <form id="gateForm" autocomplete="off">
+   <p id="gateText"></p>
+   <label id="lUser"></label><input id="gUser" value="admin" disabled>
+   <label id="lPass"></label><input id="gPass" type="password" autocomplete="current-password">
+   <div id="confirmBox" class="hidden"><label id="lPass2"></label><input id="gPass2" type="password" autocomplete="new-password"></div>
+   <button class="btn primary" id="gateBtn"></button>
+   <div id="gateMsg" class="msg err" style="margin-top:10px"></div>
+  </form>
+ </div>
+</div>
+
+<div id="app" class="hidden" style="height:100%">
+ <header>
+  <div class="logo"><svg class="logo-mark" width="30" height="30"><use href="#mark"/></svg><span>CamOS<small id="hModel"></small></span></div>
+  <nav><a data-top="live" id="tLive"></a><a data-top="config" id="tConfig"></a></nav>
+  <div class="right"><span class="user">admin</span><select id="hLang"></select><button id="logoutBtn"></button></div>
+ </header>
+ <div id="view"></div>
+</div>
+
+<script>
+'use strict';
+const I18N = {
+ vi: {
+  dlgOk: 'Đồng ý', dlgCancel: 'Hủy', lang: 'Tiếng Việt', signIn: 'Đăng nhập', activate: 'Kích hoạt', activateTitle: 'Kích hoạt camera',
+  activateText: 'Lần đầu sử dụng: đặt mật khẩu cho tài khoản admin (8-64 ký tự, có chữ và số).', signInText: 'Đăng nhập để quản lý camera.',
+  user: 'Tên đăng nhập', password: 'Mật khẩu', password2: 'Nhập lại mật khẩu', mismatch: 'Hai mật khẩu không giống nhau.', logout: 'Đăng xuất',
+  liveView: 'Xem trực tiếp', configuration: 'Cấu hình', loading: 'Đang tải…',
+  gSystem: 'Hệ thống', gNetwork: 'Mạng', gImage: 'Hình ảnh', gPower: 'Nguồn & vị trí', gSecurity: 'Bảo mật',
+  pDevice: 'Thông tin thiết bị', pTime: 'Thời gian', pMaint: 'Bảo trì & nâng cấp', pLogs: 'Nhật ký', pWifi: 'Wi-Fi / TCP/IP', pCell: '4G', pCloud: 'Nền tảng cloud',
+  pImage: 'Hiển thị', pPower: 'Nguồn điện & lịch chụp', pGps: 'GPS', pAccount: 'Tài khoản',
+  save: 'Lưu', saved: 'Đã lưu và áp dụng.', savedRestart: 'Đã lưu. Cần khởi động lại để áp dụng.', askRestart: 'Đã lưu. Khởi động lại camera ngay để áp dụng?',
+  restarting: 'Camera đang khởi động lại (khoảng 15 giây)…', back: 'Camera đã chạy lại.', on: 'Bật', off: 'Tắt', yes: 'Có', no: 'Không', none: '—',
+  play: 'Phát', stop: 'Dừng', snapshot: 'Chụp ảnh', fps: '{0} ảnh/giây', stopped: 'Đã dừng xem', snapping: 'Đang chụp và tải lên FlyBot…',
+  snapOk: 'Đã gửi ảnh {0}×{1} ({2} KB) lên FlyBot.', snapFail: 'Chụp được ảnh {0}×{1} nhưng không gửi được: {2}',
+  liveNote: 'Xem trước là ảnh JPEG liên tục (không có tiếng). Xem trực tiếp qua cloud dùng KVS WebRTC trên FlyBot.',
+  model: 'Model', serial: 'Số serial', code: 'Mã xác minh', firmware: 'Firmware', built: 'Ngày build', uptime: 'Thời gian chạy', memory: 'Bộ nhớ trống', network: 'Mạng',
+  signal: 'Tín hiệu', channel: 'Kênh', ip: 'Địa chỉ IP', publicIp: 'IP công cộng', mac: 'Địa chỉ MAC', mask: 'Subnet mask', gateway: 'Gateway', cloud: 'Cloud',
+  connected: 'Đã kết nối', disconnected: 'Mất kết nối', server: 'Máy chủ', certificate: 'Chứng chỉ thiết bị', certOk: 'Có (mTLS)', certNo: 'Chưa có',
+  owner: 'Chủ sở hữu', claimed: 'Đã có chủ', unclaimed: 'Chưa có chủ', claimText: 'Mở {0} hoặc quét mã QR trên nhãn trong ứng dụng FlyBot để nhận camera.',
+  camTime: 'Giờ camera', notSynced: 'Chưa đồng bộ', clockSrc: 'Nguồn giờ', tzSrc: 'Nguồn múi giờ', days: '{0} ngày ', hm: '{0} giờ {1} phút',
+  battery: 'Pin', solar: 'Tấm pin mặt trời', charging: 'Đang sạc', notCharging: 'Không sạc', noBattery: 'Chưa đo (chưa nối mạch đo pin)',
+  powerMode: 'Chế độ nguồn', effective: 'Đang chạy', highMv: 'Chuyển sang luôn kết nối từ (mV)', lowMv: 'Về chế độ pin dưới (mV)',
+  powerNote: 'auto: pin đầy hoặc đang sạc thì luôn kết nối (xem trực tiếp, chụp ngay); pin yếu thì ngủ sâu giữa các lần chụp.',
+  interval: 'Chu kỳ chụp (phút)', nextCapture: 'Lần chụp tới', led: 'Đèn trạng thái', ledState: 'Trạng thái đèn', battMon: 'Đã lắp mạch đo pin / pin mặt trời',
+  current: 'Kết nối hiện tại', dhcp: '(DHCP)', changeWifi: 'Đổi mạng Wi-Fi', scan: 'Quét mạng', scanning: 'Đang quét…', ssid: 'Tên mạng (SSID)',
+  connect: 'Kết nối', pickNet: 'Chọn hoặc nhập tên mạng.', confirmJoin: 'Chuyển camera sang mạng "{0}"? Camera sẽ khởi động lại.',
+  wifiNote: 'Camera sẽ rời mạng hiện tại. Nếu không vào được mạng mới, mạng cài đặt CAM-xxxx bật lại sau khoảng một phút.',
+  cellOn: 'Dùng 4G khi có SIM', apn: 'APN', apnAuto: 'tự động theo SIM', apnInUse: 'APN đang dùng', simPin: 'Mã PIN SIM', imei: 'IMEI', iccid: 'ICCID', operator: 'Nhà mạng',
+  csq: 'Tín hiệu (CSQ)', registered: 'Đăng ký mạng', cellNote: 'Để trống APN: camera tự chọn theo nhà mạng của SIM. Áp dụng khi khởi động lại.', notOn4g: 'Camera không dùng 4G lúc này.',
+  sync: 'Đồng bộ', timezone: 'Múi giờ', tzAuto: 'tự động', tzNote: 'Để trống: múi giờ tự động từ FlyBot (theo trang trại, GPS hoặc địa chỉ IP). Nhập để ghi đè.',
+  camosLink: 'Kết nối FlyBot', status: 'Trạng thái', apiBase: 'Địa chỉ FlyBot', iotHost: 'Endpoint IoT Core', thing: 'Thing', kvs: 'Kênh KVS',
+  cloudNote: 'Thường không cần đổi: camera tự đăng ký với FlyBot. Chỉ đổi khi được hướng dẫn.', regError: 'Lỗi đăng ký',
+  brightness: 'Độ sáng', contrast: 'Độ tương phản', saturation: 'Độ bão hòa', jpegQuality: 'Chất lượng JPEG', imageNote: 'Áp dụng từ lần chụp tới. Cài đặt từ cloud sẽ ghi đè cài đặt ở đây.',
+  resolution: 'Độ phân giải chụp', bySensor: 'theo cảm biến',
+  gpsFix: 'Lấy vị trí ngay', gpsFixing: 'Đang tìm vệ tinh (tối đa 2 phút)…', location: 'Vị trí', fixAt: 'Lúc', noFix: 'Chưa có', gpsNote: 'Camera lấy vị trí mỗi ngày một lần; module GPS tắt nguồn giữa các lần.',
+  fwUpdate: 'Nâng cấp firmware', running: 'Đang chạy', checkUpdate: 'Kiểm tra & nâng cấp', updateStarted: 'Đang hỏi FlyBot; nếu có bản mới camera sẽ tải, kiểm tra SHA-256 rồi khởi động lại. Xem Nhật ký.',
+  maintenance: 'Bảo trì', reboot: 'Khởi động lại', factory: 'Khôi phục cài đặt gốc', confirmReboot: 'Khởi động lại camera?',
+  confirmFactory: 'Đưa mọi cài đặt về mặc định và xóa mật khẩu admin? Camera giữ serial, mã xác minh và chứng chỉ.', factoryDone: 'Đã khôi phục. Camera đang khởi động lại…',
+  factoryNote: 'Khôi phục cài đặt gốc đưa cài đặt về mặc định của firmware và xóa mật khẩu admin; giữ serial, mã xác minh, chứng chỉ và kết nối cloud.',
+  changePw: 'Đổi mật khẩu admin', curPw: 'Mật khẩu hiện tại', newPw: 'Mật khẩu mới', againPw: 'Nhập lại', pwChanged: 'Đã đổi mật khẩu.', pwMismatch: 'Hai mật khẩu mới không giống nhau.',
+  forgot: 'Quên mật khẩu: giữ nút BOOT 3 giây để mở chế độ cài đặt, rồi gõ lệnh factory trên cổng serial.', follow: 'Tự cuộn', pause: 'Tạm dừng', resume: 'Tiếp tục', download: 'Tải về', clear: 'Xóa màn hình',
+  logLost: '… (một phần nhật ký đã bị ghi đè)', dflt: 'mặc định', manual: 'ghi đè',
+  E: { BAD_LOGIN: 'Sai mật khẩu.', LOCKED: 'Sai mật khẩu nhiều lần: thử lại sau 5 phút.', WEAK_PASSWORD: 'Mật khẩu cần 8-64 ký tự, có cả chữ và số.',
+   BAD_PASSWORD: 'Mật khẩu hiện tại không đúng.', BAD_VALUE: 'Giá trị không hợp lệ: {0}', BUSY: 'Camera đang bận (đang chụp hoặc xem trực tiếp).', NO_PREVIEW: 'Không lấy được hình.',
+   LOGIN_REQUIRED: 'Cần đăng nhập lại.', NOT_ALLOWED: 'Không được phép.', NOT_AVAILABLE: 'Wi-Fi không chạy (đang dùng 4G).', NOT_SUPPORTED: 'Camera này không hỗ trợ.' },
+ },
+ en: {
+  dlgOk: 'OK', dlgCancel: 'Cancel', lang: 'English', signIn: 'Sign in', activate: 'Activate', activateTitle: 'Activate the camera',
+  activateText: 'First use: set the admin password (8-64 characters, letters and digits).', signInText: 'Sign in to manage the camera.',
+  user: 'User name', password: 'Password', password2: 'Confirm password', mismatch: 'The passwords do not match.', logout: 'Sign out',
+  liveView: 'Live View', configuration: 'Configuration', loading: 'Loading…',
+  gSystem: 'System', gNetwork: 'Network', gImage: 'Image', gPower: 'Power & location', gSecurity: 'Security',
+  pDevice: 'Device Information', pTime: 'Time Settings', pMaint: 'Maintenance & Upgrade', pLogs: 'Log', pWifi: 'Wi-Fi / TCP/IP', pCell: '4G', pCloud: 'Cloud Platform',
+  pImage: 'Display', pPower: 'Power & Schedule', pGps: 'GPS', pAccount: 'Account',
+  save: 'Save', saved: 'Saved and applied.', savedRestart: 'Saved. A restart is needed to apply.', askRestart: 'Saved. Restart the camera now to apply?',
+  restarting: 'The camera is restarting (about 15 seconds)…', back: 'The camera is back.', on: 'On', off: 'Off', yes: 'Yes', no: 'No', none: '—',
+  play: 'Play', stop: 'Stop', snapshot: 'Snapshot', fps: '{0} fps', stopped: 'Preview stopped', snapping: 'Capturing and uploading to FlyBot…',
+  snapOk: 'Sent a {0}×{1} photo ({2} KB) to FlyBot.', snapFail: 'Captured {0}×{1} but could not upload: {2}',
+  liveNote: 'The preview is a stream of JPEG pictures (no sound). Live view through the cloud uses KVS WebRTC in FlyBot.',
+  model: 'Model', serial: 'Serial number', code: 'Verify code', firmware: 'Firmware', built: 'Build date', uptime: 'Uptime', memory: 'Free memory', network: 'Network',
+  signal: 'Signal', channel: 'Channel', ip: 'IP address', publicIp: 'Public IP', mac: 'MAC address', mask: 'Subnet mask', gateway: 'Gateway', cloud: 'Cloud',
+  connected: 'Connected', disconnected: 'Disconnected', server: 'Server', certificate: 'Device certificate', certOk: 'Yes (mTLS)', certNo: 'Not yet',
+  owner: 'Owner', claimed: 'Claimed', unclaimed: 'Unclaimed', claimText: 'Open {0} or scan the label QR in the FlyBot app to claim this camera.',
+  camTime: 'Camera time', notSynced: 'Not synced', clockSrc: 'Clock source', tzSrc: 'Timezone source', days: '{0} d ', hm: '{0} h {1} min',
+  battery: 'Battery', solar: 'Solar panel', charging: 'Charging', notCharging: 'Not charging', noBattery: 'Not measured (no battery divider wired)',
+  powerMode: 'Power mode', effective: 'Running', highMv: 'Always connected from (mV)', lowMv: 'Back to battery mode below (mV)',
+  powerNote: 'auto: always connected (live view, snapshot on demand) with a full or charging battery; deep sleep between captures when it is low.',
+  interval: 'Capture interval (minutes)', nextCapture: 'Next capture', led: 'Status LED', ledState: 'LED state', battMon: 'Battery / solar divider fitted',
+  current: 'Current connection', dhcp: '(DHCP)', changeWifi: 'Change Wi-Fi network', scan: 'Scan', scanning: 'Scanning…', ssid: 'Network name (SSID)',
+  connect: 'Connect', pickNet: 'Pick or type a network name.', confirmJoin: 'Move the camera to "{0}"? It will restart.',
+  wifiNote: 'The camera leaves the current network. If it cannot join the new one, the CAM-xxxx setup network comes back in about a minute.',
+  cellOn: 'Use 4G when a SIM is inserted', apn: 'APN', apnAuto: 'automatic from the SIM', apnInUse: 'APN in use', simPin: 'SIM PIN', imei: 'IMEI', iccid: 'ICCID', operator: 'Operator',
+  csq: 'Signal (CSQ)', registered: 'Registered', cellNote: 'Leave the APN empty and the camera picks it from the SIM\'s operator. Applied at the next restart.', notOn4g: 'The camera is not on 4G now.',
+  sync: 'Sync', timezone: 'Timezone', tzAuto: 'automatic', tzNote: 'Empty: the timezone comes from FlyBot (farm, GPS or IP address). Type one to override.',
+  camosLink: 'FlyBot connection', status: 'Status', apiBase: 'FlyBot address', iotHost: 'IoT Core endpoint', thing: 'Thing', kvs: 'KVS channel',
+  cloudNote: 'Usually nothing to change: the camera registers itself with FlyBot. Change only when told to.', regError: 'Registration error',
+  brightness: 'Brightness', contrast: 'Contrast', saturation: 'Saturation', jpegQuality: 'JPEG quality', imageNote: 'Applied from the next capture. Settings from the cloud override these.',
+  resolution: 'Capture resolution', bySensor: 'by sensor',
+  gpsFix: 'Get position now', gpsFixing: 'Looking for satellites (up to 2 minutes)…', location: 'Position', fixAt: 'At', noFix: 'None yet', gpsNote: 'The camera takes one position a day; the GPS module is powered off in between.',
+  fwUpdate: 'Firmware upgrade', running: 'Running', checkUpdate: 'Check & upgrade', updateStarted: 'Asking FlyBot; when a newer build exists the camera downloads it, checks its SHA-256 and restarts. See the Log.',
+  maintenance: 'Maintenance', reboot: 'Restart', factory: 'Factory reset', confirmReboot: 'Restart the camera?',
+  confirmFactory: 'Return every setting to the defaults and clear the admin password? The camera keeps its serial, verify code and certificate.', factoryDone: 'Reset done. The camera is restarting…',
+  factoryNote: 'Factory reset returns the settings to the firmware defaults and clears the admin password; it keeps the serial, verify code, certificate and cloud link.',
+  changePw: 'Change the admin password', curPw: 'Current password', newPw: 'New password', againPw: 'Again', pwChanged: 'Password changed.', pwMismatch: 'The new passwords do not match.',
+  forgot: 'Forgot the password: hold BOOT for 3 s to open setup mode, then type factory on the serial console.', follow: 'Follow', pause: 'Pause', resume: 'Resume', download: 'Download', clear: 'Clear',
+  logLost: '… (part of the log was overwritten)', dflt: 'default', manual: 'override',
+  E: { BAD_LOGIN: 'Wrong password.', LOCKED: 'Too many wrong passwords: try again in 5 minutes.', WEAK_PASSWORD: 'Passwords need 8-64 characters, letters and digits.',
+   BAD_PASSWORD: 'The current password is wrong.', BAD_VALUE: 'Invalid value: {0}', BUSY: 'The camera is busy (capturing or streaming).', NO_PREVIEW: 'No picture.',
+   LOGIN_REQUIRED: 'Sign in again.', NOT_ALLOWED: 'Not allowed.', NOT_AVAILABLE: 'Wi-Fi is not running (on 4G).', NOT_SUPPORTED: 'Not supported on this camera.' },
+ },
+};
+/* English by default; Vietnamese only when picked (remembered in this browser and on the camera, NVS uiLang) */
+let lang = 'en', langSaved = false;
+try { const l = localStorage.getItem('camosLang'); if (I18N[l]) { lang = l; langSaved = true; } } catch (e) { /* private mode */ }
+const $ = (s) => document.querySelector(s);
+const t = (k, ...a) => String(I18N[lang][k] ?? I18N.en[k] ?? k).replace(/\{(\d)\}/g, (m, i) => a[i] ?? '');
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const errText = (code, msg) => { const m = (I18N[lang].E || {})[code] || I18N.en.E[code]; return m ? m.replace('{0}', msg || '') : msg || code || '?'; };
+async function api(path, body) {
+  const opt = body ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'camos' }, body: JSON.stringify(body) } : { cache: 'no-store' };
+  const r = await fetch('/api/' + path, opt);
+  let j = {}; try { j = await r.json(); } catch (e) { /* none */ }
+  if (r.status === 401 && j.error === 'LOGIN_REQUIRED') { boot(); const e = new Error(errText('LOGIN_REQUIRED')); e.code = 'LOGIN_REQUIRED'; throw e; }
+  if (!r.ok) { const e = new Error(errText(j.error, j.message)); e.code = j.error; throw e; }
+  return j;
+}
+function langSelect(el) {
+  el.innerHTML = ['en', 'vi'].map((l) => `<option value="${l}"${l === lang ? ' selected' : ''}>${I18N[l].lang}</option>`).join('');
+  el.onchange = () => {
+    lang = el.value; langSaved = true;
+    try { localStorage.setItem('camosLang', lang); } catch (e) { /* private */ }
+    fetch('/api/lang', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'camos' }, body: JSON.stringify({ uiLang: lang }) }).catch(() => { /* still switches */ });
+    boot();
+  };
+}
+function ask(text, opt = {}) {
+  return new Promise((res) => {
+    const d = document.createElement('div'); d.className = 'dlg';
+    d.innerHTML = `<div class="box"><div class="txt">${esc(text)}</div><div class="act"><button class="btn" data-v="0">${t('dlgCancel')}</button><button class="btn ${opt.danger ? 'danger' : 'primary'}" data-v="1">${t('dlgOk')}</button></div></div>`;
+    d.onclick = (e) => { const b = e.target.closest('button'); if (b) { d.remove(); res(b.dataset.v === '1'); } };
+    document.body.appendChild(d);
+  });
+}
+
+/* ---------------------------------------------------------------- gate */
+let session = {};
+async function boot() {
+  document.documentElement.lang = lang; stopTimers();
+  try { session = await (await fetch('/api/session', { cache: 'no-store' })).json(); } catch (e) { session = {}; }
+  if (!langSaved && I18N[session.uiLang] && session.uiLang !== lang) { lang = session.uiLang; document.documentElement.lang = lang; }
+  if (session.signedIn) { $('#gate').classList.add('hidden'); $('#app').classList.remove('hidden'); header(); route(); return; }
+  $('#app').classList.add('hidden'); $('#gate').classList.remove('hidden');
+  const act = !session.activated;
+  langSelect($('#gLang')); $('#gModel').textContent = `${session.model || ''} · ${session.serial || ''}`;
+  $('#gateText').textContent = act ? t('activateText') : t('signInText');
+  $('#lUser').textContent = t('user'); $('#lPass').textContent = t('password'); $('#lPass2').textContent = t('password2');
+  $('#confirmBox').classList.toggle('hidden', !act); $('#gateBtn').textContent = act ? t('activate') : t('signIn'); $('#gateMsg').textContent = '';
+  $('#gateForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const pw = $('#gPass').value;
+    if (act && pw !== $('#gPass2').value) { $('#gateMsg').textContent = t('mismatch'); return; }
+    try { await api(act ? 'activate' : 'login', { password: pw }); $('#gPass').value = ''; $('#gPass2').value = ''; boot(); } catch (err) { $('#gateMsg').textContent = err.message; }
+  };
+}
+
+/* ---------------------------------------------------------------- shell */
+let timers = [];
+function stopTimers() { timers.forEach((s) => s()); timers = []; }
+function every(ms, fn) { let on = true, h; const loop = async () => { if (!on) return; try { await fn(); } catch (e) { /* next time */ } if (on) h = setTimeout(loop, ms); }; loop(); timers.push(() => { on = false; clearTimeout(h); }); }
+let FEAT = { modem: false, gps: false };
+const MENU = () => [
+  ['gSystem', [['device', 'pDevice'], ['time', 'pTime'], ['maint', 'pMaint'], ['logs', 'pLogs']]],
+  ['gNetwork', [['wifi', 'pWifi']].concat(FEAT.modem ? [['cell', 'pCell']] : [], [['cloud', 'pCloud']])],
+  ['gImage', [['image', 'pImage']]],
+  ['gPower', [['power', 'pPower']].concat(FEAT.gps ? [['gps', 'pGps']] : [])],
+  ['gSecurity', [['account', 'pAccount']]],
+];
+function header() {
+  $('#tLive').textContent = t('liveView'); $('#tConfig').textContent = t('configuration'); $('#logoutBtn').textContent = t('logout');
+  $('#hModel').textContent = session.model || ''; langSelect($('#hLang'));
+}
+document.querySelector('header nav').onclick = (e) => { const a = e.target.closest('a'); if (a) location.hash = a.dataset.top === 'config' ? 'config/device' : 'live'; };
+$('#logoutBtn').onclick = async () => { try { await api('logout', {}); } catch (e) { /* gone */ } boot(); };
+window.onhashchange = () => route();
+let routing = Promise.resolve();
+function route() { routing = routing.then(drawRoute, drawRoute); return routing; }
+async function drawRoute() {
+  stopTimers();
+  const [top, page] = location.hash.slice(1).split('/');
+  const isConfig = top === 'config';
+  $('#tLive').classList.toggle('on', !isConfig); $('#tConfig').classList.toggle('on', isConfig);
+  const view = $('#view');
+  try {
+    const st = await api('status'); FEAT = st.features || FEAT;
+    if (!isConfig) { await LIVE(view, st); return; }
+    const groups = MENU(), pg = {}; groups.forEach(([g, items]) => items.forEach(([id, k]) => { pg[id] = [g, k]; }));
+    const id = pg[page] ? page : 'device';
+    view.innerHTML = `<div class="wrap"><aside>${groups.map(([g, items]) => `<div class="grp">${t(g)}</div>` + items.map(([pid, k]) => `<a data-p="${pid}" class="${pid === id ? 'on' : ''}">${t(k)}</a>`).join('')).join('')}</aside>
+      <main><div class="crumb"><b>${t(pg[id][1])}</b>${t('configuration')} › ${t(pg[id][0])}</div><div id="page">${t('loading')}</div></main></div>`;
+    $('aside').onclick = (e) => { const a = e.target.closest('a'); if (a) location.hash = 'config/' + a.dataset.p; };
+    await PAGES[id]($('#page'), st);
+  } catch (err) { if (err.code !== 'LOGIN_REQUIRED') view.innerHTML = `<main><div class="msg err">${esc(err.message)}</div></main>`; }
+}
+
+/* ---------------------------------------------------------------- widgets */
+const dot = (s) => `<span class="dot ${s}"></span>`;
+const row = (label, html, note) => `<div class="row"><label>${label}</label>${html}${note ? `<span class="note">${note}</span>` : ''}</div>`;
+const txt = (id, v, ph = '') => `<input type="text" id="${id}" value="${esc(v)}" placeholder="${esc(ph)}">`;
+const num = (id, v, min, max) => `<input type="number" id="${id}" value="${esc(v)}" min="${min}" max="${max}">`;
+const sel = (id, v, opts) => `<select id="${id}">${opts.map(([val, name]) => `<option value="${esc(val)}"${String(val) === String(v) ? ' selected' : ''}>${esc(name)}</option>`).join('')}</select>`;
+const chk = (id, v, text = '') => `<label><input type="checkbox" id="${id}"${v ? ' checked' : ''}> ${text}</label>`;
+const panel = (title, body, actions) => `<div class="panel">${title ? `<h3>${title}</h3>` : ''}<div class="body">${body}</div>${actions ? `<div class="actions">${actions}</div>` : ''}</div>`;
+const saveBar = (id, extra = '') => `<button class="btn primary" id="${id}">${t('save')}</button>${extra}<span class="msg" id="${id}Msg"></span>`;
+const kv = (pairs) => `<div class="kv">${pairs.map(([k, v]) => `<div>${k}</div><div>${v}</div>`).join('')}</div>`;
+const badge = (cfg, key) => (cfg.defaults || []).includes(key) ? `<span class="badge">${t('dflt')}</span>` : '';
+function say(el, text, ok) { el.className = 'msg ' + (ok ? 'ok' : 'err'); el.textContent = text; }
+async function saveCfg(body, msgEl, restart) {
+  try { await api('config', body); if (restart) { say(msgEl, t('savedRestart'), true); if (await ask(t('askRestart'))) await doRestart(msgEl); } else say(msgEl, t('saved'), true); return true; }
+  catch (err) { say(msgEl, err.message); return false; }
+}
+async function doRestart(msgEl) { await api('reboot', {}); say(msgEl, t('restarting'), true); await waitBack(); say(msgEl, t('back'), true); }
+async function waitBack() { await new Promise((r) => setTimeout(r, 6000)); for (let i = 0; i < 60; i++) { try { const r = await fetch('/api/session', { cache: 'no-store' }); if (r.ok) return; } catch (e) { /* not yet */ } await new Promise((r) => setTimeout(r, 2000)); } }
+const fmtUp = (s) => (Math.floor(s / 86400) ? t('days', Math.floor(s / 86400)) : '') + t('hm', Math.floor(s / 3600) % 24, Math.floor(s / 60) % 60);
+const fmtBatt = (b) => b ? `${(b.mv / 1000).toFixed(2)} V · ${b.pct} % · ${b.charging ? t('charging') : t('notCharging')}` : t('noBattery');
+function claimPanel(st, cfg) {
+  if (cfg.claimed && cfg.registered) return '';
+  return panel(t('owner'), `<div class="claimq"><img src="/api/qr.svg?what=claim" alt="QR"><div><b>${dot('warn')}${t('unclaimed')}</b><p class="note">${esc(t('claimText', cfg.claimUrl))}</p>
+    ${kv([[t('serial'), `<b>${esc(st.serial)}</b>`], [t('code'), `<b>${esc(st.verifyCode)}</b>`]])}</div></div>`);
+}
+
+/* ---------------------------------------------------------------- live view */
+async function LIVE(view, st) {
+  const cfg = await api('config');
+  view.innerHTML = `<div class="live"><div class="player"><div class="screen"><img id="pv" alt=""><span class="osd" id="osd"></span><span class="idle hidden" id="idle"></span></div>
+    <div class="tools"><button id="play" class="on"></button><button id="snap"></button><span class="sp"></span><select id="size"><option value="640x480">VGA 640×480</option><option value="320x240">QVGA 320×240</option><option value="800x600">SVGA 800×600</option><option value="1280x720">HD 1280×720</option></select><span id="fps"></span></div></div>
+    <div class="side">${claimPanel(st, cfg)}${panel(t('status'), '<div id="sideKv"></div>')}<div class="panel"><div class="body"><span class="msg" id="snapMsg"></span><p class="note">${t('liveNote')}</p></div></div></div></div>`;
+  let on = true, frames = 0, t0 = performance.now(), url = null;
+  const img = $('#pv');
+  const draw = (s) => { $('#sideKv').innerHTML = kv([[t('network'), `${dot(s.net.connected ? 'ok' : 'bad')}${esc(s.net.type === '4g' ? '4G' : (s.net.ssid || 'Wi-Fi'))}`], [t('cloud'), `${dot(s.cloud.connected ? 'ok' : 'bad')}${s.cloud.connected ? t('connected') : t('disconnected')}`],
+    [t('battery'), esc(fmtBatt(s.battery))], [t('powerMode'), esc(`${s.power.mode} → ${s.power.effective}`)], [t('nextCapture'), esc(s.nextCaptureAt || t('none'))]]); };
+  draw(st);
+  const setPlay = () => { $('#play').textContent = on ? t('stop') : t('play'); $('#play').classList.toggle('on', on); $('#idle').textContent = t('stopped'); $('#idle').classList.toggle('hidden', on); };
+  setPlay(); $('#snap').textContent = t('snapshot');
+  $('#play').onclick = () => { on = !on; setPlay(); };
+  every(150, async () => {
+    if (!on || document.hidden) return;
+    const [w, h] = $('#size').value.split('x');
+    const r = await fetch(`/api/frame.jpg?w=${w}&h=${h}`, { cache: 'no-store' });
+    if (!r.ok) { let j = {}; try { j = await r.json(); } catch (e) { /* */ } $('#osd').textContent = errText(j.error, j.message); await new Promise((res) => setTimeout(res, 1500)); return; }
+    const u = URL.createObjectURL(await r.blob()); img.src = u; if (url) URL.revokeObjectURL(url); url = u;
+    frames++; const dt = (performance.now() - t0) / 1000; if (dt > 2) { $('#fps').textContent = t('fps', (frames / dt).toFixed(1)); frames = 0; t0 = performance.now(); }
+    $('#osd').textContent = new Date().toLocaleTimeString();
+  });
+  every(10000, async () => draw(await api('status')));
+  $('#snap').onclick = async () => {
+    const m = $('#snapMsg'); const was = on; on = false; setPlay(); $('#snap').disabled = true; say(m, t('snapping'), true);
+    try { const r = await api('snapshot', {}); r.ok ? say(m, t('snapOk', r.w, r.h, Math.round(r.bytes / 1024)), true) : say(m, t('snapFail', r.w, r.h, r.message)); }
+    catch (err) { say(m, err.message); }
+    $('#snap').disabled = false; on = was; setPlay();
+  };
+}
+
+/* ---------------------------------------------------------------- pages */
+const PAGES = {
+  async device(el) {
+    const cfg = await api('config');
+    const draw = (s) => {
+      el.innerHTML = claimPanel(s, cfg) + panel(t('pDevice'), kv([[t('model'), esc(s.model)], [t('serial'), esc(s.serial)], [t('code'), esc(s.verifyCode)], [t('firmware'), esc(s.fw)], [t('built'), esc(s.built)],
+          [t('uptime'), fmtUp(s.uptimeS)], [t('memory'), `${s.heapFreeKB} KB · PSRAM ${(s.psramFreeKB / 1024).toFixed(1)} MB`], [t('camTime'), s.time.synced ? esc(s.time.local) : t('notSynced')],
+          [t('ledState'), esc(s.led.enabled ? s.led.state : t('off'))]]))
+        + panel(t('network'), kv([[s.net.type === '4g' ? '4G' : 'Wi-Fi', `${dot(s.net.connected ? 'ok' : 'bad')}${esc(s.net.type === '4g' ? (s.net.cell && s.net.cell.operator) || '4G' : s.net.ssid || t('none'))}`],
+          [t('signal'), s.net.rssi ? s.net.rssi + ' dBm' : t('none')], [t('ip'), esc(s.net.ip || t('none'))], [t('publicIp'), esc(s.publicIp || t('none'))], [t('mac'), esc(s.net.mac || t('none'))]]))
+        + panel(t('cloud'), kv([[t('status'), `${dot(s.cloud.connected ? 'ok' : 'bad')}${s.cloud.connected ? t('connected') : t('disconnected')}`], [t('server'), esc(s.cloud.host || t('none'))],
+          [t('certificate'), s.cloud.certificate ? t('certOk') : t('certNo')], [t('owner'), cfg.claimed && cfg.registered ? dot('ok') + t('claimed') : dot('warn') + t('unclaimed')]].concat(cfg.regError ? [[t('regError'), `<span class="msg err">${esc(cfg.regError)}</span>`]] : [])))
+        + panel(t('battery'), kv([[t('battery'), esc(fmtBatt(s.battery))], [t('solar'), s.battery && s.battery.solarMv !== undefined ? s.battery.solarMv + ' mV' : t('none')],
+          [t('powerMode'), esc(`${s.power.mode} → ${s.power.effective}`)], [t('location'), s.location ? `${s.location.lat}, ${s.location.lng}` : t('noFix')]]));
+    };
+    every(5000, async () => draw(await api('status')));
+  },
+
+  async time(el, st) {
+    const cfg = await api('config');
+    const manual = st.tzSource === 'manual';
+    el.innerHTML = panel('', row(t('camTime'), `<b id="now">${st.time.synced ? esc(st.time.local) : t('notSynced')}</b>`)
+      + row(t('sync'), st.time.synced ? dot('ok') + esc(st.clockSource) : dot('warn') + t('notSynced'))
+      + row(t('timezone'), `<b>${esc(st.timezone)}</b> <span class="badge${manual ? ' warn' : ''}">${manual ? t('manual') : esc(st.tzSource)}</span>`)
+      + row(t('manual'), txt('tz', manual ? cfg.timezone : '', t('tzAuto')), t('tzNote')), saveBar('tSave'));
+    $('#tSave').onclick = () => saveCfg({ timezone: $('#tz').value.trim() }, $('#tSaveMsg'));
+    every(5000, async () => { const s = await api('status'); if (s.time.synced) $('#now').textContent = s.time.local; });
+  },
+
+  async maint(el, st) {
+    el.innerHTML = panel(t('fwUpdate'), row(t('running'), `<b>${esc(st.fw)}</b> <span class="note">(${esc(st.built)})</span>`), `<button class="btn primary" id="fGo">${t('checkUpdate')}</button><span class="msg" id="fMsg"></span>`)
+      + panel(t('maintenance'), `<p class="note">${t('factoryNote')}</p>`, `<button class="btn" id="boot">${t('reboot')}</button><button class="btn danger" id="reset">${t('factory')}</button><span class="msg" id="mMsg"></span>`);
+    $('#fGo').onclick = async () => { try { await api('ota', {}); say($('#fMsg'), t('updateStarted'), true); } catch (err) { say($('#fMsg'), err.message); } };
+    $('#boot').onclick = async () => { if (await ask(t('confirmReboot'), { danger: true })) { try { await doRestart($('#mMsg')); } catch (err) { say($('#mMsg'), err.message); } } };
+    $('#reset').onclick = async () => { if (!(await ask(t('confirmFactory'), { danger: true }))) return; try { await api('factory-reset', {}); say($('#mMsg'), t('factoryDone'), true); await waitBack(); location.reload(); } catch (err) { say($('#mMsg'), err.message); } };
+  },
+
+  async logs(el) {
+    el.innerHTML = panel('', '<pre class="log" id="log"></pre>', `${chk('lFollow', true, t('follow'))}<button class="btn" id="lPause">${t('pause')}</button><button class="btn" id="lSave">${t('download')}</button><button class="btn" id="lClear">${t('clear')}</button>`);
+    let since = 0, paused = false, all = '';
+    const pre = $('#log');
+    $('#lPause').onclick = () => { paused = !paused; $('#lPause').textContent = paused ? t('resume') : t('pause'); };
+    $('#lClear').onclick = () => { pre.textContent = ''; };
+    $('#lSave').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([all], { type: 'text/plain' })); a.download = 'camos-log.txt'; a.click(); };
+    every(2000, async () => {
+      if (paused || document.hidden) return;
+      const r = await api('logs?since=' + since); since = r.next;
+      if (!r.text) return;
+      const add = (r.lost ? t('logLost') + '\n' : '') + r.text;
+      all += add; if (all.length > 400000) all = all.slice(-300000);
+      pre.textContent += add; if (pre.textContent.length > 200000) pre.textContent = pre.textContent.slice(-150000);
+      if ($('#lFollow').checked) pre.scrollTop = pre.scrollHeight;
+    });
+  },
+
+  async wifi(el, st) {
+    const n = st.net;
+    el.innerHTML = panel(t('current'), kv([['Wi-Fi', `${dot(n.connected && n.type === 'wifi' ? 'ok' : 'bad')}${esc(n.ssid || t('none'))}`], [t('signal'), n.rssi ? `${n.rssi} dBm (${t('channel')} ${n.channel ?? '?'})` : t('none')],
+        [t('ip'), `${esc(n.ip || t('none'))} ${t('dhcp')}`], [t('publicIp'), esc(st.publicIp || t('none'))], [t('mask'), esc(n.mask || t('none'))], [t('gateway'), esc(n.gateway || t('none'))], [t('mac'), esc(n.mac || t('none'))]]))
+      + panel(t('changeWifi'), `<table id="nets"><tr><td class="note">${t('scanning')}</td></tr></table>${row(t('ssid'), txt('wSsid', ''))}${row(t('password'), '<input type="password" id="wPass" maxlength="64">')}<p class="note">${t('wifiNote')}</p>`,
+        `<button class="btn" id="wScan">${t('scan')}</button><button class="btn primary" id="wGo">${t('connect')}</button><span class="msg" id="wMsg"></span>`);
+    const bars = (r) => { const k = r >= -55 ? 4 : r >= -65 ? 3 : r >= -75 ? 2 : 1; return '▂▄▆█'.slice(0, k); };
+    const scan = async (refresh) => {
+      $('#nets').innerHTML = `<tr><td class="note">${t('scanning')}</td></tr>`;
+      try {
+        const list = await api('wifi/scan' + (refresh ? '?refresh=1' : ''));
+        $('#nets').innerHTML = `<tr><th>${t('ssid')}</th><th>${t('signal')}</th><th>${t('channel')}</th><th></th></tr>` + list.map((x) => `<tr class="pick" data-s="${esc(x.ssid)}"><td>${esc(x.ssid)}</td><td>${bars(x.rssi)} ${x.rssi} dBm</td><td>${x.channel}</td><td>${x.secure ? '🔒' : ''}</td></tr>`).join('');
+      } catch (err) { $('#nets').innerHTML = `<tr><td class="msg err">${esc(err.message)}</td></tr>`; }
+    };
+    $('#nets').onclick = (e) => { const tr = e.target.closest('tr.pick'); if (!tr) return; document.querySelectorAll('tr.pick').forEach((r) => r.classList.toggle('on', r === tr)); $('#wSsid').value = tr.dataset.s; $('#wPass').focus(); };
+    $('#wScan').onclick = () => scan(true);
+    $('#wGo').onclick = async () => {
+      const ssid = $('#wSsid').value.trim(); if (!ssid) return say($('#wMsg'), t('pickNet'));
+      if (!(await ask(t('confirmJoin', ssid)))) return;
+      if (await saveCfg({ ssid, password: $('#wPass').value }, $('#wMsg'))) await doRestart($('#wMsg'));
+    };
+    scan(false);
+  },
+
+  async cell(el, st) {
+    const cfg = await api('config'), c = st.net.cell;
+    el.innerHTML = panel(t('current'), st.net.type === '4g' && c ? kv([[t('operator'), `${dot(c.registered ? 'ok' : 'bad')}${esc(c.operator)}`], [t('csq'), esc(c.csq)], [t('ip'), esc(st.net.ip)], [t('imei'), esc(c.imei)], [t('iccid'), esc(c.iccid)]]) : `<p class="note">${t('notOn4g')}</p>`)
+      + panel(t('pCell'), row(t('cellOn'), chk('cOn', cfg.cellular), badge(cfg, 'cellular')) + row(t('apn'), txt('cApn', cfg.apn, t('apnAuto')), badge(cfg, 'apn')) + row(t('simPin'), '<input type="password" id="cPin" maxlength="8">') + `<p class="note">${t('cellNote')}</p>`, saveBar('cSave'));
+    $('#cSave').onclick = () => { const b = { cellular: $('#cOn').checked, apn: $('#cApn').value.trim() }; if ($('#cPin').value) b.simPin = $('#cPin').value; saveCfg(b, $('#cSaveMsg'), true); };
+  },
+
+  async cloud(el, st) {
+    const cfg = await api('config');
+    el.innerHTML = claimPanel(st, cfg) + panel(t('camosLink'), kv([[t('status'), `${dot(st.cloud.connected ? 'ok' : 'bad')}${st.cloud.connected ? t('connected') : t('disconnected')}`], [t('certificate'), st.cloud.certificate ? t('certOk') : t('certNo')],
+        [t('thing'), esc(st.cloud.thing || t('none'))], [t('kvs'), esc(st.cloud.kvsChannel || t('none'))]].concat(cfg.regError ? [[t('regError'), `<span class="msg err">${esc(cfg.regError)}</span>`]] : [])))
+      + panel(t('server'), row(t('apiBase'), txt('cApi', cfg.apiBase), badge(cfg, 'apiBase')) + row(t('iotHost'), txt('cIot', cfg.iotHost), badge(cfg, 'iotHost')) + `<p class="note">${t('cloudNote')}</p>`, saveBar('clSave'));
+    $('#clSave').onclick = () => saveCfg({ apiBase: $('#cApi').value.trim(), iotHost: $('#cIot').value.trim() }, $('#clSaveMsg'), true);
+  },
+
+  async image(el, st) {
+    const i = st.image;
+    const rng = (id, v, min, max) => `<input type="range" id="${id}" value="${v}" min="${min}" max="${max}"><span id="${id}V">${v}</span>`;
+    el.innerHTML = panel('', row(t('brightness'), rng('iB', i.brightness, -64, 64)) + row(t('contrast'), rng('iC', i.contrast, 0, 100)) + row(t('saturation'), rng('iS', i.saturation, 0, 100))
+      + row(t('jpegQuality'), rng('iQ', i.jpegQuality, 1, 100)) + row(t('resolution'), `<b>${i.w ? i.w + '×' + i.h : '?'}</b>`, t('bySensor')) + `<p class="note">${t('imageNote')}</p>`, saveBar('iSave'));
+    for (const id of ['iB', 'iC', 'iS', 'iQ']) $('#' + id).oninput = () => { $('#' + id + 'V').textContent = $('#' + id).value; };
+    $('#iSave').onclick = async () => { try { await api('image', { brightness: +$('#iB').value, contrast: +$('#iC').value, saturation: +$('#iS').value, jpegQuality: +$('#iQ').value }); say($('#iSaveMsg'), t('saved'), true); } catch (err) { say($('#iSaveMsg'), err.message); } };
+  },
+
+  async power(el, st) {
+    const cfg = await api('config');
+    el.innerHTML = panel(t('battery'), kv([[t('battery'), esc(fmtBatt(st.battery))], [t('solar'), st.battery && st.battery.solarMv !== undefined ? st.battery.solarMv + ' mV' : t('none')], [t('effective'), esc(st.power.effective)], [t('nextCapture'), esc(st.nextCaptureAt || t('none'))]]))
+      + panel(t('pPower'), row(t('powerMode'), sel('pMode', cfg.powerMode, [['auto', 'auto'], ['battery', 'battery'], ['powered', 'powered']]), badge(cfg, 'powerMode'))
+        + row(t('interval'), num('pInt', cfg.intervalMin, 1, 1440), badge(cfg, 'intervalMin')) + row(t('led'), chk('pLed', cfg.ledEnabled), badge(cfg, 'ledEnabled'))
+        + row(t('battMon'), chk('pBatt', cfg.batteryMonitor), badge(cfg, 'batteryMonitor'))
+        + row(t('highMv'), `<b>${st.power.highMv}</b>`) + row(t('lowMv'), `<b>${st.power.lowMv}</b>`) + `<p class="note">${t('powerNote')}</p>`, saveBar('pSave'));
+    $('#pSave').onclick = () => saveCfg({ powerMode: $('#pMode').value, intervalMin: +$('#pInt').value, ledEnabled: $('#pLed').checked, batteryMonitor: $('#pBatt').checked }, $('#pSaveMsg'));
+  },
+
+  async gps(el, st) {
+    const cfg = await api('config');
+    const draw = (s) => kv([[t('location'), s.location ? `<a href="https://www.openstreetmap.org/?mlat=${s.location.lat}&mlon=${s.location.lng}#map=17/${s.location.lat}/${s.location.lng}" target="_blank" rel="noopener">${s.location.lat}, ${s.location.lng}</a>` : t('noFix')], [t('fixAt'), esc(s.location ? s.location.fixAt : t('none'))]]);
+    el.innerHTML = panel(t('pGps'), `<div id="gKv">${draw(st)}</div>` + row(t('on'), chk('gOn', cfg.gps), badge(cfg, 'gps')) + `<p class="note">${t('gpsNote')}</p>`,
+      `<button class="btn primary" id="gFix">${t('gpsFix')}</button>${saveBar('gSave')}`);
+    $('#gFix').onclick = async () => { try { await api('gps', {}); say($('#gSaveMsg'), t('gpsFixing'), true); every(5000, async () => { $('#gKv').innerHTML = draw(await api('status')); }); } catch (err) { say($('#gSaveMsg'), err.message); } };
+    $('#gSave').onclick = () => saveCfg({ gps: $('#gOn').checked }, $('#gSaveMsg'));
+  },
+
+  async account(el) {
+    el.innerHTML = panel(t('changePw'), row(t('curPw'), '<input type="password" id="aCur">') + row(t('newPw'), '<input type="password" id="aNew">') + row(t('againPw'), '<input type="password" id="aNew2">') + `<p class="note">${t('forgot')}</p>`, saveBar('aSave'));
+    $('#aSave').onclick = async () => {
+      if ($('#aNew').value !== $('#aNew2').value) return say($('#aSaveMsg'), t('pwMismatch'));
+      try { await api('password', { current: $('#aCur').value, new: $('#aNew').value }); say($('#aSaveMsg'), t('pwChanged'), true); } catch (err) { say($('#aSaveMsg'), err.message); }
+    };
+  },
+};
+boot();
+</script>
+</body>
+</html>

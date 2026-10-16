@@ -1,74 +1,270 @@
 <!doctype html>
-<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CamOS trap camera setup</title>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Camera setup</title>
 <style>
-body{font:15px/1.4 system-ui,sans-serif;max-width:34em;margin:0 auto;padding:0 1em 3em;color:#222}
-h2{margin:.8em 0 .2em}h3{margin:1.2em 0 .3em;border-bottom:1px solid #ddd}
-label{display:block;margin:.6em 0 .15em;font-weight:600}
-input,select,textarea{width:100%;box-sizing:border-box;padding:.5em;border:1px solid #bbb;border-radius:4px;font:inherit}
-textarea{font:12px monospace;height:7em}
-button{padding:.6em 1.2em;margin:.6em .4em 0 0;font:inherit;border-radius:4px;border:1px solid #888;background:#f4f4f4}
-button.p{background:#1565c0;color:#fff;border-color:#1565c0}
-.row{display:flex;gap:.6em}.row>*{flex:1}
-.ok{color:#2e7d32}.err{color:#c62828}.muted{color:#666;font-size:13px}
-code{background:#eee;padding:0 .3em;border-radius:3px;word-break:break-all}
-#msg{position:sticky;top:0;background:#fff;padding:.4em 0}
+body{font-family:system-ui,sans-serif;margin:0;padding:20px;background:#eef2f1;color:#1f2833}
+.card{max-width:420px;margin:0 auto 14px;background:#fff;border-radius:10px;padding:22px;box-shadow:0 2px 10px #0002}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:16px;font-weight:600}
+.brand svg{width:40px;height:40px;border-radius:8px;flex-shrink:0}
+.brand .lang{margin-left:auto;font-weight:400;font-size:13px}
+h1{font-size:19px;margin:0 0 4px}h2{font-size:16px;margin:0 0 4px}p{color:#5b6672;font-size:14px;margin:0 0 16px}
+label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
+select,input,textarea{width:100%;box-sizing:border-box;font-size:16px;padding:12px;border:1px solid #c9d1d9;border-radius:6px;background:#fff;font-family:inherit}
+textarea{font:12px/1.4 ui-monospace,Consolas,monospace;height:6.5em;padding:8px}
+button{width:100%;margin-top:18px;padding:14px;font-size:16px;font-weight:600;border:0;border-radius:6px;background:#18b693;color:#fff;cursor:pointer}
+button.sec{background:#fff;color:#119a7b;border:1px solid #18b693;padding:10px;font-size:15px;margin-top:12px}
+button:disabled{opacity:.6}
+a{color:#119a7b;font-size:14px;cursor:pointer}
+.err{background:#fdecec;color:#b42318;padding:10px;border-radius:6px;font-size:14px;margin-bottom:12px}
+.ok{background:#e3f6f1;color:#0d6e58;padding:10px;border-radius:6px;font-size:14px;margin-bottom:12px}
+.nets{border:1px solid #c9d1d9;border-radius:6px;overflow:hidden}
+.net{display:flex;align-items:center;gap:8px;padding:12px;border-top:1px solid #eef0f2;cursor:pointer;font-size:16px}
+.net:first-child{border-top:0}.net:hover{background:#f3f7f6}.net.on{background:#e3f6f1;font-weight:600}
+.net .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.net .b{font-size:13px;letter-spacing:-1px;color:#119a7b;width:3.2em;text-align:right}.net .b i{color:#c9d1d9;font-style:normal}
+.net .l{width:1.2em;text-align:center;font-size:13px}.net .c{color:#8a949e;font-size:12px;width:2.6em;text-align:right}
+.muted{color:#8a949e;font-size:13px}.row2{display:flex;gap:10px}.row2>div{flex:1}
+.pw{position:relative}.pw input{padding-right:64px}.pw a{position:absolute;right:12px;top:13px}
+.badge{display:inline-block;font-size:11px;font-weight:600;color:#5b6672;background:#eef1f4;border-radius:10px;padding:1px 8px;margin-left:6px;vertical-align:1px}
+.badge.warn{background:#fff3df;color:#9a5b00}
+details.card>summary{font-weight:600;font-size:16px;cursor:pointer;list-style:none}details.card>summary::-webkit-details-marker{display:none}
+details.card>summary::after{content:"▸";float:right;color:#8a949e}details.card[open]>summary::after{content:"▾"}
+.sect{border-top:1px solid #eef0f2;margin-top:18px;padding-top:4px}.sect h3{font-size:14px;margin:12px 0 0;color:#46505c}
+.claim{display:flex;gap:14px;align-items:center}.claim img{width:120px;height:120px;flex-shrink:0;border:1px solid #eef0f2;border-radius:6px}
+.claim p{margin:0}.kv{font-size:13px;color:#46505c;margin-top:6px}.kv b{color:#1f2833}
+.check{display:flex;align-items:center;gap:8px;font-weight:400;margin:12px 0 0}.check input{width:18px;height:18px;margin:0;accent-color:#18b693}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid #c9d1d9;border-top-color:#18b693;border-radius:50%;animation:s 1s linear infinite;vertical-align:-2px}
+@keyframes s{to{transform:rotate(360deg)}}
+.hidden{display:none!important}
 </style></head><body>
-<h2>CamOS trap camera</h2>
-<p class="muted">Serial <b id="serial"></b> · model <span id="model"></span> · firmware <span id="fw"></span><br>
-Verify code <b id="vcode"></b> · label QR <code id="qr"></code><br>
-<span id="flags"></span></p>
-<div id="msg"></div>
+<div class="card" id="main">
+ <div class="brand"><svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="8" fill="#18b693"/><rect x="8" y="13" width="24" height="17" rx="3" fill="#fff"/><rect x="15" y="9" width="10" height="5" rx="1.5" fill="#fff"/><circle cx="20" cy="21.5" r="5.2" fill="#18b693"/><circle cx="20" cy="21.5" r="2.4" fill="#fff"/></svg><span>CamOS AI Camera</span><a class="lang" id="lang"></a></div>
+ <div id="setup">
+  <h1 id="tHeading"></h1><p id="tIntro"></p>
+  <div id="errBox" class="err hidden"></div>
+  <div id="claimBox" class="hidden" style="margin-bottom:16px">
+   <div class="claim"><img id="claimQr" alt="QR"><div><p><b id="tUnclaimed"></b></p><p class="muted" id="tClaimText"></p>
+    <div class="kv"><span id="tSerial"></span> <b id="serial"></b><br><span id="tCode"></span> <b id="vcode"></b></div></div></div>
+  </div>
+  <label id="tNetwork"></label>
+  <div class="nets" id="nets"></div>
+  <div id="hiddenBox" class="hidden"><label for="ssidHidden" id="tHidden"></label><input id="ssidHidden" maxlength="32" autocapitalize="none" autocomplete="off"></div>
+  <div id="pwBox"><label for="password" id="tPassword"></label><div class="pw"><input id="password" type="password" maxlength="64" autocomplete="off"><a id="pwToggle"></a></div></div>
+  <button id="connect"></button>
+  <p style="margin:16px 0 0"><a id="rescan"></a> <span id="scanState" class="muted"></span></p>
+ </div>
+ <div id="connecting" class="hidden"><h1 id="tConnecting"></h1><p id="tConnectingText"></p></div>
+</div>
 
-<h3>1. Network</h3>
-<label>Wi-Fi name (SSID)</label><input id="ssid" list="nets" maxlength="32" autocapitalize="off"><datalist id="nets"></datalist>
-<label>Wi-Fi password <span class="muted" id="password_set"></span></label><input id="password" type="password" maxlength="64" placeholder="leave empty to keep">
-<label>4G APN <span class="muted">(empty = Wi-Fi only; e.g. v-internet, m-wap, e-connect)</span></label><input id="apn" maxlength="63">
-<label>SIM PIN <span class="muted" id="simPin_set">(usually empty)</span></label><input id="simPin" maxlength="8" placeholder="leave empty to keep">
-
-<h3>2. FlyBot</h3>
-<label>FlyBot base URL</label><input id="apiBase" maxlength="127" placeholder="https://flybot.agrhub.com">
-<label>Provisioning token <span class="muted" id="provisionToken_set">(from the FlyBot "add camera" screen; used once by pairing)</span></label><input id="provisionToken" maxlength="95" placeholder="leave empty to keep">
-<div class="row"><div><label>Capture interval (minutes)</label><input id="intervalMin" type="number" min="0" max="1440" placeholder="0 = default"></div>
-<div><label>Power mode</label><select id="powerMode"><option value="auto">auto</option><option value="battery">battery</option><option value="powered">powered</option></select></div></div>
-<label>Timezone (IANA)</label><input id="timezone" maxlength="47" placeholder="Asia/Ho_Chi_Minh">
-
-<h3>3. AWS IoT Core</h3>
-<p class="muted">Filled by pairing. Edit only to override.</p>
-<label>IoT endpoint</label><input id="iotHost" maxlength="127" placeholder="xxxx-ats.iot.ap-southeast-2.amazonaws.com">
-<div class="row"><div><label>Thing name</label><input id="thingName" maxlength="63"></div><div><label>KVS channel</label><input id="kvsChannel" maxlength="63"></div></div>
-<div class="row"><div><label>KVS region</label><input id="kvsRegion" maxlength="23"></div><div><label>Role alias (live view)</label><input id="roleAlias" maxlength="63"></div></div>
-<label>Credential provider endpoint</label><input id="credHost" maxlength="127" placeholder="xxxx.credentials.iot.ap-southeast-2.amazonaws.com">
-<label>Device certificate (PEM) <span class="muted" id="cert_set"></span></label>
-<textarea id="cert" placeholder="-----BEGIN CERTIFICATE-----"></textarea><input type="file" id="certFile" accept=".pem,.crt">
-<label>Device private key (PEM) <span class="muted" id="key_set"></span></label>
-<textarea id="key" placeholder="-----BEGIN EC PRIVATE KEY-----"></textarea><input type="file" id="keyFile" accept=".pem,.key">
-<button onclick="saveCert()">Store certificate + key</button>
-
-<h3>4. Pair and restart</h3>
-<p class="muted">Save first. Pairing joins your Wi-Fi from here (the setup network stays up) and calls FlyBot <code>POST /api/device/pair</code>. Over 4G the camera pairs by itself at the next boot.</p>
-<button class="p" onclick="save()">Save</button>
-<button onclick="pair()">Save and pair now</button>
-<button onclick="restart()">Restart</button>
-<p class="muted">Portal Wi-Fi password: <input id="apPassword" type="password" maxlength="64" placeholder="leave empty to keep" style="width:12em"> <span id="apPassword_set"></span></p>
+<details class="card" id="adv"><summary id="tAdvanced"></summary>
+ <p class="muted" style="margin-top:8px" id="tAdvNote"></p>
+ <div class="sect" id="cellSect"><h3 id="t4g"></h3>
+  <label class="check"><input type="checkbox" id="cellular"><span id="tCellOn"></span><span class="badge hidden" data-d="cellular"></span></label>
+  <label for="apn"><span id="tApn"></span><span class="badge hidden" data-d="apn"></span></label><input id="apn" maxlength="63" autocapitalize="none">
+  <label for="simPin" id="tSimPin"></label><input id="simPin" maxlength="8" inputmode="numeric" autocomplete="off">
+ </div>
+ <div class="sect"><h3 id="tSchedule"></h3>
+  <div class="row2"><div><label for="intervalMin"><span id="tInterval"></span><span class="badge hidden" data-d="intervalMin"></span></label><input id="intervalMin" type="number" min="1" max="1440"></div>
+  <div><label for="powerMode"><span id="tPower"></span><span class="badge hidden" data-d="powerMode"></span></label><select id="powerMode"><option value="auto">auto</option><option value="battery">battery</option><option value="powered">powered</option></select></div></div>
+  <p class="muted" id="tPowerNote" style="margin:6px 0 0"></p>
+  <label for="timezone"><span id="tTz"></span><span class="badge hidden" id="tzBadge"></span></label><input id="timezone" list="zones" maxlength="47" autocapitalize="none">
+  <datalist id="zones"><option value="Asia/Ho_Chi_Minh"><option value="Asia/Bangkok"><option value="Asia/Jakarta"><option value="Asia/Singapore"><option value="Asia/Manila"><option value="Asia/Shanghai"><option value="Asia/Tokyo"><option value="Asia/Kolkata"><option value="Australia/Sydney"><option value="Europe/Paris"><option value="UTC"></datalist>
+  <p class="muted" id="tzAuto" style="margin:6px 0 0"></p>
+ </div>
+ <div class="sect"><h3 id="tDevice"></h3>
+  <label class="check"><input type="checkbox" id="ledEnabled"><span id="tLed"></span><span class="badge hidden" data-d="ledEnabled"></span></label>
+  <label class="check" id="gpsRow"><input type="checkbox" id="gps"><span id="tGps"></span><span class="badge hidden" data-d="gps"></span></label>
+  <label class="check"><input type="checkbox" id="batteryMonitor"><span id="tBatt"></span><span class="badge hidden" data-d="batteryMonitor"></span></label>
+ </div>
+ <div class="sect"><h3>FlyBot</h3>
+  <label for="apiBase"><span id="tApi"></span><span class="badge hidden" data-d="apiBase"></span></label><input id="apiBase" maxlength="127" autocapitalize="none" inputmode="url">
+  <label for="provisionToken"><span id="tProv"></span> <span class="muted" id="provSet"></span></label><input id="provisionToken" maxlength="95" autocapitalize="none" autocomplete="off">
+  <p class="muted" id="tProvNote" style="margin:6px 0 0"></p>
+ </div>
+ <div class="sect"><h3>AWS IoT Core</h3>
+  <label for="iotHost"><span id="tIot"></span><span class="badge hidden" data-d="iotHost"></span></label><input id="iotHost" maxlength="127" autocapitalize="none">
+  <label><span id="tCert"></span> <span class="muted" id="certSet"></span></label>
+  <textarea id="cert" placeholder="-----BEGIN CERTIFICATE-----"></textarea><input type="file" id="certFile" accept=".pem,.crt" style="padding:6px;margin-top:6px">
+  <label><span id="tKey"></span> <span class="muted" id="keySet"></span></label>
+  <textarea id="key" placeholder="-----BEGIN EC PRIVATE KEY-----"></textarea><input type="file" id="keyFile" accept=".pem,.key" style="padding:6px;margin-top:6px">
+  <button class="sec" id="saveCert"></button>
+  <p class="muted" id="tCertNote" style="margin:6px 0 0"></p>
+ </div>
+ <div id="advMsg" class="hidden" style="margin-top:14px"></div>
+ <button class="sec" id="saveAdv"></button>
+</details>
+<p class="muted" style="text-align:center;margin:0" id="foot"></p>
 
 <script>
-const keys=['ssid','password','apn','simPin','apiBase','provisionToken','intervalMin','powerMode','timezone','iotHost','thingName','kvsChannel','kvsRegion','roleAlias','credHost','apPassword'];
-const secrets=['password','simPin','provisionToken','apPassword'];
-const $=id=>document.getElementById(id);
-function msg(t,cls){$('msg').innerHTML='<b class="'+(cls||'')+'">'+t+'</b>';}
-async function api(path,body){const r=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});let j={};try{j=await r.json();}catch(e){}if(!r.ok&&!j.error)j.error='HTTP '+r.status;return j;}
-async function load(){const c=await api('/api/config');$('serial').textContent=c.serial;$('model').textContent=c.model;$('fw').textContent=c.fw;$('vcode').textContent=c.verifyCode;$('qr').textContent=c.labelQr;
-$('flags').textContent=(c.paired?'paired ✓ ':'not paired · ')+(c.cert&&c.key?'certificate ✓':'no certificate')+(c.modem?' · 4G build':'')+(c.gps?' · GPS build':'')+(c.live?' · live view build':'');
-for(const k of keys){if(secrets.includes(k)){$(k+'_set').textContent=c[k]?'(set)':'(not set)';}else if($(k))$(k).value=c[k]==null?'':c[k];}
-$('cert_set').textContent=c.cert?'(stored)':'(missing)';$('key_set').textContent=c.key?'(stored)':'(missing)';
-const i=await api('/info');$('nets').innerHTML=(i.wifiScan||[]).map(n=>'<option value="'+n.ssid.replace(/"/g,'&quot;')+'">').join('');}
-function collect(){const b={};for(const k of keys){const v=$(k).value;if(secrets.includes(k)&&v==='')continue;b[k]=v;}return b;}
-async function save(){msg('saving…');const r=await api('/api/config',collect());msg(r.ok?'saved':'error: '+r.error,r.ok?'ok':'err');if(r.ok)for(const k of secrets)$(k).value='';load();return r.ok;}
-async function saveCert(){msg('storing…');const r=await api('/api/cert',{cert:$('cert').value,key:$('key').value});msg(r.ok?'certificate and key stored':'error: '+r.error,r.ok?'ok':'err');if(r.ok){$('cert').value='';$('key').value='';}load();}
-async function pair(){if(!await save())return;msg('pairing… (joining Wi-Fi, up to 60 s)');const r=await api('/api/pair',{});msg(r.ok?'paired: thing '+r.thingName+', restart when ready':'pair failed: '+r.error,r.ok?'ok':'err');load();}
-async function restart(){await api('/api/restart',{});msg('restarting; the setup network closes');}
-for(const [f,t] of [['certFile','cert'],['keyFile','key']])$(f).onchange=e=>{const fr=new FileReader();fr.onload=()=>$(t).value=fr.result;fr.readAsText(e.target.files[0]);};
-load();
+'use strict';
+const T = {
+ vi: {
+  lang: 'English', title: 'Cài đặt camera', heading: 'Kết nối camera với Wi-Fi', intro: 'Camera {0}. Chọn mạng Wi-Fi và nhập mật khẩu.',
+  introDefault: 'Camera {0}. Mạng mặc định: {1}. Bấm Kết nối, hoặc chọn mạng khác.', introCell: ' Có SIM 4G thì camera dùng 4G trước.',
+  network: 'Mạng Wi-Fi', other: 'Mạng khác (mạng ẩn)…', hidden: 'Tên mạng (mạng ẩn)', password: 'Mật khẩu', show: 'Hiện', hide: 'Ẩn',
+  connect: 'Kết nối', rescan: 'Không thấy mạng của bạn? Quét lại', scanning: 'Đang quét…', found: '{0} mạng', noNets: 'Không thấy mạng nào.',
+  connecting: 'Đang kết nối…', connectingText: 'Camera đang kết nối vào mạng đã chọn và sẽ tắt mạng cài đặt này. Nếu sai mật khẩu, mạng cài đặt sẽ bật lại sau khoảng một phút để nhập lại.',
+  errChoose: 'Hãy chọn một mạng Wi-Fi.', errShort: 'Mật khẩu Wi-Fi có ít nhất 8 ký tự.', errJoin: 'Không kết nối được "{0}". Kiểm tra mật khẩu và thử lại.',
+  errTaken: 'FlyBot từ chối đăng ký: số serial này đã được đăng ký với mã xác minh khác. Chủ camera cần đặt lại camera trên FlyBot.',
+  unclaimed: 'Chưa có chủ', claimText: 'Mở {0} hoặc quét mã QR trên nhãn trong ứng dụng FlyBot để nhận camera.', serial: 'Serial', code: 'Mã xác minh',
+  advanced: 'Cài đặt nâng cao', advNote: 'Đã có sẵn giá trị mặc định; chỉ đổi khi cần. Để trống một ô = dùng mặc định.', dflt: 'mặc định',
+  g4: '4G (SIMCom A7680C)', cellOn: 'Dùng 4G khi có SIM', apn: 'APN', apnPh: 'tự động theo SIM', simPin: 'Mã PIN SIM (thường để trống)',
+  schedule: 'Lịch chụp & nguồn điện', interval: 'Chu kỳ chụp (phút)', power: 'Chế độ nguồn',
+  powerNote: 'auto: cắm điện / pin đầy thì luôn kết nối, pin yếu thì ngủ sâu giữa các lần chụp.',
+  tz: 'Múi giờ', tzPh: 'để trống = tự động', tzAuto: 'Tự động: {0} (nguồn: {1}). Chỉ nhập khi muốn ghi đè.', manual: 'ghi đè',
+  device: 'Thiết bị', led: 'Đèn trạng thái', gpsOn: 'Lấy vị trí GPS (mỗi ngày một lần)', batt: 'Đã lắp mạch đo pin / pin mặt trời (chế độ auto dựa vào đây)',
+  api: 'Địa chỉ FlyBot', prov: 'Mã cấp phát (provisioning token)', provNote: 'Chỉ cho đội của chủ trang trại. Camera tự đăng ký với FlyBot nếu để trống.',
+  iot: 'Endpoint IoT Core', cert: 'Chứng chỉ thiết bị (PEM)', key: 'Khóa riêng (PEM)', saveCert: 'Lưu chứng chỉ + khóa',
+  certNote: 'Không bắt buộc: camera tự tạo khóa và nhận chứng chỉ khi đăng ký. Dùng khi camera được cấp sẵn chứng chỉ.',
+  set: '(đã có)', notSet: '(chưa có)', saveAdv: 'Lưu cài đặt nâng cao', saved: 'Đã lưu. Áp dụng khi bấm Kết nối.', certSaved: 'Đã lưu chứng chỉ và khóa.',
+  rejected: 'Không lưu được: {0}', foot: 'Firmware {0} · {1}', net: 'Lỗi mạng: {0}',
+ },
+ en: {
+  lang: 'Tiếng Việt', title: 'Camera setup', heading: 'Connect the camera to Wi-Fi', intro: 'Camera {0}. Choose a Wi-Fi network and type its password.',
+  introDefault: 'Camera {0}. Default network: {1}. Press Connect, or choose another network.', introCell: ' With a 4G SIM inserted the camera uses 4G first.',
+  network: 'Wi-Fi network', other: 'Other network (hidden)…', hidden: 'Network name (hidden network)', password: 'Password', show: 'Show', hide: 'Hide',
+  connect: 'Connect', rescan: 'Network not listed? Scan again', scanning: 'Scanning…', found: '{0} networks', noNets: 'No networks found.',
+  connecting: 'Connecting…', connectingText: 'The camera is joining the chosen network and will close this setup network. If the password is wrong, setup comes back in about a minute.',
+  errChoose: 'Choose a Wi-Fi network.', errShort: 'Wi-Fi passwords have at least 8 characters.', errJoin: 'Could not join "{0}". Check the password and try again.',
+  errTaken: 'FlyBot refused the registration: this serial is registered with another verify code. The camera owner has to reset it in FlyBot.',
+  unclaimed: 'Unclaimed', claimText: 'Open {0} or scan the label QR in the FlyBot app to claim this camera.', serial: 'Serial', code: 'Verify code',
+  advanced: 'Advanced settings', advNote: 'Defaults are already set; change them only when needed. An empty field means the default.', dflt: 'default',
+  g4: '4G (SIMCom A7680C)', cellOn: 'Use 4G when a SIM is inserted', apn: 'APN', apnPh: 'automatic from the SIM', simPin: 'SIM PIN (usually empty)',
+  schedule: 'Schedule & power', interval: 'Capture interval (minutes)', power: 'Power mode',
+  powerNote: 'auto: always connected on mains / a full battery, deep sleep between captures when the battery is low.',
+  tz: 'Timezone', tzPh: 'empty = automatic', tzAuto: 'Automatic: {0} (source: {1}). Type one only to override it.', manual: 'override',
+  device: 'Device', led: 'Status LED', gpsOn: 'GPS position (once a day)', batt: 'Battery / solar divider fitted (auto mode uses it)',
+  api: 'FlyBot address', prov: 'Provisioning token', provNote: 'For the farm owner\'s team only. Leave empty and the camera registers itself with FlyBot.',
+  iot: 'IoT Core endpoint', cert: 'Device certificate (PEM)', key: 'Private key (PEM)', saveCert: 'Store certificate + key',
+  certNote: 'Optional: the camera makes its own key and gets a certificate when it registers. Use this for pre-provisioned cameras.',
+  set: '(set)', notSet: '(not set)', saveAdv: 'Save advanced settings', saved: 'Saved. Applied when you press Connect.', certSaved: 'Certificate and key stored.',
+  rejected: 'Not saved: {0}', foot: 'Firmware {0} · {1}', net: 'Network error: {0}',
+ },
+};
+/* English by default; Vietnamese only when picked (remembered in this browser and on the camera, NVS uiLang) */
+let lang = 'en', langSaved = false;
+try { const l = localStorage.getItem('camosLang'); if (l === 'vi' || l === 'en') { lang = l; langSaved = true; } } catch (e) { /* private mode */ }
+const $ = (id) => document.getElementById(id);
+const t = (k, ...a) => (T[lang][k] || k).replace(/\{(\d)\}/g, (m, i) => a[i] ?? '');
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let cfg = {}, nets = [], pick = null, showPw = false;
+async function api(path, body) {
+  const r = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' });
+  let j = {}; try { j = await r.json(); } catch (e) { /* not JSON */ }
+  if (!r.ok) { const e = new Error(j.message || j.error || ('HTTP ' + r.status)); e.code = j.error; throw e; }
+  return j;
+}
+const bars = (rssi) => { const n = rssi >= -55 ? 4 : rssi >= -65 ? 3 : rssi >= -75 ? 2 : 1; return '▂▄▆█'.slice(0, n) + '<i>' + '▂▄▆█'.slice(n) + '</i>'; };
+function err(text) { $('errBox').textContent = text; $('errBox').classList.toggle('hidden', !text); }
+
+function texts() {
+  document.documentElement.lang = lang; document.title = t('title'); $('lang').textContent = t('lang');
+  for (const [id, k] of [['tHeading', 'heading'], ['tNetwork', 'network'], ['tHidden', 'hidden'], ['tPassword', 'password'], ['connect', 'connect'], ['rescan', 'rescan'],
+    ['tConnecting', 'connecting'], ['tConnectingText', 'connectingText'], ['tUnclaimed', 'unclaimed'], ['tSerial', 'serial'], ['tCode', 'code'], ['tAdvanced', 'advanced'],
+    ['tAdvNote', 'advNote'], ['t4g', 'g4'], ['tCellOn', 'cellOn'], ['tApn', 'apn'], ['tSimPin', 'simPin'], ['tSchedule', 'schedule'], ['tInterval', 'interval'],
+    ['tPower', 'power'], ['tPowerNote', 'powerNote'], ['tTz', 'tz'], ['tDevice', 'device'], ['tLed', 'led'], ['tGps', 'gpsOn'], ['tBatt', 'batt'], ['tApi', 'api'], ['tProv', 'prov'],
+    ['tProvNote', 'provNote'], ['tIot', 'iot'], ['tCert', 'cert'], ['tKey', 'key'], ['saveCert', 'saveCert'], ['tCertNote', 'certNote'], ['saveAdv', 'saveAdv']]) $(id).textContent = t(k);
+  $('pwToggle').textContent = showPw ? t('hide') : t('show');
+  $('apn').placeholder = t('apnPh'); $('timezone').placeholder = t('tzPh');
+  document.querySelectorAll('[data-d]').forEach((b) => { b.textContent = t('dflt'); });
+  if (cfg.serial) draw();
+}
+
+function draw() {
+  const dflt = new Set(cfg.defaults || []);
+  const def = cfg.ssid && dflt.has('ssid');
+  $('tIntro').textContent = (def ? t('introDefault', cfg.apSsid, cfg.ssid) : t('intro', cfg.apSsid)) + (cfg.hasModem && cfg.cellular ? t('introCell') : '');
+  err(cfg.regError === 'serial_taken' ? t('errTaken') : cfg.wifiError ? t('errJoin', cfg.wifiError) : '');
+  $('claimBox').classList.toggle('hidden', !!cfg.claimed && !!cfg.registered);
+  $('claimQr').src = '/api/qr.svg?what=claim'; $('serial').textContent = cfg.serial; $('vcode').textContent = cfg.verifyCode;
+  $('tClaimText').textContent = t('claimText', cfg.claimUrl);
+  document.querySelectorAll('[data-d]').forEach((b) => b.classList.toggle('hidden', !dflt.has(b.dataset.d)));
+  $('cellSect').classList.toggle('hidden', !cfg.hasModem); $('gpsRow').classList.toggle('hidden', !cfg.hasGps);
+  $('tzAuto').textContent = t('tzAuto', cfg.timezoneAuto, cfg.timezoneSource);
+  const manualTz = cfg.timezoneSource === 'manual';
+  $('tzBadge').textContent = t('manual'); $('tzBadge').className = 'badge warn' + (manualTz ? '' : ' hidden');
+  $('provSet').textContent = cfg.provisionToken ? t('set') : ''; $('certSet').textContent = cfg.cert ? t('set') : t('notSet'); $('keySet').textContent = cfg.key ? t('set') : t('notSet');
+  $('foot').textContent = t('foot', cfg.fw, cfg.model);
+  drawNets();
+}
+
+function drawNets() {
+  const rows = nets.map((n, i) => `<div class="net${pick === i ? ' on' : ''}" data-i="${i}"><span class="n">${esc(n.ssid)}</span><span class="b">${bars(n.rssi)}</span><span class="l">${n.secure ? '🔒' : ''}</span><span class="c">ch ${n.channel}</span></div>`);
+  rows.push(`<div class="net${pick === -1 ? ' on' : ''}" data-i="-1"><span class="n">${esc(t('other'))}</span></div>`);
+  $('nets').innerHTML = rows.join('');
+  $('hiddenBox').classList.toggle('hidden', pick !== -1);
+  const sec = pick === -1 || pick === null || (nets[pick] && nets[pick].secure);
+  $('pwBox').classList.toggle('hidden', !sec);
+}
+$('nets').onclick = (e) => {
+  const row = e.target.closest('.net'); if (!row) return;
+  pick = +row.dataset.i; err(''); drawNets();
+  if (pick === -1) $('ssidHidden').focus(); else if (nets[pick].secure) $('password').focus();
+};
+$('pwToggle').onclick = () => { showPw = !showPw; $('password').type = showPw ? 'text' : 'password'; $('pwToggle').textContent = showPw ? t('hide') : t('show'); };
+$('lang').onclick = () => {
+  lang = lang === 'vi' ? 'en' : 'vi'; langSaved = true;
+  try { localStorage.setItem('camosLang', lang); } catch (e) { /* private mode */ }
+  api('/api/config', { uiLang: lang }).catch(() => { /* the page still switches */ });
+  texts();
+};
+
+async function scan(refresh) {
+  $('scanState').innerHTML = '<span class="spin"></span> ' + esc(t('scanning'));
+  try {
+    nets = await api('/api/wifi/scan' + (refresh ? '?refresh=1' : ''));
+    if (pick === null && cfg.ssid) { const i = nets.findIndex((n) => n.ssid === cfg.ssid); if (i >= 0) pick = i; }
+    $('scanState').textContent = nets.length ? t('found', nets.length) : t('noNets');
+  } catch (e) { $('scanState').textContent = t('net', e.message); }
+  drawNets();
+}
+$('rescan').onclick = () => scan(true);
+
+function advanced() {
+  const o = {};
+  for (const id of ['apn', 'simPin', 'apiBase', 'provisionToken', 'iotHost', 'timezone']) {
+    const v = $(id).value.trim();
+    if ((id === 'simPin' || id === 'provisionToken') && !v) continue; /* secrets: empty = keep */
+    o[id] = v;
+  }
+  const iv = parseInt($('intervalMin').value, 10); if (iv > 0) o.intervalMin = iv;
+  o.powerMode = $('powerMode').value; o.ledEnabled = $('ledEnabled').checked; o.batteryMonitor = $('batteryMonitor').checked;
+  if (cfg.hasModem) o.cellular = $('cellular').checked;
+  if (cfg.hasGps) o.gps = $('gps').checked;
+  return o;
+}
+
+$('connect').onclick = async () => {
+  const body = advanced();
+  if (pick === -1) body.ssid = $('ssidHidden').value.trim();
+  else if (pick !== null && nets[pick]) body.ssid = nets[pick].ssid;
+  const secure = pick === -1 || (pick !== null && nets[pick] && nets[pick].secure);
+  if (body.ssid !== undefined) body.password = secure ? $('password').value : '';
+  if (!body.ssid && !cfg.ssid && !(cfg.hasModem && cfg.cellular)) return err(t('errChoose'));
+  if (body.ssid && secure && body.password && body.password.length < 8) return err(t('errShort'));
+  $('connect').disabled = true;
+  try {
+    await api('/api/connect', body); err('');
+    $('setup').classList.add('hidden'); $('connecting').classList.remove('hidden'); $('adv').classList.add('hidden');
+  } catch (e) {
+    $('connect').disabled = false;
+    err(e.code === 'CHOOSE_NETWORK' ? t('errChoose') : e.code === 'SHORT_PASSWORD' ? t('errShort') : t('rejected', e.message));
+  }
+};
+function advMsg(text, ok) { const m = $('advMsg'); m.textContent = text; m.className = ok ? 'ok' : 'err'; }
+$('saveAdv').onclick = async () => { try { await api('/api/config', advanced()); advMsg(t('saved'), true); await load(); } catch (e) { advMsg(t('rejected', e.message)); } };
+$('saveCert').onclick = async () => { try { await api('/api/cert', { cert: $('cert').value, key: $('key').value }); $('cert').value = ''; $('key').value = ''; advMsg(t('certSaved'), true); await load(); } catch (e) { advMsg(t('rejected', e.message)); } };
+for (const [f, x] of [['certFile', 'cert'], ['keyFile', 'key']]) $(f).onchange = (e) => { const r = new FileReader(); r.onload = () => { $(x).value = r.result; }; r.readAsText(e.target.files[0]); };
+
+async function load() {
+  cfg = await api('/api/config');
+  if (!langSaved && (cfg.uiLang === 'vi' || cfg.uiLang === 'en') && cfg.uiLang !== lang) { lang = cfg.uiLang; texts(); }
+  for (const id of ['apn', 'apiBase', 'iotHost', 'intervalMin']) $(id).value = cfg[id] ?? '';
+  $('timezone').value = cfg.timezoneSource === 'manual' ? cfg.timezone : '';
+  $('powerMode').value = cfg.powerMode; $('ledEnabled').checked = !!cfg.ledEnabled; $('batteryMonitor').checked = !!cfg.batteryMonitor; $('cellular').checked = !!cfg.cellular; $('gps').checked = !!cfg.gps;
+  draw();
+}
+texts();
+load().then(() => scan(false)).catch((e) => err(t('net', e.message)));
 </script>
 </body></html>

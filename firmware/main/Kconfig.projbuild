@@ -255,21 +255,6 @@ menu "CamOS trap camera"
             depends on CAMOS_CHARGING_GPIO >= 0
             default y
 
-        choice CAMOS_POWER_MODE_DEFAULT_CHOICE
-            prompt "Default power.mode (the portal and the shadow override it)"
-            default CAMOS_POWER_MODE_DEFAULT_AUTO
-            config CAMOS_POWER_MODE_DEFAULT_AUTO
-                bool "auto (powered while the cell is full / charging, battery below the low threshold)"
-            config CAMOS_POWER_MODE_DEFAULT_BATTERY
-                bool "battery (scheduled capture + deep sleep)"
-            config CAMOS_POWER_MODE_DEFAULT_POWERED
-                bool "powered (MQTT always connected, snapshot and live on demand)"
-        endchoice
-        config CAMOS_POWER_MODE_DEFAULT
-            int
-            default 0 if CAMOS_POWER_MODE_DEFAULT_AUTO
-            default 1 if CAMOS_POWER_MODE_DEFAULT_BATTERY
-            default 2 if CAMOS_POWER_MODE_DEFAULT_POWERED
         config CAMOS_POWER_HIGH_MV
             int "auto: switch to powered above (mV)"
             default 4050
@@ -391,9 +376,50 @@ menu "CamOS trap camera"
             default 24
     endmenu
 
+    menu "Status LED (docs/LED.md)"
+        choice CAMOS_LED_TYPE
+            prompt "LED type"
+            default CAMOS_LED_WS2812 if CAMOS_BOARD_FREENOVE_S3CAM
+            default CAMOS_LED_GPIO_LED if CAMOS_BOARD_ESP32CAM
+            default CAMOS_LED_NONE
+            config CAMOS_LED_NONE
+                bool "none"
+            config CAMOS_LED_WS2812
+                bool "WS2812 RGB on an RMT channel (Freenove: GPIO48)"
+            config CAMOS_LED_GPIO_LED
+                bool "single-colour LED on a GPIO (AI-Thinker ESP32-CAM: red LED on GPIO33, active low)"
+        endchoice
+        config CAMOS_LED_GPIO
+            int "LED GPIO"
+            depends on !CAMOS_LED_NONE
+            default 48 if CAMOS_BOARD_FREENOVE_S3CAM
+            default 33 if CAMOS_BOARD_ESP32CAM
+            default -1
+        config CAMOS_LED_COUNT
+            int "Number of WS2812 LEDs"
+            depends on CAMOS_LED_WS2812
+            default 1
+        config CAMOS_LED_BRIGHTNESS
+            int "WS2812 brightness (0-255; 25 is about 10 %)"
+            depends on CAMOS_LED_WS2812
+            range 1 255
+            default 25
+        config CAMOS_LED_ACTIVE_LOW
+            int
+            default 1 if CAMOS_LED_GPIO_LED && CAMOS_BOARD_ESP32CAM
+            default 0
+    endmenu
+
     config CAMOS_CONSOLE
         bool "Serial console (bench commands on UART0: help, cfg, set, pair, snap, gps, at, net, batt, ...)"
         default y
+
+    config CAMOS_WEB_CONSOLE
+        bool "Local web console on Wi-Fi (http://<camera IP>/, admin sign-in), AMB82-style"
+        default y
+        help
+            Served while the camera is awake on Wi-Fi: always in powered mode, during the awake window in battery
+            mode (a signed-in visit keeps it awake 2 minutes). Not served over 4G.
 
     config CAMOS_LIVE
         bool "Live view: KVS WebRTC MASTER (ESP32-S3 only, esp-webrtc-solution)"

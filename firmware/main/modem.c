@@ -18,6 +18,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "camos.h"
+#include "apn.h"
+#include "nmea.h"
+#include <sys/time.h>
 
 static const char *TAG = "modem";
 
@@ -96,10 +99,18 @@ static void on_ppp_event(void *arg, esp_event_base_t base, int32_t id, void *dat
 	}
 }
 
+/* 4G is tried when the build has the modem, 4G is on (defaults: on, APN auto) and no earlier boot found the module
+ * missing ("modem_absent", cleared when someone sets the APN / 4G in the portal or console) */
 bool modem_available(void)
 {
-	return CONFIG_CAMOS_MODEM_TX_GPIO >= 0 && CONFIG_CAMOS_MODEM_RX_GPIO >= 0 && g_cfg.apn[0];
+	return CONFIG_CAMOS_MODEM_TX_GPIO >= 0 && CONFIG_CAMOS_MODEM_RX_GPIO >= 0 && g_cfg.cellular &&
+		   !store_get_flag("modem_absent");
 }
+
+static modem_fail_t last_fail;
+modem_fail_t modem_last_failure(void) { return last_fail; }
+static char apn_used[64];
+const char *modem_apn(void) { return apn_used; }
 
 bool modem_up(void) { return s_up; }
 
@@ -205,7 +216,9 @@ bool modem_start(void)
 	dte.uart_config.tx_buffer_size = 1024;
 	dte.dte_buffer_size = 1024;
 	dte.task_stack_size = 6144;
-	esp_modem_dce_config_t dcfg = ESP_MODEM_DCE_DEFAULT_CONFIG(g_cfg.apn);
+	last_fail = MODEM_OK;
+	strlcpy(apn_used, g_cfg.apn, sizeof(apn_used)); /* "" = auto from the SIM, decided below */
+	esp_modem_dce_config_t dcfg = ESP_MODEM_DCE_DEFAULT_CONFIG(apn_used);
 	dce = esp_modem_new_dev(ESP_MODEM_DCE_SIM7600, &dte, &dcfg, ppp_netif);
 	if (!dce) {
 		ESP_LOGE(TAG, "esp_modem init failed (UART %d, tx %d, rx %d)", CONFIG_CAMOS_MODEM_UART_NUM,
@@ -218,6 +231,8 @@ bool modem_start(void)
 		pwrkey(1500);
 		if (!wait_at(CONFIG_CAMOS_MODEM_BOOT_WAIT_S)) {
 			ESP_LOGE(TAG, "modem does not answer AT after %d s (no module, wiring, or baud rate)", CONFIG_CAMOS_MODEM_BOOT_WAIT_S);
+			last_fail = MODEM_NOT_FITTED;
+			store_set_flag("modem_absent", 1); /* next boots go straight to Wi-Fi / the portal */
 			goto fail;
 		}
 	}
@@ -225,6 +240,7 @@ bool modem_start(void)
 	bool pin_ok = false;
 	if (esp_modem_read_pin(dce, &pin_ok) != ESP_OK) {
 		ESP_LOGE(TAG, "no SIM (AT+CPIN? failed)");
+		last_fail = MODEM_NO_SIM;
 		goto fail;
 	}
 	if (!pin_ok) {
@@ -236,6 +252,25 @@ bool modem_start(void)
 	}
 	esp_modem_get_imei(dce, imei);
 	read_iccid();
+	/* network time zone updates (NITZ) into the RTC of the module: AT+CCLK? then gives local time + zone */
+	esp_modem_at(dce, "AT+CTZU=1", NULL, 1000);
+	/* APN: the user's when set, else from the IMSI (MCC-MNC table, apn.c) */
+	if (!apn_used[0]) {
+		char imsi[32] = "";
+		if (esp_modem_get_imsi(dce, imsi) == ESP_OK) {
+			const apn_entry_t *a = apn_from_imsi(imsi);
+			if (a) {
+				strlcpy(apn_used, a->apn, sizeof(apn_used));
+				ESP_LOGI(TAG, "APN auto: %.5s %s -> \"%s\" (%s)", imsi, a->operator_name, a->apn,
+						 a->verified ? "verified" : "unverified, docs/APN.md");
+			} else {
+				ESP_LOGW(TAG, "APN auto: network %.5s not in the table: empty APN (network default bearer); set one in the portal if data fails", imsi);
+			}
+		} else {
+			ESP_LOGW(TAG, "APN auto: AT+CIMI failed, empty APN");
+		}
+		esp_modem_set_apn(dce, apn_used);
+	}
 	/* Registration: up to 60 s (CREG/CEREG are inside esp_modem's attachment query) */
 	for (int i = 0; i < 60; i++) {
 		int state = 0;
@@ -248,11 +283,27 @@ bool modem_start(void)
 	}
 	if (!registered) {
 		ESP_LOGE(TAG, "not registered on the network after 60 s (csq %d)", last_csq);
+		last_fail = MODEM_NO_NETWORK;
 		goto fail;
 	}
 	int act = 0;
 	esp_modem_get_operator_name(dce, oper, &act);
-	ESP_LOGI(TAG, "IMEI %s, ICCID %s, operator %s, csq %d, APN %s", imei, iccid, oper, last_csq, g_cfg.apn);
+	ESP_LOGI(TAG, "IMEI %s, ICCID %s, operator %s, csq %d, APN \"%s\"%s", imei, iccid, oper, last_csq, apn_used,
+			 g_cfg.apn[0] ? "" : " (auto)");
+	/* clock chain, step 2: the network time the module got by NITZ (CONTRACTS 2a.6) */
+	if (!clock_synced() || !strcmp(clock_source(), "rtc")) {
+		char cclk[64] = "";
+		if (esp_modem_at(dce, "AT+CCLK?", cclk, 2000) == ESP_OK) {
+			int64_t t = cclk_to_epoch(cclk);
+			if (t) {
+				struct timeval tv = { .tv_sec = (time_t)t };
+				settimeofday(&tv, NULL);
+				clock_set_source("modem");
+			} else {
+				ESP_LOGI(TAG, "AT+CCLK? %s: no network time yet", cclk);
+			}
+		}
+	}
 
 	esp_err_t err = ESP_FAIL;
 #ifdef CONFIG_CAMOS_MODEM_CMUX
@@ -273,7 +324,8 @@ bool modem_start(void)
 		vTaskDelay(pdMS_TO_TICKS(1000));
 	}
 	if (!s_up) {
-		ESP_LOGE(TAG, "no IP from PPP after 30 s (APN %s?)", g_cfg.apn);
+		ESP_LOGE(TAG, "no IP from PPP after 30 s (APN \"%s\"?)", apn_used);
+		last_fail = MODEM_NO_DATA;
 		goto fail;
 	}
 	if (cmux_mode) {
@@ -327,6 +379,8 @@ int modem_at(const char *cmd, char *out, size_t n, int timeout_ms)
 #else /* no modem in this build */
 
 bool modem_available(void) { return false; }
+modem_fail_t modem_last_failure(void) { return MODEM_NOT_FITTED; }
+const char *modem_apn(void) { return ""; }
 bool modem_start(void) { ESP_LOGW(TAG, "no modem in this build (CAMOS_MODEM)"); return false; }
 void modem_stop(void) {}
 bool modem_up(void) { return false; }

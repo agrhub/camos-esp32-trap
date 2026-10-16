@@ -8,6 +8,7 @@
 #include "esp_timer.h"
 #include "esp_attr.h"
 #include "driver/gpio.h"
+#include "esp_pm.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "camos.h"
@@ -16,10 +17,39 @@ static const char *TAG = "cam";
 static RTC_DATA_ATTR framesize_t max_fs; /* known after the first power-up; kept through deep sleep */
 static bool streaming;
 
+/* The sensor needs a steady XCLK and SCCB clock: with automatic light sleep and frequency scaling on (station mode,
+ * main.c power_setup) camera init fails with garbage SCCB reads. Hold the CPU at full speed and out of light sleep
+ * from power-up to power-down. */
+static esp_pm_lock_handle_t pm_freq, pm_awake;
+static bool pm_on;
+
+static void cam_pm(bool on)
+{
+#if CONFIG_PM_ENABLE
+	if (!pm_freq) {
+		esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "camera", &pm_freq);
+		esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "camera", &pm_awake);
+	}
+	if (on && !pm_on) {
+		esp_pm_lock_acquire(pm_freq);
+		esp_pm_lock_acquire(pm_awake);
+		pm_on = true;
+	} else if (!on && pm_on) {
+		esp_pm_lock_release(pm_awake);
+		esp_pm_lock_release(pm_freq);
+		pm_on = false;
+	}
+#endif
+	(void)on;
+}
+
 /* Camera power. PWDN (AI-Thinker: GPIO32) is driven by esp32-camera itself; boards without PWDN can switch the camera
  * 3V3 with a P-MOSFET on CAMOS_CAM_POWER_GPIO (docs/WIRING.md). Both are held through deep sleep. */
 static void cam_power(bool on)
 {
+	if (on) {
+		cam_pm(true);
+	}
 #if CONFIG_CAMOS_CAM_POWER_GPIO >= 0
 	const int pin = CONFIG_CAMOS_CAM_POWER_GPIO;
 	const int level = (on != CAMOS_POWER_ACTIVE_LOW);
@@ -47,6 +77,7 @@ static void cam_off(void)
 {
 	esp_camera_deinit(); /* PWDN high: the sensor sleeps */
 	cam_power(false);
+	cam_pm(false);
 }
 
 void cam_sleep_prepare(void)

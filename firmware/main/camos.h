@@ -37,20 +37,33 @@ typedef struct {
 	char role_alias[64];  /* IoT credential provider role alias (live view credentials) */
 	char cred_host[128];  /* IoT credential provider endpoint (xxxx.credentials.iot.<region>.amazonaws.com) */
 	char tz[48];          /* IANA zone from the portal; the shadow `timezone` wins once a shadow arrived */
-	int interval_min;     /* capture interval from the portal, 0 = Kconfig default; the shadow wins */
-	int power_mode;       /* power_mode_t from the portal; the shadow `power.mode` wins */
+	char claim_url[160];  /* from registration (CONTRACTS 2a), "" = apiBase/claim?sn=<serial> */
+	char ui_lang[4];      /* language of the portal and web console: "en" (default) or "vi" */
+	int interval_min;     /* capture interval from the portal / defaults; the shadow wins */
+	int power_mode;       /* power_mode_t from the portal / defaults; the shadow `power.mode` wins */
+	int cellular;         /* 1 = use 4G when a modem answers (APN "" = auto from the SIM) */
+	int gps;              /* 1 = take GPS fixes when the module is fitted */
+	int led;              /* 1 = status LED on */
+	int batt_mon;         /* 1 = battery / solar dividers are wired (an unwired ADC pin floats and reads noise) */
+	int claimed;          /* 0 = self-registered and not claimed in FlyBot yet (CONTRACTS 2a.3) */
 	char ap_pass[65];
 	char *cert;           /* device certificate PEM (malloc, lives forever: esp-mqtt keeps the pointer) */
 	char *key;            /* device private key PEM */
 } cfg_t;
 
 extern cfg_t g_cfg;
+extern char g_wifi_error[33];                  /* SSID that could not be joined after the portal, "" none */
+extern char g_reg_error[64];                   /* last registration error ("serial_taken" ...), "" none */
+bool store_set_key(const char *key_pem);       /* the device key alone (registration generates it first) */
+void store_claim_url(char *out, size_t n);     /* registration's claimUrl, else <apiBase>/claim?sn=<serial> */
+const char *portal_ssid(void);                 /* "CAM-xxxx" */
 
 void store_load(void);
 void store_set_str(const char *key, const char *value); /* NVS string, "" erases */
 void store_set_wifi(const char *ssid, const char *pass);
 void store_set_flag(const char *name, int value);
 int store_get_flag(const char *name);
+int store_get_flag_default(const char *name, int dflt); /* dflt when the key is absent */
 bool store_get_blob(const char *name, void *out, size_t len); /* exactly len bytes */
 void store_set_blob(const char *name, const void *data, size_t len);
 bool store_set_pem(const char *cert, const char *key);  /* both PEM, validated (BEGIN/END lines) */
@@ -103,7 +116,10 @@ void wifi_ip(char *out, size_t n);
 void wifi_set_up_cb(void (*cb)(void));
 void wifi_stop(void);
 
-bool modem_available(void);        /* built with a modem UART and an APN is set */
+bool modem_available(void);        /* built with a modem, 4G on, the module not found missing before */
+typedef enum { MODEM_OK = 0, MODEM_NOT_FITTED, MODEM_NO_SIM, MODEM_NO_NETWORK, MODEM_NO_DATA } modem_fail_t;
+modem_fail_t modem_last_failure(void);
+const char *modem_apn(void);       /* the APN in use (the user's or auto from the IMSI) */
 bool modem_start(void);            /* power on, AT sync, PPP; returns false when no modem answers or no SIM */
 void modem_stop(void);             /* PPP down, AT+CPOF, PWRKEY, power rail off */
 bool modem_up(void);
@@ -143,6 +159,9 @@ typedef struct {
 	int power_high_mv;    /* power.highMv / power.lowMv: auto mode hysteresis, 0 = Kconfig default */
 	int power_low_mv;
 	bool live_requested;  /* live.requested */
+	bool tz_set;          /* `timezone` came from the shadow (else automatic, CONTRACTS 2a.6) */
+	char tz_iana[48];
+	int claimed;          /* shadow `claimed`: -1 not said, 0/1 */
 } settings_t;
 
 void shadow_init(void);                         /* load the persisted desired document */
@@ -156,6 +175,7 @@ int shadow_version(void);
 int shadow_interval_min(void);                  /* effective capture interval: shadow > portal > Kconfig */
 power_mode_t shadow_power_mode(void);           /* configured mode (not the effective one, see power.c) */
 void shadow_clear_live_request(void);           /* live.requested handled */
+bool shadow_claimed(void);                      /* CONTRACTS 2a: false = unclaimed mode (1 snapshot per nextWakeAt) */
 
 /* ------------------------------------------------------------------ camera (cam.c) */
 
@@ -183,7 +203,25 @@ esp_err_t flybot_snapshot(const camera_fb_t *fb, const char *trigger, upload_t *
 /* POST /api/device/pair with the stored serial, verify code and provisioning token; stores the result. */
 esp_err_t flybot_pair(char *err, size_t errn);
 /* GET /api/device/time -> sets the clock. */
-esp_err_t flybot_time(void);
+esp_err_t flybot_time(bool set_clock);          /* also stores timezone / POSIX / tzSource / publicIp */
+#include "esp_http_client.h"
+int flybot_request(const char *path, esp_http_client_method_t method, const char *body, char *resp, size_t respn,
+				   int timeout_ms);               /* JSON to {apiBase}{path}; HTTP status or -1 */
+extern char g_public_ip[48];                    /* publicIp from /api/device/time, "" unknown */
+
+/* ------------------------------------------------------------------ time and timezone (tz.c, net.c) */
+
+/* Effective timezone: manual override (portal/console) > shadow `timezone` > /api/device/time > build default */
+void tz_auto_set(const char *iana, const char *posix, const char *source); /* from /api/device/time, persisted */
+void tz_apply(void);                            /* recompute + setenv("TZ") + tzset(); logs the choice */
+const char *tz_effective_iana(void);
+const char *tz_effective_source(void);          /* "manual" | "shadow" | "farm" | "gps" | "ip" | "default" | "build" */
+const char *clock_source(void);                 /* "sntp" | "modem" | "gps" | "flybot" | "rtc" | "none" */
+void clock_set_source(const char *src);
+bool store_overridden(const char *key);         /* set in the runtime NVS (not a default) */
+void nvs_tz_read(char *iana, size_t in, char *posix, size_t pn, char *src, size_t sn); /* store.c */
+void nvs_tz_write(const char *iana, const char *posix, const char *src);
+bool shadow_tz(char *iana, size_t in, char *posix, size_t pn); /* the shadow set `timezone` (shadow.c) */
 /* GET /api/device/ota -> fw, url, sha256; false when 204 / no update */
 bool flybot_ota_check(char *fw, size_t fwn, char *url, size_t urln, char *sha256, size_t shan);
 /* the `meta` JSON of a snapshot (also shown by the console) */
@@ -259,6 +297,65 @@ esp_err_t live_start(int minutes, char *err, size_t errn);
 void live_stop(void);
 bool live_active(void);
 int live_remaining_s(void);
+
+/* ------------------------------------------------------------------ status LED (led.c, docs/LED.md) */
+
+typedef enum { LED_OFF = 0, LED_PORTAL, LED_CONNECTING, LED_ONLINE, LED_ERROR, LED_OTA } led_state_t;
+typedef enum { LED_FLASH_NONE = 0, LED_FLASH_CAPTURE, LED_FLASH_ERROR, LED_FLASH_LOWBATT } led_flash_t;
+void led_init(void);
+void led_set(led_state_t s);                    /* base state, logged on change */
+led_state_t led_get(void);
+const char *led_state_name(led_state_t s);
+void led_flash(led_flash_t f);                  /* one-shot overlay, then back to the base state */
+void led_enable(bool on);                       /* persisted in NVS "led" */
+bool led_enabled(void);
+void led_sleep_prepare(bool low_battery);       /* blocking low-battery blink when asked, then dark + pin held */
+
+/* ------------------------------------------------------------------ Wi-Fi scan (wifi.c) */
+
+typedef struct {
+	char ssid[33];
+	int8_t rssi;
+	uint8_t channel;
+	bool secure;
+} wifi_net_t;
+#define WIFI_SCAN_MAX 24
+/* Active scan that keeps a SoftAP usable (short per-channel dwell, back on the home channel between channels).
+ * Deduplicated by SSID (strongest kept), hidden networks dropped, strongest first. Returns the count, -1 on error. */
+int wifi_scan(wifi_net_t *out, int max);
+cJSON *wifi_scan_json(const wifi_net_t *nets, int n); /* [{ssid, rssi, secure, channel}] */
+
+/* ------------------------------------------------------------------ web (web.c): shared HTTP helpers, local console */
+
+#include "esp_http_server.h"
+esp_err_t web_send_json(httpd_req_t *req, cJSON *o);         /* takes ownership */
+esp_err_t web_send_ok(httpd_req_t *req);
+esp_err_t web_send_error(httpd_req_t *req, const char *status, const char *code, const char *message);
+cJSON *web_read_json(httpd_req_t *req, size_t max);
+esp_err_t web_config_post(httpd_req_t *req);                  /* POST /api/config (portal and console) */
+esp_err_t web_cert_post(httpd_req_t *req);                    /* POST /api/cert */
+esp_err_t web_scan_get(httpd_req_t *req);                     /* GET /api/wifi/scan[?refresh=1] */
+void web_scan_cache_set(const wifi_net_t *nets, int n);
+void web_start(void);                                         /* station-mode console (CAMOS_WEB_CONSOLE) */
+esp_err_t web_qr_get(httpd_req_t *req);                       /* GET /api/qr.svg?what=claim|label (qr.c) */
+char *qr_svg(const char *text);                               /* caller frees */
+void qr_print(const char *text);                              /* to the serial console */
+
+/* ------------------------------------------------------------------ self-registration (register.c, CONTRACTS 2a) */
+
+void register_start(void);              /* no certificate yet: key + CSR + POST /api/device/register, with back-off */
+bool register_pending(void);
+char *register_csr_pem(void);           /* the CSR it would send (console `csr`), caller frees */
+/* Parses a register response (201/200 JSON) into the configuration; pure apart from store_*; false + err on a bad one */
+bool register_apply_response(const char *json, char *err, size_t errn);
+void log_capture_start(void);                                 /* ring buffer of the log for /api/logs */
+
+/* ------------------------------------------------------------------ camera preview (sched.c, shares the camera lock) */
+
+esp_err_t preview_frame(int w, int h, int quality, camera_fb_t **fb);
+void preview_release(camera_fb_t *fb);
+void preview_stop(void);
+bool preview_active(void);
 
 /* ------------------------------------------------------------------ serial console (console.c) */
 

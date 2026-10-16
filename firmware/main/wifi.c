@@ -13,6 +13,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "camos.h"
+#include <stdio.h>
 
 static const char *TAG = "wifi";
 static esp_timer_handle_t retry_timer;
@@ -47,6 +48,21 @@ static void retry_cb(void *arg)
 	esp_wifi_connect();
 }
 
+/* A network just set in the portal that never gives an IP (wrong password, out of range): back to the portal after
+ * WIFI_NEW_GIVEUP_S with the error shown there, like the AMB82 camera ("setup comes back in about a minute"). */
+#define WIFI_NEW_GIVEUP_S 75
+static esp_timer_handle_t giveup_timer;
+
+static void giveup_cb(void *arg)
+{
+	ESP_LOGE(TAG, "could not join new Wi-Fi \"%s\" in %d s: back to the setup portal", g_cfg.wifi_ssid, WIFI_NEW_GIVEUP_S);
+	store_set_str("wifi_err", g_cfg.wifi_ssid);
+	store_set_flag("wifi_new", 0);
+	store_set_flag("portal", 1);
+	led_set(LED_ERROR);
+	esp_restart();
+}
+
 static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
 	if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
@@ -65,6 +81,14 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 	} else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
 		backoff_s = 1;
 		s_up = true;
+		if (giveup_timer) {
+			esp_timer_stop(giveup_timer);
+		}
+		if (store_get_flag("wifi_new")) {
+			store_set_flag("wifi_new", 0);
+			store_set_str("wifi_err", "");
+			g_wifi_error[0] = 0;
+		}
 		char ip[16];
 		wifi_ip(ip, sizeof(ip));
 		ESP_LOGI(TAG, "got IP %s (rssi %d)", ip, wifi_rssi());
@@ -97,6 +121,105 @@ void wifi_start_sta(void)
 	/* Modem sleep between beacons: the base of the power saving (light sleep adds to it, see main.c) */
 	ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MIN_MODEM));
 	ESP_ERROR_CHECK(esp_wifi_start());
+	led_set(LED_CONNECTING);
+	if (store_get_flag("wifi_new")) {
+		const esp_timer_create_args_t ga = { .callback = giveup_cb, .name = "wifi-giveup" };
+		if (esp_timer_create(&ga, &giveup_timer) == ESP_OK) {
+			esp_timer_start_once(giveup_timer, (uint64_t)WIFI_NEW_GIVEUP_S * 1000000ULL);
+			ESP_LOGI(TAG, "new network %s: back to the portal if no IP within %d s", g_cfg.wifi_ssid, WIFI_NEW_GIVEUP_S);
+		}
+	}
+}
+
+/* ------------------------------------------------------------------ scan (portal list, console Wi-Fi page) */
+
+int wifi_scan(wifi_net_t *out, int max)
+{
+	wifi_mode_t mode;
+	if (esp_wifi_get_mode(&mode) != ESP_OK || mode == WIFI_MODE_NULL || mode == WIFI_MODE_AP) {
+		return -1; /* Wi-Fi not started (4G) or AP only: the portal runs APSTA */
+	}
+	/* Short active dwell and a return to the home channel between channels: the SoftAP keeps beaconing and a
+	 * phone associated to it stays associated (it only sees ~120 ms gaps) */
+	wifi_scan_config_t sc = {
+		.show_hidden = false,
+		.scan_type = WIFI_SCAN_TYPE_ACTIVE,
+		.scan_time.active = { .min = 50, .max = 120 },
+		.home_chan_dwell_time = 60,
+	};
+	int64_t t0 = esp_timer_get_time();
+	wifi_ps_type_t ps = WIFI_PS_NONE;
+	esp_wifi_get_ps(&ps);
+	esp_wifi_set_ps(WIFI_PS_NONE); /* modem sleep between beacons misses probe responses: 3 networks instead of 10 */
+	esp_err_t e = esp_wifi_scan_start(&sc, true);
+	esp_wifi_set_ps(ps);
+	if (e != ESP_OK) {
+		ESP_LOGW(TAG, "scan: %s", esp_err_to_name(e));
+		return -1;
+	}
+	uint16_t n = 0;
+	esp_wifi_scan_get_ap_num(&n);
+	if (n > 48) {
+		n = 48;
+	}
+	wifi_ap_record_t *recs = calloc(n ? n : 1, sizeof(wifi_ap_record_t));
+	if (!recs) {
+		esp_wifi_clear_ap_list();
+		return -1;
+	}
+	esp_wifi_scan_get_ap_records(&n, recs);
+	int count = 0, seen = n;
+	for (int i = 0; i < seen; i++) {
+		const char *ssid = (const char *)recs[i].ssid;
+		if (!ssid[0]) {
+			continue; /* hidden: "Other network" in the page */
+		}
+		int j = 0;
+		for (; j < count && strcmp(out[j].ssid, ssid); j++) {
+		}
+		if (j < count) {
+			if (recs[i].rssi > out[j].rssi) {
+				out[j].rssi = recs[i].rssi;
+				out[j].channel = recs[i].primary;
+			}
+			continue;
+		}
+		if (count >= max) {
+			continue;
+		}
+		strlcpy(out[count].ssid, ssid, sizeof(out[count].ssid));
+		out[count].rssi = recs[i].rssi;
+		out[count].channel = recs[i].primary;
+		out[count].secure = recs[i].authmode != WIFI_AUTH_OPEN;
+		count++;
+	}
+	free(recs);
+	/* strongest first */
+	for (int i = 1; i < count; i++) {
+		wifi_net_t t = out[i];
+		int j = i - 1;
+		while (j >= 0 && out[j].rssi < t.rssi) {
+			out[j + 1] = out[j];
+			j--;
+		}
+		out[j + 1] = t;
+	}
+	ESP_LOGI(TAG, "scan: %d networks (%d records) in %lld ms", count, seen, (long long)((esp_timer_get_time() - t0) / 1000));
+	return count;
+}
+
+cJSON *wifi_scan_json(const wifi_net_t *nets, int n)
+{
+	cJSON *arr = cJSON_CreateArray();
+	for (int i = 0; i < n; i++) {
+		cJSON *a = cJSON_CreateObject();
+		cJSON_AddStringToObject(a, "ssid", nets[i].ssid);
+		cJSON_AddNumberToObject(a, "rssi", nets[i].rssi);
+		cJSON_AddBoolToObject(a, "secure", nets[i].secure);
+		cJSON_AddNumberToObject(a, "channel", nets[i].channel);
+		cJSON_AddItemToArray(arr, a);
+	}
+	return arr;
 }
 
 /* Before deep sleep: a clean stop so the AP sees a disassociation (it would otherwise hold the session) */

@@ -1,5 +1,6 @@
 /* NMEA 0183 RMC / GGA parser (see nmea.h). Tolerates empty fields (no fix yet) and the ATGM336H's GN/GP/BD talkers. */
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include "nmea.h"
@@ -157,4 +158,28 @@ int nmea_parse_line(const char *line, nmea_fix_t *fix)
 		return 2;
 	}
 	return 0;
+}
+
+int64_t cclk_to_epoch(const char *answer)
+{
+	const char *p = answer ? strchr(answer, '"') : NULL;
+	if (!p) {
+		return 0;
+	}
+	int yy, mo, dd, hh, mi, ss, q = 0;
+	char sign = '+';
+	int n = sscanf(p + 1, "%2d/%2d/%2d,%2d:%2d:%2d%c%d", &yy, &mo, &dd, &hh, &mi, &ss, &sign, &q);
+	if (n < 6) {
+		return 0;
+	}
+	if (n < 8 || (sign != '+' && sign != '-')) {
+		q = 0;
+	}
+	/* two-digit year: a module without network time says 80/01/06 (1980) or 04/01/01 */
+	int64_t local = nmea_epoch(yy < 70 ? 2000 + yy : 1900 + yy, mo, dd, hh, mi, ss);
+	if (local == 0) {
+		return 0;
+	}
+	int64_t utc = local - (sign == '-' ? -1 : 1) * (int64_t)q * 15 * 60;
+	return utc >= 1735689600 ? utc : 0;
 }
