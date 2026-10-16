@@ -1,0 +1,19 @@
+# Freenove ESP32-S3-WROOM CAM board (kit FNK0085): ESP32-S3-WROOM-1 N8R8, 8 MB octal PSRAM, OV5640 (OV2640 detected
+# too), micro SD (SD_MMC 1-bit: CLK 39, CMD 38, D0 40, unused here), WS2812 RGB LED on GPIO48, two USB-C (CH340 UART +
+# native USB). Pin map verified against Freenove/Freenove_ESP32_S3_WROOM_Board Sketch_07.1 camera_pins.h
+# (CAMERA_MODEL_ESP32S3_EYE). Flash: the owner's board reports a 16 MB chip (boot log 16 Oct 2026: "detected chip: boya",
+# "Detected size(16384k)"), so the 16 MB table is used; a kit with an 8 MB module needs FLASHSIZE_8MB + partitions-8mb.csv
+# (the first boot log line "flash N MB" tells which one you have).
+CONFIG_CAMOS_BOARD_FREENOVE_S3CAM=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_PARTITION_TABLE_FILENAME="partitions-16mb.csv"
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions-16mb.csv"
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_OV2640_SUPPORT=y
+CONFIG_OV3660_SUPPORT=y
+CONFIG_OV5640_SUPPORT=y
+# The native USB port also carries the log (the CH340 port is UART0: console and flashing)
+CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y

@@ -1,0 +1,29 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make -C tests
+  firmware:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - board: freenove
+            target: esp32s3
+            defaults: sdkconfig.defaults;sdkconfig.defaults.freenove_esp32s3_cam
+          - board: esp32cam
+            target: esp32
+            defaults: sdkconfig.defaults;sdkconfig.defaults.esp32cam
+    steps:
+      - uses: actions/checkout@v4
+      - uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.4.2
+          target: ${{ matrix.target }}
+          path: firmware
+          command: idf.py -B build-${{ matrix.board }} -DSDKCONFIG=build-${{ matrix.board }}/sdkconfig -DSDKCONFIG_DEFAULTS="${{ matrix.defaults }}" set-target ${{ matrix.target }} build
+      - run: ls -l firmware/build-${{ matrix.board }}/*.bin

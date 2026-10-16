@@ -1,0 +1,4 @@
+test_nmea
+test_power
+*.exe
+*.o

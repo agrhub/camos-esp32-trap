@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CamOS trap camera setup</title>
+<style>
+body{font:15px/1.4 system-ui,sans-serif;max-width:34em;margin:0 auto;padding:0 1em 3em;color:#222}
+h2{margin:.8em 0 .2em}h3{margin:1.2em 0 .3em;border-bottom:1px solid #ddd}
+label{display:block;margin:.6em 0 .15em;font-weight:600}
+input,select,textarea{width:100%;box-sizing:border-box;padding:.5em;border:1px solid #bbb;border-radius:4px;font:inherit}
+textarea{font:12px monospace;height:7em}
+button{padding:.6em 1.2em;margin:.6em .4em 0 0;font:inherit;border-radius:4px;border:1px solid #888;background:#f4f4f4}
+button.p{background:#1565c0;color:#fff;border-color:#1565c0}
+.row{display:flex;gap:.6em}.row>*{flex:1}
+.ok{color:#2e7d32}.err{color:#c62828}.muted{color:#666;font-size:13px}
+code{background:#eee;padding:0 .3em;border-radius:3px;word-break:break-all}
+#msg{position:sticky;top:0;background:#fff;padding:.4em 0}
+</style></head><body>
+<h2>CamOS trap camera</h2>
+<p class="muted">Serial <b id="serial"></b> · model <span id="model"></span> · firmware <span id="fw"></span><br>
+Verify code <b id="vcode"></b> · label QR <code id="qr"></code><br>
+<span id="flags"></span></p>
+<div id="msg"></div>
+
+<h3>1. Network</h3>
+<label>Wi-Fi name (SSID)</label><input id="ssid" list="nets" maxlength="32" autocapitalize="off"><datalist id="nets"></datalist>
+<label>Wi-Fi password <span class="muted" id="password_set"></span></label><input id="password" type="password" maxlength="64" placeholder="leave empty to keep">
+<label>4G APN <span class="muted">(empty = Wi-Fi only; e.g. v-internet, m-wap, e-connect)</span></label><input id="apn" maxlength="63">
+<label>SIM PIN <span class="muted" id="simPin_set">(usually empty)</span></label><input id="simPin" maxlength="8" placeholder="leave empty to keep">
+
+<h3>2. FlyBot</h3>
+<label>FlyBot base URL</label><input id="apiBase" maxlength="127" placeholder="https://flybot.agrhub.com">
+<label>Provisioning token <span class="muted" id="provisionToken_set">(from the FlyBot "add camera" screen; used once by pairing)</span></label><input id="provisionToken" maxlength="95" placeholder="leave empty to keep">
+<div class="row"><div><label>Capture interval (minutes)</label><input id="intervalMin" type="number" min="0" max="1440" placeholder="0 = default"></div>
+<div><label>Power mode</label><select id="powerMode"><option value="auto">auto</option><option value="battery">battery</option><option value="powered">powered</option></select></div></div>
+<label>Timezone (IANA)</label><input id="timezone" maxlength="47" placeholder="Asia/Ho_Chi_Minh">
+
+<h3>3. AWS IoT Core</h3>
+<p class="muted">Filled by pairing. Edit only to override.</p>
+<label>IoT endpoint</label><input id="iotHost" maxlength="127" placeholder="xxxx-ats.iot.ap-southeast-2.amazonaws.com">
+<div class="row"><div><label>Thing name</label><input id="thingName" maxlength="63"></div><div><label>KVS channel</label><input id="kvsChannel" maxlength="63"></div></div>
+<div class="row"><div><label>KVS region</label><input id="kvsRegion" maxlength="23"></div><div><label>Role alias (live view)</label><input id="roleAlias" maxlength="63"></div></div>
+<label>Credential provider endpoint</label><input id="credHost" maxlength="127" placeholder="xxxx.credentials.iot.ap-southeast-2.amazonaws.com">
+<label>Device certificate (PEM) <span class="muted" id="cert_set"></span></label>
+<textarea id="cert" placeholder="-----BEGIN CERTIFICATE-----"></textarea><input type="file" id="certFile" accept=".pem,.crt">
+<label>Device private key (PEM) <span class="muted" id="key_set"></span></label>
+<textarea id="key" placeholder="-----BEGIN EC PRIVATE KEY-----"></textarea><input type="file" id="keyFile" accept=".pem,.key">
+<button onclick="saveCert()">Store certificate + key</button>
+
+<h3>4. Pair and restart</h3>
+<p class="muted">Save first. Pairing joins your Wi-Fi from here (the setup network stays up) and calls FlyBot <code>POST /api/device/pair</code>. Over 4G the camera pairs by itself at the next boot.</p>
+<button class="p" onclick="save()">Save</button>
+<button onclick="pair()">Save and pair now</button>
+<button onclick="restart()">Restart</button>
+<p class="muted">Portal Wi-Fi password: <input id="apPassword" type="password" maxlength="64" placeholder="leave empty to keep" style="width:12em"> <span id="apPassword_set"></span></p>
+
+<script>
+const keys=['ssid','password','apn','simPin','apiBase','provisionToken','intervalMin','powerMode','timezone','iotHost','thingName','kvsChannel','kvsRegion','roleAlias','credHost','apPassword'];
+const secrets=['password','simPin','provisionToken','apPassword'];
+const $=id=>document.getElementById(id);
+function msg(t,cls){$('msg').innerHTML='<b class="'+(cls||'')+'">'+t+'</b>';}
+async function api(path,body){const r=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});let j={};try{j=await r.json();}catch(e){}if(!r.ok&&!j.error)j.error='HTTP '+r.status;return j;}
+async function load(){const c=await api('/api/config');$('serial').textContent=c.serial;$('model').textContent=c.model;$('fw').textContent=c.fw;$('vcode').textContent=c.verifyCode;$('qr').textContent=c.labelQr;
+$('flags').textContent=(c.paired?'paired ✓ ':'not paired · ')+(c.cert&&c.key?'certificate ✓':'no certificate')+(c.modem?' · 4G build':'')+(c.gps?' · GPS build':'')+(c.live?' · live view build':'');
+for(const k of keys){if(secrets.includes(k)){$(k+'_set').textContent=c[k]?'(set)':'(not set)';}else if($(k))$(k).value=c[k]==null?'':c[k];}
+$('cert_set').textContent=c.cert?'(stored)':'(missing)';$('key_set').textContent=c.key?'(stored)':'(missing)';
+const i=await api('/info');$('nets').innerHTML=(i.wifiScan||[]).map(n=>'<option value="'+n.ssid.replace(/"/g,'&quot;')+'">').join('');}
+function collect(){const b={};for(const k of keys){const v=$(k).value;if(secrets.includes(k)&&v==='')continue;b[k]=v;}return b;}
+async function save(){msg('saving…');const r=await api('/api/config',collect());msg(r.ok?'saved':'error: '+r.error,r.ok?'ok':'err');if(r.ok)for(const k of secrets)$(k).value='';load();return r.ok;}
+async function saveCert(){msg('storing…');const r=await api('/api/cert',{cert:$('cert').value,key:$('key').value});msg(r.ok?'certificate and key stored':'error: '+r.error,r.ok?'ok':'err');if(r.ok){$('cert').value='';$('key').value='';}load();}
+async function pair(){if(!await save())return;msg('pairing… (joining Wi-Fi, up to 60 s)');const r=await api('/api/pair',{});msg(r.ok?'paired: thing '+r.thingName+', restart when ready':'pair failed: '+r.error,r.ok?'ok':'err');load();}
+async function restart(){await api('/api/restart',{});msg('restarting; the setup network closes');}
+for(const [f,t] of [['certFile','cert'],['keyFile','key']])$(f).onchange=e=>{const fr=new FileReader();fr.onload=()=>$(t).value=fr.result;fr.readAsText(e.target.files[0]);};
+load();
+</script>
+</body></html>

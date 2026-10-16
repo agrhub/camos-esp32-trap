@@ -1,0 +1,5 @@
+dependencies:
+  idf: ">=5.3"
+  espressif/esp32-camera: "^2.0.0"
+  # 4G: SIMCom A7680C over PPP (A76xx AT set, SIM7600 DCE profile). Built into both targets; used when CAMOS_MODEM is on.
+  espressif/esp_modem: "^1.4.0"

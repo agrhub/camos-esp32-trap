@@ -1,0 +1,419 @@
+/*
+ * Shadow (protocol 8): the cloud keeps `desired`, the camera applies what it can and publishes `reported` with the same
+ * `version` and an `errors` list for the rest. What this firmware supports:
+ *
+ *   timezone                     IANA name -> POSIX TZ (tz.c); schedules run in local time
+ *   detections[] of type "app"   trigger {everyMin, from, to} -> capture schedule (no on-device detection)
+ *   capture.jpegQuality 1..100   -> esp32-camera quality 63..4 (see cam.c)
+ *   capture.resolution           "main" and "max" are the same here: always the full sensor size
+ *   capture.intervalMin          v1 addition: an all-day capture interval (used when no detections[] schedule is set)
+ *   video.image.brightness       -64..64 -> -2..2 in steps of 32
+ *   video.image.contrast         0..100  -> -2..2 in steps of 25 around 50
+ *   video.image.saturation       0..100  -> -2..2 in steps of 25 around 50
+ *   power.mode                   v1 addition: "auto" | "battery" | "powered"; power.highMv / power.lowMv thresholds
+ *   live.requested               v1 addition: FlyBot asks for a live session at the next wake
+ *   kvs.channelName              v1 addition: the KVS signaling channel (stored in NVS)
+ *
+ * Everything else is reported as NOT_SUPPORTED, a value out of range as BAD_VALUE (the old value stays).
+ * Fields absent from `desired` keep their current value. The applied settings are kept in NVS and used at boot.
+ * `reported` (and `state`) also carry location, net and battery (CONTRACTS section 3).
+ */
+#include <string.h>
+#include <stdlib.h>
+#include <math.h>
+#include <time.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "esp_log.h"
+#include "camos.h"
+
+static const char *TAG = "shadow";
+static settings_t cur;
+static SemaphoreHandle_t lock;
+static cJSON *last_errors; /* from the last apply, repeated in every reported */
+
+static void defaults(settings_t *s)
+{
+	memset(s, 0, sizeof(*s));
+	strcpy(s->tz, "UTC0");
+	s->jpeg_quality = 85;
+	s->brightness = 0;
+	s->contrast = 50;
+	s->saturation = 50;
+	s->power_mode = -1;
+}
+
+static void apply_tz(const settings_t *s)
+{
+	setenv("TZ", s->tz, 1);
+	tzset();
+}
+
+void shadow_init(void)
+{
+	if (lock) {
+		return;
+	}
+	lock = xSemaphoreCreateMutex();
+	defaults(&cur);
+	settings_t saved;
+	if (store_get_blob("settings", &saved, sizeof(saved)) && saved.n_sched >= 0 && saved.n_sched <= MAX_SCHED) {
+		cur = saved;
+		ESP_LOGI(TAG, "settings from NVS: version %d, %d schedule(s), tz %s, interval %d, power %d", cur.version, cur.n_sched,
+				 cur.tz, cur.interval_min, cur.power_mode);
+	}
+	/* The portal timezone is the default until a shadow says otherwise */
+	if (cur.version == 0 && g_cfg.tz[0]) {
+		const char *tz = tz_lookup(g_cfg.tz);
+		if (tz && strlen(tz) < sizeof(cur.tz)) {
+			strcpy(cur.tz, tz);
+		}
+	}
+	apply_tz(&cur);
+}
+
+void shadow_get(settings_t *out)
+{
+	if (!lock) {
+		shadow_init(); /* the portal / console may ask before app_main got there */
+	}
+	xSemaphoreTake(lock, portMAX_DELAY);
+	*out = cur;
+	xSemaphoreGive(lock);
+}
+
+int shadow_version(void)
+{
+	return cur.version;
+}
+
+int shadow_interval_min(void)
+{
+	if (cur.interval_min > 0) {
+		return cur.interval_min;
+	}
+	if (g_cfg.interval_min > 0) {
+		return g_cfg.interval_min;
+	}
+	return CONFIG_CAMOS_CAPTURE_INTERVAL_MIN;
+}
+
+power_mode_t shadow_power_mode(void)
+{
+	if (cur.power_mode >= 0) {
+		return (power_mode_t)cur.power_mode;
+	}
+	return (power_mode_t)g_cfg.power_mode;
+}
+
+void shadow_clear_live_request(void)
+{
+	xSemaphoreTake(lock, portMAX_DELAY);
+	cur.live_requested = false;
+	xSemaphoreGive(lock);
+	store_set_blob("settings", &cur, sizeof(cur));
+}
+
+/* ------------------------------------------------------------------ apply */
+
+static void add_error(cJSON *errors, const char *path, const char *code)
+{
+	cJSON *e = cJSON_CreateObject();
+	cJSON_AddStringToObject(e, "path", path);
+	cJSON_AddStringToObject(e, "code", code);
+	cJSON_AddItemToArray(errors, e);
+}
+
+/* A whole number within [lo, hi]; the protocol says anything else is BAD_VALUE */
+static bool get_int(const cJSON *item, int lo, int hi, int *out)
+{
+	if (!cJSON_IsNumber(item) || item->valuedouble != floor(item->valuedouble) || item->valuedouble < lo ||
+		item->valuedouble > hi) {
+		return false;
+	}
+	*out = (int)item->valuedouble;
+	return true;
+}
+
+/* "HH:MM" -> minutes after midnight, or -1 */
+static int parse_hhmm(const cJSON *item)
+{
+	int h, m;
+	const char *s = cJSON_GetStringValue(item);
+	if (!s || sscanf(s, "%d:%d", &h, &m) != 2 || h < 0 || h > 23 || m < 0 || m > 59) {
+		return -1;
+	}
+	return h * 60 + m;
+}
+
+static void apply_detections(const cJSON *arr, settings_t *s, cJSON *errors)
+{
+	char path[64];
+	s->n_sched = 0;
+	int i = 0;
+	const cJSON *d;
+	cJSON_ArrayForEach(d, arr)
+	{
+		snprintf(path, sizeof(path), "detections[%d]", i++);
+		if (cJSON_IsFalse(cJSON_GetObjectItem(d, "enabled"))) {
+			continue; /* switched off: nothing to do and nothing to complain about */
+		}
+		const char *type = cJSON_GetStringValue(cJSON_GetObjectItem(d, "type"));
+		const char *id = cJSON_GetStringValue(cJSON_GetObjectItem(d, "id"));
+		if (!type || strcmp(type, "app") != 0) {
+			add_error(errors, path, "NOT_SUPPORTED"); /* motion, person, object: no AI on this device */
+			continue;
+		}
+		const cJSON *trig = cJSON_GetObjectItem(d, "trigger");
+		sched_t t = { .every_min = 0, .from_min = 0, .to_min = 24 * 60 - 1 };
+		if (!id || !id[0] || strlen(id) >= sizeof(t.id) || !cJSON_IsObject(trig) ||
+			!get_int(cJSON_GetObjectItem(trig, "everyMin"), 1, 1440, &t.every_min)) {
+			add_error(errors, path, "BAD_VALUE");
+			continue;
+		}
+		strcpy(t.id, id);
+		const cJSON *from = cJSON_GetObjectItem(trig, "from"), *to = cJSON_GetObjectItem(trig, "to");
+		if (from && (t.from_min = parse_hhmm(from)) < 0) {
+			add_error(errors, path, "BAD_VALUE");
+			continue;
+		}
+		if (to && (t.to_min = parse_hhmm(to)) < 0) {
+			add_error(errors, path, "BAD_VALUE");
+			continue;
+		}
+		if (s->n_sched >= MAX_SCHED) {
+			add_error(errors, path, "NOT_SUPPORTED"); /* more schedules than MAX_SCHED */
+			continue;
+		}
+		s->sched[s->n_sched++] = t;
+	}
+}
+
+static void apply_image(const cJSON *img, settings_t *s, cJSON *errors)
+{
+	const cJSON *f;
+	cJSON_ArrayForEach(f, img)
+	{
+		char path[48];
+		snprintf(path, sizeof(path), "video.image.%s", f->string);
+		int *dst = NULL, lo = 0, hi = 0;
+		if (!strcmp(f->string, "brightness")) {
+			dst = &s->brightness, lo = -64, hi = 64;
+		} else if (!strcmp(f->string, "contrast")) {
+			dst = &s->contrast, lo = 0, hi = 100;
+		} else if (!strcmp(f->string, "saturation")) {
+			dst = &s->saturation, lo = 0, hi = 100;
+		}
+		if (!dst) {
+			add_error(errors, path, "NOT_SUPPORTED"); /* sharpness, flicker, wdr, orientation, ldc */
+		} else if (!get_int(f, lo, hi, dst)) {
+			add_error(errors, path, "BAD_VALUE");
+		}
+	}
+}
+
+static void apply_capture(const cJSON *item, settings_t *s, cJSON *errors)
+{
+	const cJSON *c;
+	cJSON_ArrayForEach(c, item)
+	{
+		if (!strcmp(c->string, "jpegQuality")) {
+			if (!get_int(c, 1, 100, &s->jpeg_quality)) {
+				add_error(errors, "capture.jpegQuality", "BAD_VALUE");
+			}
+		} else if (!strcmp(c->string, "resolution")) {
+			const char *r = cJSON_GetStringValue(c);
+			if (!r || (strcmp(r, "main") && strcmp(r, "max"))) {
+				add_error(errors, "capture.resolution", "BAD_VALUE");
+			}
+		} else if (!strcmp(c->string, "intervalMin")) {
+			if (cJSON_IsNull(c)) {
+				s->interval_min = 0; /* back to the portal / default value */
+			} else if (!get_int(c, 1, 1440, &s->interval_min)) {
+				add_error(errors, "capture.intervalMin", "BAD_VALUE");
+			}
+		} else {
+			char path[48];
+			snprintf(path, sizeof(path), "capture.%s", c->string);
+			add_error(errors, path, "NOT_SUPPORTED");
+		}
+	}
+}
+
+static void apply_power(const cJSON *item, settings_t *s, cJSON *errors)
+{
+	const cJSON *c;
+	cJSON_ArrayForEach(c, item)
+	{
+		if (!strcmp(c->string, "mode")) {
+			power_mode_t m;
+			if (cJSON_IsNull(c)) {
+				s->power_mode = -1;
+			} else if (power_mode_parse(cJSON_GetStringValue(c), &m)) {
+				s->power_mode = m;
+			} else {
+				add_error(errors, "power.mode", "BAD_VALUE");
+			}
+		} else if (!strcmp(c->string, "highMv")) {
+			if (!get_int(c, 3000, 4400, &s->power_high_mv)) {
+				add_error(errors, "power.highMv", "BAD_VALUE");
+			}
+		} else if (!strcmp(c->string, "lowMv")) {
+			if (!get_int(c, 3000, 4400, &s->power_low_mv)) {
+				add_error(errors, "power.lowMv", "BAD_VALUE");
+			}
+		} else {
+			char path[48];
+			snprintf(path, sizeof(path), "power.%s", c->string);
+			add_error(errors, path, "NOT_SUPPORTED");
+		}
+	}
+}
+
+char *shadow_apply(const char *json, int len, bool persist)
+{
+	cJSON *root = cJSON_ParseWithLength(json, len);
+	if (!cJSON_IsObject(root)) {
+		cJSON_Delete(root);
+		ESP_LOGW(TAG, "desired is not a JSON object");
+		return NULL;
+	}
+	settings_t s;
+	shadow_get(&s);
+	cJSON *errors = cJSON_CreateArray();
+
+	const cJSON *item;
+	cJSON_ArrayForEach(item, root)
+	{
+		const char *k = item->string;
+		if (!strcmp(k, "v")) {
+			continue;
+		} else if (!strcmp(k, "version")) {
+			get_int(item, 0, 2147483647, &s.version);
+		} else if (!strcmp(k, "timezone")) {
+			const char *tz = cJSON_IsString(item) ? tz_lookup(item->valuestring) : NULL;
+			if (tz && strlen(tz) < sizeof(s.tz)) {
+				strcpy(s.tz, tz);
+			} else {
+				add_error(errors, "timezone", "BAD_VALUE"); /* unknown zone: add it to tz.c */
+			}
+		} else if (!strcmp(k, "detections") && cJSON_IsArray(item)) {
+			apply_detections(item, &s, errors);
+		} else if (!strcmp(k, "capture") && cJSON_IsObject(item)) {
+			apply_capture(item, &s, errors);
+		} else if (!strcmp(k, "power") && cJSON_IsObject(item)) {
+			apply_power(item, &s, errors);
+		} else if (!strcmp(k, "live") && cJSON_IsObject(item)) {
+			const cJSON *r = cJSON_GetObjectItem(item, "requested");
+			if (r && !cJSON_IsBool(r)) {
+				add_error(errors, "live.requested", "BAD_VALUE");
+			} else if (r) {
+				s.live_requested = cJSON_IsTrue(r);
+			}
+		} else if (!strcmp(k, "kvs") && cJSON_IsObject(item)) {
+			const char *chan = cJSON_GetStringValue(cJSON_GetObjectItem(item, "channelName"));
+			if (chan && !store_apply_kv("kvsChannel", chan)) {
+				add_error(errors, "kvs.channelName", "BAD_VALUE");
+			}
+			const char *region = cJSON_GetStringValue(cJSON_GetObjectItem(item, "region"));
+			if (region && !store_apply_kv("kvsRegion", region)) {
+				add_error(errors, "kvs.region", "BAD_VALUE");
+			}
+		} else if (!strcmp(k, "video") && cJSON_IsObject(item)) {
+			const cJSON *v;
+			cJSON_ArrayForEach(v, item)
+			{
+				if (!strcmp(v->string, "image") && cJSON_IsObject(v)) {
+					apply_image(v, &s, errors);
+				} else {
+					char path[48];
+					snprintf(path, sizeof(path), "video.%s", v->string); /* main, sub, osd, flip, nightMode ... */
+					add_error(errors, path, "NOT_SUPPORTED");
+				}
+			}
+		} else {
+			add_error(errors, k, "NOT_SUPPORTED"); /* record, net, ota, audio, ... */
+		}
+	}
+
+	xSemaphoreTake(lock, portMAX_DELAY);
+	cur = s;
+	cJSON_Delete(last_errors);
+	last_errors = errors;
+	xSemaphoreGive(lock);
+	apply_tz(&s);
+	if (persist) {
+		store_set_blob("settings", &s, sizeof(s));
+	}
+	ESP_LOGI(TAG, "applied version %d: %d schedule(s), interval %d, tz %s, jpeg %d, power %d, live %d, %d error(s)",
+			 s.version, s.n_sched, s.interval_min, s.tz, s.jpeg_quality, s.power_mode, s.live_requested,
+			 cJSON_GetArraySize(errors));
+	cJSON_Delete(root);
+	sched_changed();
+	return shadow_reported_json();
+}
+
+/* ------------------------------------------------------------------ reported (and the same blocks in `state`) */
+
+void shadow_image_json(cJSON *parent)
+{
+	settings_t s;
+	shadow_get(&s);
+	cJSON *video = cJSON_AddObjectToObject(parent, "video");
+	cJSON *img = cJSON_AddObjectToObject(video, "image");
+	cJSON_AddNumberToObject(img, "brightness", s.brightness);
+	cJSON_AddNumberToObject(img, "contrast", s.contrast);
+	cJSON_AddNumberToObject(img, "saturation", s.saturation);
+	cJSON *cap = cJSON_AddObjectToObject(parent, "capture");
+	int w, h;
+	cam_max_size(&w, &h);
+	cJSON_AddStringToObject(cap, "resolution", "max");
+	cJSON_AddNumberToObject(cap, "jpegQuality", s.jpeg_quality);
+	cJSON_AddNumberToObject(cap, "intervalMin", shadow_interval_min());
+	if (w) {
+		cJSON_AddNumberToObject(cap, "w", w);
+		cJSON_AddNumberToObject(cap, "h", h);
+	} else {
+		cJSON_AddNullToObject(cap, "w"); /* known after the first capture */
+		cJSON_AddNullToObject(cap, "h");
+	}
+}
+
+void shadow_additions_json(cJSON *parent)
+{
+	settings_t s;
+	shadow_get(&s);
+	power_json(parent);
+	cJSON *live = cJSON_AddObjectToObject(parent, "live");
+	cJSON_AddBoolToObject(live, "requested", s.live_requested);
+	cJSON_AddBoolToObject(live, "supported", live_supported());
+	cJSON_AddBoolToObject(live, "active", live_active());
+	cJSON *kvs = cJSON_AddObjectToObject(parent, "kvs");
+	cJSON_AddStringToObject(kvs, "channelName", g_cfg.kvs_channel);
+	cJSON_AddStringToObject(kvs, "region", g_cfg.kvs_region);
+	gps_json(parent);
+	cJSON_AddStringToObject(parent, "net", net_type_name());
+	battery_json(parent);
+	time_t next = sched_next_capture();
+	if (next) {
+		char ts[25];
+		iso8601(next, ts);
+		cJSON_AddStringToObject(parent, "nextCaptureAt", ts);
+	}
+}
+
+char *shadow_reported_json(void)
+{
+	cJSON *o = cJSON_CreateObject();
+	cJSON_AddNumberToObject(o, "v", CAMOS_PROTOCOL);
+	cJSON_AddNumberToObject(o, "version", shadow_version());
+	cJSON_AddNumberToObject(o, "appliedAt", (double)now_ms());
+	if (last_errors && cJSON_GetArraySize(last_errors) > 0) {
+		cJSON_AddItemToObject(o, "errors", cJSON_Duplicate(last_errors, true));
+	}
+	shadow_image_json(o);
+	shadow_additions_json(o);
+	char *s = cJSON_PrintUnformatted(o);
+	cJSON_Delete(o);
+	return s;
+}

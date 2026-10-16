@@ -1,0 +1,406 @@
+menu "CamOS trap camera"
+
+    choice CAMOS_BOARD
+        prompt "Board"
+        help
+            Selects the camera pin map and the model name sent in the retained state.
+            The sdkconfig.defaults.<board> files select this for you.
+        default CAMOS_BOARD_ESP32CAM if IDF_TARGET_ESP32
+        default CAMOS_BOARD_ESP32S3CAM if IDF_TARGET_ESP32S3
+
+        config CAMOS_BOARD_ESP32CAM
+            bool "ai-thinker-esp32cam (AI-Thinker ESP32-CAM, OV2640, 4 MB PSRAM)"
+            depends on IDF_TARGET_ESP32
+        config CAMOS_BOARD_FREENOVE_S3CAM
+            bool "freenove_esp32s3_cam (Freenove ESP32-S3-WROOM CAM, kit FNK0085, N8R8, OV5640; the G-S2 board)"
+            depends on IDF_TARGET_ESP32S3
+        config CAMOS_BOARD_ESP32S3CAM
+            bool "esp32s3-eye-compatible (generic ESP32-S3 N16R8 CAM; OV2640 / OV3660 / OV5640)"
+            depends on IDF_TARGET_ESP32S3
+    endchoice
+
+    config CAMOS_MODEL
+        string "Model name in the state message"
+        default "AIC-ESP32CAM" if CAMOS_BOARD_ESP32CAM
+        default "AIC-FREENOVE-S3CAM" if CAMOS_BOARD_FREENOVE_S3CAM
+        default "AIC-ESP32S3CAM"
+
+    config CAMOS_XCLK_MHZ
+        int "Camera XCLK (MHz)"
+        range 6 24
+        default 10 if CAMOS_BOARD_FREENOVE_S3CAM
+        default 20
+        help
+            20 MHz is the esp32-camera default. Freenove's own examples run the OV5640 on this board at 10 MHz
+            (Sketch_07.1), so the Freenove preset follows the vendor; raise it to 20 once a capture works.
+
+    menu "Board pins (preset by the board choice; every pin can be edited, -1 = not connected)"
+        config CAMOS_PIN_PWDN
+            int "PWDN"
+            default 32 if CAMOS_BOARD_ESP32CAM
+            default -1
+        config CAMOS_PIN_RESET
+            int "RESET"
+            default -1
+        config CAMOS_PIN_XCLK
+            int "XCLK"
+            default 0 if CAMOS_BOARD_ESP32CAM
+            default 15
+        config CAMOS_PIN_SIOD
+            int "SCCB data (SIOD)"
+            default 26 if CAMOS_BOARD_ESP32CAM
+            default 4
+        config CAMOS_PIN_SIOC
+            int "SCCB clock (SIOC)"
+            default 27 if CAMOS_BOARD_ESP32CAM
+            default 5
+        config CAMOS_PIN_D0
+            int "Y2 / D0"
+            default 5 if CAMOS_BOARD_ESP32CAM
+            default 11
+        config CAMOS_PIN_D1
+            int "Y3 / D1"
+            default 18 if CAMOS_BOARD_ESP32CAM
+            default 9
+        config CAMOS_PIN_D2
+            int "Y4 / D2"
+            default 19 if CAMOS_BOARD_ESP32CAM
+            default 8
+        config CAMOS_PIN_D3
+            int "Y5 / D3"
+            default 21 if CAMOS_BOARD_ESP32CAM
+            default 10
+        config CAMOS_PIN_D4
+            int "Y6 / D4"
+            default 36 if CAMOS_BOARD_ESP32CAM
+            default 12
+        config CAMOS_PIN_D5
+            int "Y7 / D5"
+            default 39 if CAMOS_BOARD_ESP32CAM
+            default 18
+        config CAMOS_PIN_D6
+            int "Y8 / D6"
+            default 34 if CAMOS_BOARD_ESP32CAM
+            default 17
+        config CAMOS_PIN_D7
+            int "Y9 / D7"
+            default 35 if CAMOS_BOARD_ESP32CAM
+            default 16
+        config CAMOS_PIN_VSYNC
+            int "VSYNC"
+            default 25 if CAMOS_BOARD_ESP32CAM
+            default 6
+        config CAMOS_PIN_HREF
+            int "HREF"
+            default 23 if CAMOS_BOARD_ESP32CAM
+            default 7
+        config CAMOS_PIN_FLASH_LED
+            int "Flash LED (-1 = none)"
+            default 4 if CAMOS_BOARD_ESP32CAM
+            default -1
+            help
+                AI-Thinker: the white LED on GPIO4 (shared with the SD card data line). The Freenove board has a
+                WS2812 RGB LED on GPIO48 (needs an RMT driver, not a plain GPIO: not used) and a plain LED on GPIO2
+                (an ADC pin, used for the solar input here), so it is left unconfigured on the S3 boards.
+        config CAMOS_PIN_PCLK
+            int "PCLK"
+            default 22 if CAMOS_BOARD_ESP32CAM
+            default 13
+    endmenu
+
+    config CAMOS_FLASH_ON_CAPTURE
+        bool "Light the flash LED during a capture"
+        depends on CAMOS_PIN_FLASH_LED >= 0
+        default n
+
+    config CAMOS_BUTTON_GPIO
+        int "Portal button GPIO (active low, -1 = none)"
+        default 13 if CAMOS_BOARD_ESP32CAM
+        default 0
+        help
+            Hold 3 s (at boot or while running) to start the CAM-xxxx Wi-Fi setup portal.
+            The AI-Thinker board has no usable button: GPIO0 is the camera clock, so wire a push button
+            between GPIO13 and GND. The S3 boards use the BOOT button (GPIO0).
+
+    config CAMOS_AP_PASSWORD
+        string "Setup portal Wi-Fi password (>= 8 characters, empty = open network)"
+        default "camos1234"
+        help
+            Protocol 12.3 uses the label's verification code. These boards have no label, so a fixed
+            default is used; the NVS string "ap_pass" (portal key apPassword) overrides it.
+
+    config CAMOS_CAPTURE_INTERVAL_MIN
+        int "Default capture interval (minutes) when neither the shadow nor the portal set one"
+        range 1 1440
+        default 60
+
+    config CAMOS_CAM_VFLIP
+        bool "Flip the image vertically"
+        default n
+    config CAMOS_CAM_HMIRROR
+        bool "Mirror the image horizontally"
+        default n
+
+    config CAMOS_WARMUP_FRAMES
+        int "Frames discarded before a capture (auto exposure / white balance settle)"
+        range 0 30
+        default 6
+        help
+            The camera is powered down between captures, so exposure restarts each time.
+
+    config CAMOS_LIGHT_SLEEP
+        bool "Automatic light sleep between network activity (power management)"
+        default y
+        help
+            CPU sleeps between Wi-Fi beacons (modem power save). Camera and PSRAM are idle between captures.
+            Untested on hardware: turn off if Wi-Fi or MQTT becomes unstable.
+
+    config CAMOS_DEEP_SLEEP
+        bool "Deep sleep between scheduled captures in battery mode (network off until a capture)"
+        default y
+        help
+            Battery mode (power.mode battery, or auto with a low cell). When the next scheduled capture is more
+            than CAMOS_DEEP_SLEEP_MIN_S away the camera publishes {"v":1,"online":false,"sleeping":true,"wakeAt"}
+            on state and deep sleeps with a timer wake-up. At wake-up it captures first, then starts the network,
+            uploads, publishes the event and stays awake CAMOS_AWAKE_WINDOW_S for commands. RPCs sent while it
+            sleeps wait in the broker (QoS 1, clean session false) and run at the next wake-up.
+            Powered mode never deep sleeps (MQTT always connected, snapshot and live on demand).
+
+    config CAMOS_DEEP_SLEEP_MIN_S
+        int "Shortest sleep worth a deep sleep (s)"
+        depends on CAMOS_DEEP_SLEEP
+        range 60 86400
+        default 300
+
+    config CAMOS_AWAKE_WINDOW_S
+        int "Awake window after a wake-up, for RPC and shadow (s)"
+        depends on CAMOS_DEEP_SLEEP
+        range 5 600
+        default 30
+
+    config CAMOS_NET_WATCHDOG_MIN
+        int "Restart when MQTT has been down this long (minutes, 0 = never)"
+        range 0 1440
+        default 30
+
+    config CAMOS_NOSCHED_SLEEP_MIN
+        int "Deep sleep when nothing is scheduled: wake every (minutes) to look for a shadow"
+        depends on CAMOS_DEEP_SLEEP
+        range 5 1440
+        default 60
+
+    config CAMOS_CAM_POWER_GPIO
+        int "GPIO of an external switch on the camera 3V3 supply (-1 = none)"
+        default -1
+        help
+            For boards whose camera has no PWDN pin: a P-MOSFET high-side switch on the camera supply
+            (see docs/WIRING.md). The pin is driven before the camera starts and released after, and
+            held through deep sleep.
+
+    config CAMOS_CAM_POWER_ACTIVE_LOW
+        bool "The switch is on when the pin is low (P-MOSFET gate)"
+        depends on CAMOS_CAM_POWER_GPIO >= 0
+        default y
+
+    menu "Battery, solar and power mode"
+        config CAMOS_BATT_ADC_GPIO
+            int "Battery ADC GPIO (-1 = no battery monitor)"
+            default 14 if CAMOS_BOARD_ESP32CAM
+            default 1
+            help
+                AI-Thinker ESP32-CAM: every ADC1 pin is used by the camera, so the default GPIO14 is ADC2.
+                On the ESP32 ADC2 cannot be read while Wi-Fi runs: the voltage is sampled before Wi-Fi starts
+                (each wake in deep sleep mode). ESP32-S3: GPIO1 is ADC1 (free on the Freenove-style board).
+        config CAMOS_BATT_R_TOP_K
+            int "Divider: resistor from battery + to the pin (kOhm)"
+            default 100
+        config CAMOS_BATT_R_BOTTOM_K
+            int "Divider: resistor from the pin to GND (kOhm)"
+            default 100
+            help
+                Vpin = Vbat * Rbottom / (Rtop + Rbottom); with 100k/100k a full cell (4.2 V) is 2.1 V, inside
+                the 12 dB range. The divider draws Vbat/(Rtop+Rbottom), 21 uA at 4.2 V with 100k/100k. Add a
+                100 nF capacitor from the pin to GND.
+        config CAMOS_BATT_LOW_MV
+            int "low_power event below (mV)"
+            default 3500
+        config CAMOS_BATT_CRITICAL_MV
+            int "Stop capturing below (mV, 0 = never): deep sleep 6 h at a time to protect the cell"
+            default 3300
+
+        config CAMOS_SOLAR_ADC_GPIO
+            int "Solar / charger input ADC GPIO (-1 = none)"
+            default -1 if CAMOS_BOARD_ESP32CAM
+            default 2
+            help
+                Panel (or charger input) voltage through a divider, reported as battery.solarMv. A 6 V panel
+                needs 100k/33k (6.5 V -> 1.6 V). ESP32-S3: GPIO2 is ADC1_CH1.
+        config CAMOS_SOLAR_R_TOP_K
+            int "Solar divider: resistor from the input to the pin (kOhm)"
+            default 100
+        config CAMOS_SOLAR_R_BOTTOM_K
+            int "Solar divider: resistor from the pin to GND (kOhm)"
+            default 33
+        config CAMOS_SOLAR_PRESENT_MV
+            int "Solar input counts as charging above (mV)"
+            default 4500
+        config CAMOS_CHARGING_GPIO
+            int "Charger status GPIO (CHRG pin of TP4056 / CN3791, -1 = none)"
+            default -1
+            help
+                Open-drain, low while charging on TP4056 / CN3791 boards (pull-up enabled). Without it the
+                solar input voltage decides `charging`.
+        config CAMOS_CHARGING_ACTIVE_LOW
+            bool "Charger status pin is low while charging"
+            depends on CAMOS_CHARGING_GPIO >= 0
+            default y
+
+        choice CAMOS_POWER_MODE_DEFAULT_CHOICE
+            prompt "Default power.mode (the portal and the shadow override it)"
+            default CAMOS_POWER_MODE_DEFAULT_AUTO
+            config CAMOS_POWER_MODE_DEFAULT_AUTO
+                bool "auto (powered while the cell is full / charging, battery below the low threshold)"
+            config CAMOS_POWER_MODE_DEFAULT_BATTERY
+                bool "battery (scheduled capture + deep sleep)"
+            config CAMOS_POWER_MODE_DEFAULT_POWERED
+                bool "powered (MQTT always connected, snapshot and live on demand)"
+        endchoice
+        config CAMOS_POWER_MODE_DEFAULT
+            int
+            default 0 if CAMOS_POWER_MODE_DEFAULT_AUTO
+            default 1 if CAMOS_POWER_MODE_DEFAULT_BATTERY
+            default 2 if CAMOS_POWER_MODE_DEFAULT_POWERED
+        config CAMOS_POWER_HIGH_MV
+            int "auto: switch to powered above (mV)"
+            default 4050
+        config CAMOS_POWER_LOW_MV
+            int "auto: switch to battery below (mV)"
+            default 3850
+            help
+                Hysteresis: auto mode goes powered when the cell is above HIGH (or the charger reports charging
+                and the cell is above LOW), back to battery when it falls below LOW. The shadow keys
+                power.highMv / power.lowMv override both. Without a battery monitor auto means battery.
+    endmenu
+
+    menu "4G modem (SIMCom A7680C over UART, PPP)"
+        config CAMOS_MODEM
+            bool "Build the 4G modem support (esp_modem, A76xx AT set with the SIM7600 profile)"
+            default n if CAMOS_BOARD_ESP32CAM
+            default y
+            help
+                Used when an APN is set (portal / console) and the modem answers. Otherwise Wi-Fi.
+        config CAMOS_MODEM_UART_NUM
+            int "Modem UART number"
+            depends on CAMOS_MODEM
+            default 1
+        config CAMOS_MODEM_TX_GPIO
+            int "ESP TX -> modem RXD"
+            depends on CAMOS_MODEM
+            default 41
+        config CAMOS_MODEM_RX_GPIO
+            int "ESP RX <- modem TXD"
+            depends on CAMOS_MODEM
+            default 42
+        config CAMOS_MODEM_BAUD
+            int "Baud rate (A7680C default 115200)"
+            depends on CAMOS_MODEM
+            default 115200
+        config CAMOS_MODEM_PWRKEY_GPIO
+            int "PWRKEY GPIO (-1 = modem is always on)"
+            depends on CAMOS_MODEM
+            default 47
+        config CAMOS_MODEM_PWRKEY_ACTIVE_HIGH
+            bool "PWRKEY is asserted when the GPIO is high (NPN transistor between the GPIO and PWRKEY)"
+            depends on CAMOS_MODEM
+            default y
+            help
+                A7680C PWRKEY is pulled to GND to assert it (>= 1 s on, >= 2.5 s off). Breakout boards
+                (TDM2309) usually put an NPN transistor in front: GPIO high = PWRKEY low = asserted. If the
+                GPIO drives PWRKEY straight (through a 1k resistor), turn this off (GPIO low = asserted).
+        config CAMOS_MODEM_POWER_GPIO
+            int "GPIO of a high-side switch on the modem 4 V rail (-1 = none)"
+            depends on CAMOS_MODEM
+            default -1
+            help
+                P-MOSFET switch that cuts the modem supply through deep sleep (GPIO48 is the Freenove WS2812 LED,
+                so no default; GPIO3 / 45 / 46 on the Freenove header are strapping pins: usable with care) (the modem's own power-off
+                state still draws some mA on most breakouts). -1 when the modem is wired straight to the
+                battery. Held through deep sleep.
+        config CAMOS_MODEM_POWER_ACTIVE_LOW
+            bool "The switch is on when the pin is low (P-MOSFET gate)"
+            depends on CAMOS_MODEM && CAMOS_MODEM_POWER_GPIO >= 0
+            default y
+        config CAMOS_MODEM_CMUX
+            bool "Try CMUX (AT commands and PPP on one UART) before plain PPP"
+            depends on CAMOS_MODEM
+            default y
+            help
+                With CMUX the firmware can read the signal quality while data flows. The A7680C supports
+                AT+CMUX (to be verified on hardware); when it fails the firmware falls back to plain PPP.
+        config CAMOS_MODEM_BOOT_WAIT_S
+            int "Wait for the modem to answer AT after PWRKEY (s)"
+            depends on CAMOS_MODEM
+            range 5 60
+            default 20
+    endmenu
+
+    menu "GPS (ATGM336H, NMEA over UART)"
+        config CAMOS_GPS
+            bool "Build the GPS support"
+            default n if CAMOS_BOARD_ESP32CAM
+            default y
+        config CAMOS_GPS_UART_NUM
+            int "GPS UART number"
+            depends on CAMOS_GPS
+            default 2
+        config CAMOS_GPS_RX_GPIO
+            int "ESP RX <- GPS TXD (NMEA)"
+            depends on CAMOS_GPS
+            default 14
+        config CAMOS_GPS_TX_GPIO
+            int "ESP TX -> GPS RXD (-1 = not wired; the firmware only listens)"
+            depends on CAMOS_GPS
+            default -1
+        config CAMOS_GPS_BAUD
+            int "Baud rate (ATGM336H default 9600)"
+            depends on CAMOS_GPS
+            default 9600
+        config CAMOS_GPS_POWER_GPIO
+            int "GPS power switch GPIO (-1 = always on)"
+            depends on CAMOS_GPS
+            default 21
+            help
+                The ATGM336H draws about 25 mA while searching (datasheet value, not measured here), too much
+                for a GPIO: drive a P-MOSFET high-side switch (see docs/WIRING.md). Off through deep sleep.
+        config CAMOS_GPS_POWER_ACTIVE_LOW
+            bool "The switch is on when the pin is low (P-MOSFET gate)"
+            depends on CAMOS_GPS && CAMOS_GPS_POWER_GPIO >= 0
+            default y
+        config CAMOS_GPS_FIX_TIMEOUT_S
+            int "Give up a fix after (s)"
+            depends on CAMOS_GPS
+            range 10 600
+            default 120
+            help
+                Cold start of the ATGM336H is about 35 s with a clear sky (datasheet, not measured here);
+                under a canopy it can take minutes. The module keeps no almanac without a backup supply.
+        config CAMOS_GPS_FIX_INTERVAL_H
+            int "Fix once every (hours)"
+            depends on CAMOS_GPS
+            range 1 720
+            default 24
+    endmenu
+
+    config CAMOS_CONSOLE
+        bool "Serial console (bench commands on UART0: help, cfg, set, pair, snap, gps, at, net, batt, ...)"
+        default y
+
+    config CAMOS_LIVE
+        bool "Live view: KVS WebRTC MASTER (ESP32-S3 only, esp-webrtc-solution)"
+        depends on IDF_TARGET_ESP32S3
+        default n
+        help
+            See docs/LIVE_VIEW.md. Off by default until the esp-webrtc-solution components are vendored
+            (firmware/components/, see the document); RPC live.start answers NOT_SUPPORTED when off.
+
+endmenu
