@@ -97,4 +97,4 @@ which is why `auto` exists. A 3 W panel gives margin for powered mode.
 3. One full battery-mode cycle on Wi-Fi with a logging meter: the average mA replaces the table 1 total.
 4. Modem powered-off drain on the breakout (row 5 of table 2) and one 4G cycle.
 5. Powered-mode idle on Wi-Fi and on 4G (table 3).
-Write the results in this file and in flybot-aws/docs/REQUIREMENTS.md (the "deep sleep cycle measured" item of gate G-S2).
+Write the results in this file, with the date and the instrument.

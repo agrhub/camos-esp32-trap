@@ -13,8 +13,8 @@ static int fails;
 static const char *good =
 	"{\"ok\":true,\"certificatePem\":\"-----BEGIN CERTIFICATE-----\\nMIIB...\\n-----END CERTIFICATE-----\\n\","
 	"\"deviceToken\":\"dt_abc123\",\"iot\":{\"endpoint\":\"a38gyfo6dhqxf4-ats.iot.ap-southeast-2.amazonaws.com\","
-	"\"thingName\":\"ESPF85B1B92877C\"},\"kvs\":{\"region\":\"ap-southeast-2\",\"channelName\":\"cam-ESPF85B1B92877C\"},"
-	"\"claimUrl\":\"https://flybot.agrhub.com/claim?sn=ESPF85B1B92877C\",\"claimed\":false}";
+	"\"thingName\":\"ESP000000000001\"},\"kvs\":{\"region\":\"ap-southeast-2\",\"channelName\":\"cam-ESP000000000001\"},"
+	"\"claimUrl\":\"https://flybot.agrhub.com/claim?sn=ESP000000000001\",\"claimed\":false}";
 
 int main(void)
 {
@@ -26,10 +26,10 @@ int main(void)
 	CHECK(!strncmp(r->cert, "-----BEGIN CERTIFICATE-----\nMIIB", 32));
 	CHECK(!strcmp(r->token, "dt_abc123"));
 	CHECK(!strcmp(r->endpoint, "a38gyfo6dhqxf4-ats.iot.ap-southeast-2.amazonaws.com"));
-	CHECK(!strcmp(r->thing, "ESPF85B1B92877C"));
+	CHECK(!strcmp(r->thing, "ESP000000000001"));
 	CHECK(!strcmp(r->kvs_region, "ap-southeast-2"));
-	CHECK(!strcmp(r->kvs_channel, "cam-ESPF85B1B92877C"));
-	CHECK(!strcmp(r->claim_url, "https://flybot.agrhub.com/claim?sn=ESPF85B1B92877C"));
+	CHECK(!strcmp(r->kvs_channel, "cam-ESP000000000001"));
+	CHECK(!strcmp(r->claim_url, "https://flybot.agrhub.com/claim?sn=ESP000000000001"));
 	CHECK(r->claimed == 0);
 
 	/* required fields */
@@ -53,11 +53,11 @@ int main(void)
 	CHECK(!reg_parse(big, r, err, sizeof(err)));
 
 	/* request body */
-	char *b = reg_body("ESPF85B1B92877C", "9WBYWY", "AIC-FREENOVE-S3CAM", "0.3.0", "-----BEGIN CERTIFICATE REQUEST-----\nX\n-----END CERTIFICATE REQUEST-----\n");
+	char *b = reg_body("ESP000000000001", "ABC123", "AIC-FREENOVE-S3CAM", "0.3.0", "-----BEGIN CERTIFICATE REQUEST-----\nX\n-----END CERTIFICATE REQUEST-----\n");
 	cJSON *j = cJSON_Parse(b);
 	CHECK(j && cJSON_GetObjectItem(j, "v")->valueint == 1);
-	CHECK(!strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(j, "serial")), "ESPF85B1B92877C"));
-	CHECK(!strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(j, "verifyCode")), "9WBYWY"));
+	CHECK(!strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(j, "serial")), "ESP000000000001"));
+	CHECK(!strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(j, "verifyCode")), "ABC123"));
 	CHECK(!strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(j, "model")), "AIC-FREENOVE-S3CAM"));
 	CHECK(!strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(j, "fw")), "0.3.0"));
 	CHECK(strstr(cJSON_GetStringValue(cJSON_GetObjectItem(j, "csr")), "BEGIN CERTIFICATE REQUEST") != NULL);

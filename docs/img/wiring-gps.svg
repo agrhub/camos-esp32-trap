@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="580" viewBox="0 0 1100 580">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="24" y="36" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#1f2833" text-anchor="start">ATGM336H GPS to the Freenove board</text>
+<text x="24" y="60" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5b6672" text-anchor="start">UART2 RX only at 9600 8N1. Kconfig: CAMOS_GPS_RX_GPIO=14, TX=-1, POWER_GPIO=21 (P-MOSFET, low = on).</text>
+<line x1="24" y1="92" x2="52" y2="92" stroke="#f08c00" stroke-width="3"/>
+<text x="58" y="96" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2833" text-anchor="start">3.3 V</text>
+<line x1="174" y1="92" x2="202" y2="92" stroke="#222222" stroke-width="3"/>
+<text x="208" y="96" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2833" text-anchor="start">GND</text>
+<line x1="324" y1="92" x2="352" y2="92" stroke="#1c7ed6" stroke-width="3"/>
+<text x="358" y="96" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2833" text-anchor="start">UART data</text>
+<line x1="474" y1="92" x2="502" y2="92" stroke="#7048e8" stroke-width="3"/>
+<text x="508" y="96" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2833" text-anchor="start">control</text>
+<line x1="624" y1="92" x2="652" y2="92" stroke="#868e96" stroke-width="3"/>
+<text x="658" y="96" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2833" text-anchor="start">antenna</text>
+<rect x="60" y="140" width="300" height="330" rx="8" fill="#e6fcf5" stroke="#0ca678" stroke-width="1.6"/>
+<text x="210.0" y="162" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1f2833" text-anchor="middle">Freenove ESP32-S3 CAM</text>
+<text x="210.0" y="180" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">header pins</text>
+<circle cx="360" cy="240" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
+<text x="351" y="244" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="end">3V3</text>
+<circle cx="360" cy="300" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
+<text x="351" y="304" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="end">GPIO21</text>
+<circle cx="360" cy="360" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
+<text x="351" y="364" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="end">GPIO14  RX</text>
+<circle cx="360" cy="420" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
+<text x="351" y="424" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="end">GND</text>
+<rect x="760" y="140" width="280" height="330" rx="8" fill="#ebfbee" stroke="#2b8a3e" stroke-width="1.6"/>
+<text x="900.0" y="162" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1f2833" text-anchor="middle">ATGM336H module</text>
+<text x="900.0" y="180" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">VCC 3.3 V (many boards take 3.3-5 V)</text>
+<text x="900.0" y="195" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">about 25 mA while searching</text>
+<circle cx="760" cy="240" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
+<text x="769" y="244" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">VCC</text>
+<circle cx="760" cy="300" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
+<text x="769" y="304" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">TX</text>
+<circle cx="760" cy="340" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
+<text x="769" y="344" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">RX (leave open)</text>
+<circle cx="760" cy="380" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
+<text x="769" y="384" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">GND</text>
+<circle cx="760" cy="420" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
+<text x="769" y="424" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">PPS (not used)</text>
+<polyline points="990,140 990,106" stroke="#868e96" stroke-width="2.4" fill="none"/><polyline points="978,94 990,106 1002,94" stroke="#868e96" stroke-width="2.4" fill="none"/>
+<text x="972" y="110" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#5b6672" text-anchor="end">active patch antenna, IPEX</text>
+<rect x="574" y="234" width="52" height="52" rx="6" fill="#fff4e6" stroke="#495057" stroke-width="1.6"/>
+<text x="600" y="256" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1f2833" text-anchor="middle">P-FET</text>
+<text x="600" y="271" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#5b6672" text-anchor="middle">AO3401</text>
+<text x="612" y="228" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1f2833" text-anchor="start">S</text>
+<text x="612" y="300" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1f2833" text-anchor="start">D</text>
+<text x="566" y="254" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1f2833" text-anchor="end">G</text>
+<polyline points="360,240 420,240 420,190 600,190 600,234" fill="none" stroke="#f08c00" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="510.0" y="184.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#f08c00" text-anchor="middle">source</text>
+<rect x="513" y="207" width="14" height="36" rx="2" fill="#fff" stroke="#495057" stroke-width="1.6"/>
+<text x="532" y="229" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#1f2833" text-anchor="start"></text>
+<text x="508" y="229" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#1f2833" text-anchor="end">100k</text>
+<polyline points="520,190 520,207" fill="none" stroke="#f08c00" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="520" cy="190" r="4" fill="#f08c00"/>
+<polyline points="520,243 520,260" fill="none" stroke="#7048e8" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<rect x="422" y="293" width="36" height="14" rx="2" fill="#fff" stroke="#495057" stroke-width="1.6"/>
+<text x="440" y="288" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#1f2833" text-anchor="middle">1k</text>
+<polyline points="360,300 422,300" fill="none" stroke="#7048e8" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="458,300 520,300 520,260 574,260" fill="none" stroke="#7048e8" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="489.0" y="294.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#7048e8" text-anchor="middle">gate</text>
+<circle cx="520" cy="260" r="4" fill="#7048e8"/>
+<polyline points="600,286 600,320 700,320 700,240 760,240" fill="none" stroke="#f08c00" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="650.0" y="334.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#f08c00" text-anchor="middle">drain</text>
+<polyline points="360,360 720,360 720,300 760,300" fill="none" stroke="#1c7ed6" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="540.0" y="354.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#1c7ed6" text-anchor="middle">ESP RX &lt;- GPS TX</text>
+<polyline points="360,420 740,420 740,380 760,380" fill="none" stroke="#222222" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="550.0" y="414.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#222222" text-anchor="middle">GND</text>
+<text x="60" y="505" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#495057" text-anchor="start">The 100k from gate to source keeps the GPS off while the ESP32 resets; GPIO21 low switches it on.</text>
+<text x="60" y="522" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#495057" text-anchor="start">Keep the antenna face up, 10 cm from the LTE antenna and the panel. No backup cell on V_BCKP: every fix is a cold start</text>
+<text x="60" y="539" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#495057" text-anchor="start">(about 35 s in the open, datasheet value).</text>
+</svg>

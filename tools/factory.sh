@@ -4,7 +4,7 @@
 #
 #   bash tools/factory.sh COM7                         read the MAC, make key + certificate, build and flash fctry.bin
 #   bash tools/factory.sh COM7 --cert c.pem --key k.pem  use an existing certificate / key (e.g. flybot-aws data/secrets/)
-#   bash tools/factory.sh --mac f8:5b:1b:92:87:7c --no-flash   build the image only (no board needed)
+#   bash tools/factory.sh --mac 02:00:00:00:00:01 --no-flash   build the image only (no board needed)
 #   options: --chip esp32s3|esp32 (default esp32s3)  --thing <name> (default = serial)  --iot-host <endpoint>
 #            --vcode <6 chars> (default: random, Crockford base32)  --out <dir> (default tools/out/<serial>)
 #

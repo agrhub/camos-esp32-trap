@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="700" viewBox="0 0 1100 700">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="24" y="36" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#1f2833" text-anchor="start">Illustration: the trap camera on its post (side view)</text>
+<text x="24" y="60" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5b6672" text-anchor="start">Drawing, not a photo. The camera looks at the sticky card from 15-25 cm, square to the card, shaded from the sun.</text>
+<rect x="0" y="640" width="1100" height="60" fill="#d8e8c8"/>
+<rect x="520" y="130" width="22" height="520" fill="#a5734a"/>
+<rect x="380" y="150" width="300" height="14" rx="3" fill="#868e96"/>
+<polygon points="360,150 700,150 690,132 370,132" fill="#adb5bd"/>
+<polygon points="560,128 700,70 712,92 572,150" fill="#1c3d6e" stroke="#0b1e3a" stroke-width="2"/>
+<text x="720" y="74" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12.5" font-weight="600" fill="#1f2833" text-anchor="start">solar panel 6 V 2 W, tilted ~15 deg</text>
+<text x="720" y="92" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#5b6672" text-anchor="start">facing the equator (south in Vietnam)</text>
+<rect x="430" y="300" width="90" height="12" fill="#868e96"/>
+<rect x="300" y="250" width="130" height="110" rx="10" fill="#e9ecef" stroke="#495057" stroke-width="2"/>
+<rect x="296" y="285" width="10" height="40" rx="2" fill="#a5d8ff" stroke="#1c7ed6" stroke-width="1.5"/>
+<rect x="290" y="270" width="20" height="8" fill="#868e96"/>
+<text x="365" y="300" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#1f2833" text-anchor="middle">IP65 box</text>
+<text x="365" y="316" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#5b6672" text-anchor="middle">camera board,</text>
+<text x="365" y="330" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#5b6672" text-anchor="middle">4G, GPS, LiPo</text>
+<line x1="410" y1="250" x2="410" y2="205" stroke="#495057" stroke-width="3"/>
+<text x="415" y="200" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#5b6672" text-anchor="start">LTE antenna</text>
+<line x1="365" y1="360" x2="365" y2="420" stroke="#e8590c" stroke-width="2.5" stroke-dasharray="5 4"/>
+<text x="358" y="432" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="end">solar cable through a gland (bottom)</text>
+<line x1="140" y1="150" x2="380" y2="150" stroke="#495057" stroke-width="3"/>
+<line x1="150" y1="150" x2="150" y2="210" stroke="#495057" stroke-width="1.5"/>
+<rect x="140" y="210" width="22" height="200" fill="#f4dc12" stroke="#c9a800" stroke-width="2"/>
+<text x="60" y="440" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12.5" font-weight="600" fill="#1f2833" text-anchor="start">yellow sticky card 15 x 25 cm</text>
+<text x="60" y="458" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#5b6672" text-anchor="start">(trap holder + lure below or beside it)</text>
+<polygon points="296,305 162,215 162,405" fill="#a5d8ff" fill-opacity=".35" stroke="#1c7ed6" stroke-dasharray="6 4"/>
+<line x1="162" y1="520" x2="296" y2="520" stroke="#495057" stroke-width="1.5"/>
+<line x1="162" y1="512" x2="162" y2="528" stroke="#495057" stroke-width="1.5"/><line x1="296" y1="512" x2="296" y2="528" stroke="#495057" stroke-width="1.5"/>
+<text x="229" y="545" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12.5" font-weight="700" fill="#1f2833" text-anchor="middle">15-25 cm</text>
+<text x="229" y="563" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#5b6672" text-anchor="middle">lens centred on the card</text>
+<text x="531" y="670" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12.5" font-weight="600" fill="#1f2833" text-anchor="middle">post 1.2-1.5 m, in the canopy shade</text>
+<text x="1080" y="690" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#d62828" text-anchor="end">Illustration</text>
+</svg>

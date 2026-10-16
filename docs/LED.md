@@ -5,9 +5,6 @@ it through the RMT peripheral (`espressif/led_strip` 3.x) at low brightness (`CA
 10 %). The AI-Thinker ESP32-CAM preset uses its red LED on GPIO33 (active low): the same patterns, without colours.
 The generic ESP32-S3 CAM preset has no LED configured (`CAMOS_LED_NONE`): the RGB pin of those boards is not documented.
 
-The AMB82 camera defines one LED meaning (its blue LED blinks during Wi-Fi setup, otherwise off); the setup state keeps
-that colour here, the rest is new.
-
 | State | Pattern | When |
 |---|---|---|
 | Setup portal | blue, slow breathe (2 s period) | the `CAM-xxxx` setup network is open |
@@ -29,5 +26,5 @@ showed. The console command `led <state>` (`portal`, `connecting`, `online`, `er
 `uploaderr`, `lowbatt`) shows one state on demand to check the colours on a board.
 
 Power: a WS2812 draws about 1 mA even when dark (its own controller; datasheet value, not measured here). The firmware
-cannot switch it off; on a battery build that matters (docs/POWER_BUDGET.md). Cutting the LED's 5 V / 3V3 feed is the only
+cannot switch it off; on a battery build that matters ([dev/POWER_BUDGET.md](dev/POWER_BUDGET.md)). Cutting the LED's 5 V / 3V3 feed is the only
 way to remove it.

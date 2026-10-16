@@ -1,4 +1,4 @@
-# Web console (firmware 0.4.0)
+# The camera's web page (web console, firmware 0.4.0)
 
 `http://<camera IP>/` on Wi-Fi (the IP is in the boot log, the serial `info` and the router). Served while the camera is
 awake: always in powered mode, during the awake window in battery mode (a signed-in visit keeps it awake 2 minutes).
@@ -8,7 +8,10 @@ Not over 4G. English by default, Vietnamese from the language menu (remembered o
 
 The first visit **activates** the camera: it asks for the admin password (8-64 characters, letters and digits) and keeps
 a salted, iterated SHA-256 of it in NVS. Later visits sign in with it. 5 wrong passwords lock sign-in for 5 minutes.
-Forgot it: hold BOOT 3 s (setup portal) or type `factory` on the serial console (the identity and certificate stay).
+Forgot it: while the camera runs, hold the BOOT button 3 s. That clears the password and opens the setup page; the next
+visit sets a new password. The registration with FlyBot stays.
+
+![activation](img/console-activate.png)
 
 Nothing of the console is shown before activation / sign-in: a camera that was never activated shows only the
 activation form. Sessions are a random `HttpOnly; SameSite=Strict` cookie, 30 minutes idle; every POST needs the header
@@ -34,6 +37,27 @@ activation form. Sessions are a random `HttpOnly; SameSite=Strict` cookie, 30 mi
 | | Storage > Storage Management | card name, capacity, used / free, "save every photo to the card", format. |
 | | Power & location > Power & Schedule, GPS | power mode, interval, LED, battery divider, GPS fix. |
 | | Security > Account | change the admin password. |
+
+## Screenshots
+
+*The pictures inside these screenshots are drawings of a sticky card from a mock camera with made-up values, not
+camera photos.*
+
+| Live View | Playback |
+|---|---|
+| ![live view](img/console-live.png) | ![playback](img/console-playback.png) |
+| **Image (Display)** | **Motion Detection** |
+| ![image](img/console-image.png) | ![motion](img/console-motion.png) |
+| **Capture Schedule** | **Storage Management** |
+| ![schedule](img/console-schedule.png) | ![storage](img/console-storage.png) |
+| **Wi-Fi / TCP/IP** | **Cloud Platform** (and while unclaimed) |
+| ![network](img/console-network.png) | ![cloud](img/console-cloud.png) ![cloud unclaimed](img/console-cloud-unclaimed.png) |
+| **Device Information** | **Maintenance & Upgrade** |
+| ![system](img/console-system.png) | ![maintenance](img/console-maintenance.png) |
+| **Events** | **Account** |
+| ![events](img/console-events.png) | ![account](img/console-account.png) |
+| **Xem trực tiếp (Vietnamese)** | **Phát hiện chuyển động** |
+| ![live vi](img/console-live-vi.png) | ![motion vi](img/console-motion-vi.png) |
 
 ## Live picture on the LAN (MJPEG)
 
@@ -66,7 +90,7 @@ measurement ran at night): frame sizes of a lit scene are still to be measured.
 
 ## Image settings
 
-All under the shadow `video.image` (docs/PROTOCOL_ADDITIONS.md section 3), so the console and FlyBot use the same keys:
+All under the shadow `video.image` ([dev/PROTOCOL_ADDITIONS.md](dev/PROTOCOL_ADDITIONS.md) section 3), so the console and FlyBot use the same keys:
 brightness, contrast, saturation, sharpness, orientation (normal, mirror, flip, both), white balance (auto, sunny,
 cloudy, office, home), effect (none, negative, black & white, red, green, blue tint, sepia), exposure (auto or manual
 0..1200), exposure compensation (-5..5 on the OV5640), gain (auto or manual 0..30), gain ceiling (2x..128x), noise
@@ -79,8 +103,7 @@ Leaving the page with unsaved changes restores the saved values. A later shadow 
 Freenove ESP32-S3 CAM: SD_MMC 1-bit (CLK 39, CMD 38, D0 40), FAT32, mounted at boot (`CAMOS_SD`, off on the AI-Thinker
 ESP32-CAM whose card pins are the flash LED, the button and the battery ADC). With "save every photo" on (default)
 every capture is written as `/DCIM/YYYYMMDD/HHMMSSx.JPG` (x: `S` schedule, `R` on demand, `B` boot, `M` motion), also
-when the upload fails. Below 5 % free the oldest day is deleted. API: `GET /api/sd`, `GET /api/sd/files?day=`,
-`GET /api/sd/file?day=&name=[&dl=1]`, `POST /api/sd/delete {day[, name]}`, `POST /api/sd/format`.
+when the upload fails. Below 5 % free the oldest day is deleted. The card's API: [dev/CONFIG.md](dev/CONFIG.md).
 
 ## Motion detection
 
@@ -97,24 +120,18 @@ counting stays in the cloud.
 
 ## Firmware upload
 
-`POST /api/firmware` with the app image as `application/octet-stream` (`camos-esp32.bin` of a release or of
-`firmware/build-<board>/`), optional header `X-Fw-Sha256: <hex>`. The image is written to the other OTA slot,
-`esp_ota_end` checks it, the SHA-256 is compared when given, then the camera restarts into it. The new image marks itself
+Configuration > Maintenance & Upgrade > Upload a firmware file: pick the `-update.bin` of a release (or
+`camos-esp32.bin` of your own build), optionally paste its SHA-256 from the release page, Upload & install. The camera
+writes it to its second firmware slot, checks it, then restarts into it. The new image marks itself
 valid on its first MQTT connection or on the first signed-in console request; otherwise the bootloader rolls back at
-the next restart. Measured: a 1.43 MB image uploads and installs in 13 s on the bench Wi-Fi.
+the next restart. Measured on 16 Oct 2026: a 1.43 MB image uploaded and installed in 13 s over Wi-Fi.
 
 ## What this camera cannot do (hardware)
 
 - **H.264 / RTSP / ONVIF / RTMP video and continuous video recording**: the ESP32-S3 has no video encoder; the camera
-  streams and stores JPEG pictures. Cloud live view uses KVS WebRTC (docs/LIVE_VIEW.md).
+  streams and stores JPEG pictures. Cloud live view uses KVS WebRTC ([dev/LIVE_VIEW.md](dev/LIVE_VIEW.md)).
 - **Audio**: no microphone or speaker on the board.
 - **On-screen text burned into the photos and privacy masks**: would need a decode and re-encode of every 5 MP JPEG;
   the clock and name are drawn by the browser over the live picture only.
 - **Person / vehicle detection on the camera**: no AI accelerator; motion detection is frame difference.
 - **Several user accounts and roles**: one admin account.
-
-## Bench builds
-
-`CAMOS_WEB_BENCH_IP` (Kconfig, empty by default): requests from exactly that client address are treated as signed in,
-for automated tests from one bench computer. The boot log warns `BENCH BUILD` when it is set. Never in an image that
-leaves the bench.

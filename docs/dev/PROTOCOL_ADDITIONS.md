@@ -10,7 +10,7 @@ actually sends and accepts.
 `camos/{serial}/{state,event,telemetry,shadow/desired,shadow/reported,rpc/req,rpc/res}`, client id = serial, keepalive 60 s,
 clean session false, Last Will `{"v":1,"online":false}` retained on `state`. Mutual TLS with the device certificate from the
 portal (CN = serial); the broker is verified against the embedded Amazon Root CA 1. The serial is `ESP` + 12 hex digits of the
-Wi-Fi MAC (`ESP24A1602F3C10`).
+Wi-Fi MAC (`ESP000000000002`).
 
 ## 2. HTTPS to FlyBot (CONTRACTS section 2)
 
@@ -27,7 +27,7 @@ The token is only ever sent to `apiBase` (protocol 11.4).
 `meta` as sent (CONTRACTS shape plus two additive fields):
 
 ```json
-{"v":1,"serial":"ESP24A1602F3C10","capturedAt":"2026-10-16T08:00:00Z","trigger":"schedule",
+{"v":1,"serial":"ESP000000000002","capturedAt":"2026-10-16T08:00:00Z","trigger":"schedule",
  "battery":{"mv":3900,"pct":65,"charging":true,"solarMv":5800},"net":"wifi","rssi":-61,
  "location":{"lat":10.971200,"lng":106.650300,"fixAt":"2026-10-16T05:00:12Z"},
  "fw":"0.2.0","model":"AIC-FREENOVE-S3CAM"}
@@ -74,7 +74,7 @@ same keys locally; a later shadow wins):
 {"capture":{"resolution":"max","jpegQuality":85,"intervalMin":60,"w":2560,"h":1920},
  "power":{"mode":"auto","effective":"battery","highMv":4050,"lowMv":3850},
  "live":{"requested":false,"supported":false,"active":false},
- "kvs":{"channelName":"cam-ESP24A1602F3C10","region":"ap-southeast-2"},
+ "kvs":{"channelName":"cam-ESP000000000002","region":"ap-southeast-2"},
  "location":{"lat":10.971200,"lng":106.650300,"fixAt":"2026-10-16T05:00:12Z"},
  "net":"wifi",
  "battery":{"voltage":3.9,"percent":65,"mv":3900,"pct":65,"charging":true,"solarMv":5800},
@@ -139,7 +139,7 @@ The label QR (12.1) is `CAMOS:1;SN:<serial>;VC:<verify code>;M:<model>;;`. These
 generates the 6-character verify code at the first boot and shows it in the boot log, on the portal page and in the
 console `info`; `tools/label.py` prints the QR for a sticker. The SoftAP page (12.3) keeps `GET /info` and
 `POST /provision` (now also accepting `provisionToken`, `endpoint`, `apn`, and the additive `apiBase`) and adds the JSON
-API described in [PORTAL.md](PORTAL.md).
+API described in [CONFIG.md](CONFIG.md).
 
 ## 8. Self-registration and claim (CONTRACTS 2a)
 
@@ -147,10 +147,10 @@ A camera without a certificate (the public build, after flashing) registers itse
 
 1. Key: ECDSA P-256 made on the device from the hardware RNG, stored in NVS (`key`), never sent anywhere.
 2. `POST {apiBase}/api/device/register` (no auth, HTTPS with the ESP-IDF certificate bundle):
-   `{"v":1,"serial":"ESPF85B1B92877C","verifyCode":"9WBYWY","model":"AIC-FREENOVE-S3CAM","fw":"0.3.0","csr":"-----BEGIN CERTIFICATE REQUEST-----..."}`.
+   `{"v":1,"serial":"ESP000000000001","verifyCode":"ABC123","model":"AIC-FREENOVE-S3CAM","fw":"0.3.0","csr":"-----BEGIN CERTIFICATE REQUEST-----..."}`.
    The CSR has subject `CN=<serial>` and is signed with ECDSA-SHA256 (checked with `openssl req -verify` on a board).
 3. `200` / `201` with `ok`, `certificatePem`, `deviceToken`, `iot.endpoint`: stored (plus `iot.thingName`,
-   `kvs.region`, `kvs.channelName`, `claimUrl`, `claimed`); the MQTT agent starts without a restart.
+   `kvs.region`, `kvs.channelName`, `claimUrl`, `claimed`); the MQTT client starts without a restart.
 4. `429`, `5xx`, no answer: retried after 30 s, doubling to 1 h, ±20 %. `409 serial_taken`: no more retries, the LED
    goes red, the portal and web console show "registration refused" until the camera is reset in FlyBot and the
    camera is factory-reset.

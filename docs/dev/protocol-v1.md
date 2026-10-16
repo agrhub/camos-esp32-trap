@@ -5,7 +5,7 @@
 > Additions used by this firmware are in [PROTOCOL_ADDITIONS.md](PROTOCOL_ADDITIONS.md).
 
 > Protocol version `1` · draft 0.1 · 2026-10-12
-> Scope: camera ↔ CamOS. Applications (FlyBot…) do not use this protocol; applications use the [Open API](open-api.md).
+> Scope: camera ↔ CamOS. Applications (FlyBot…) do not use this protocol; applications use the CamOS Open API (not part of this repository).
 
 ## 1. Connection
 

@@ -3,7 +3,7 @@
 # with everything the firmware reads at boot. Run from Git Bash / Linux / macOS; needs openssl and an ESP-IDF
 # environment (IDF_PATH set, for nvs_partition_gen and esptool).
 #
-#   bash tools/provision.sh --serial ESP24A1602F3C10 --ssid MyWifi --pass secret \
+#   bash tools/provision.sh --serial ESP000000000002 --ssid MyWifi --pass secret \
 #        [--mqtt-host <endpoint>] [--api-base <url>] [--token <token>] [--ap-pass <password>]
 #        [--apn <apn>] [--tz Asia/Ho_Chi_Minh] [--interval <min>] [--power-mode auto|battery|powered]
 #        [--prov-token <token>]   (pair at the first boot instead of giving --token)

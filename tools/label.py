@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Print the label QR of a camera (protocol 12.1): CAMOS:1;SN:<serial>;VC:<verify code>;M:<model>;;
 
-    python tools/label.py ESP24A1602F3C10 K7P4QX [AIC-FREENOVE-S3CAM] [-o label.png]
+    python tools/label.py ESP000000000002 K7P4QX [AIC-FREENOVE-S3CAM] [-o label.png]
 
 The serial and verify code are in the boot log ("serial ..., verify code ..."), on the portal page and in the console
 `info`. Needs `pip install qrcode[pil]` for the PNG; without it the QR is printed as text in the terminal (and the plain
