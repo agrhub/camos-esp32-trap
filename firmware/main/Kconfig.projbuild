@@ -12,7 +12,7 @@ menu "CamOS trap camera"
             bool "ai-thinker-esp32cam (AI-Thinker ESP32-CAM, OV2640, 4 MB PSRAM)"
             depends on IDF_TARGET_ESP32
         config CAMOS_BOARD_FREENOVE_S3CAM
-            bool "freenove_esp32s3_cam (Freenove ESP32-S3-WROOM CAM, kit FNK0085, N8R8, OV5640; the G-S2 board)"
+            bool "freenove_esp32s3_cam (Freenove ESP32-S3-WROOM CAM, kit FNK0085, N8R8 / N16R8, OV5640)"
             depends on IDF_TARGET_ESP32S3
         config CAMOS_BOARD_ESP32S3CAM
             bool "esp32s3-eye-compatible (generic ESP32-S3 N16R8 CAM; OV2640 / OV3660 / OV5640)"
@@ -415,7 +415,7 @@ menu "CamOS trap camera"
         default y
 
     config CAMOS_WEB_CONSOLE
-        bool "Local web console on Wi-Fi (http://<camera IP>/, admin sign-in), AMB82-style"
+        bool "Local web console on Wi-Fi (http://<camera IP>/, admin sign-in)"
         default y
         help
             Served while the camera is awake on Wi-Fi: always in powered mode, during the awake window in battery
@@ -426,7 +426,7 @@ menu "CamOS trap camera"
         depends on CAMOS_WEB_CONSOLE
         default ""
         help
-            For automated tests of the web console from one bench computer on the LAN (for example 192.168.1.76):
+            For automated tests of the web console from one bench computer on the LAN (for example 192.168.1.20):
             requests from exactly this address are treated as signed in. Leave it empty in every image that leaves
             the bench; the boot log warns when it is set.
 
@@ -458,7 +458,7 @@ menu "CamOS trap camera"
         depends on IDF_TARGET_ESP32S3
         default n
         help
-            See docs/LIVE_VIEW.md. Off by default until the esp-webrtc-solution components are vendored
+            See docs/dev/LIVE_VIEW.md. Off by default until the esp-webrtc-solution components are vendored
             (firmware/components/, see the document); RPC live.start answers NOT_SUPPORTED when off.
 
 endmenu

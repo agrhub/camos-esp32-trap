@@ -278,7 +278,8 @@ static void button_task(void *arg)
 		vTaskDelay(pdMS_TO_TICKS(100));
 		held = gpio_get_level(CONFIG_CAMOS_BUTTON_GPIO) ? 0 : held + 100;
 		if (held >= 3000) {
-			ESP_LOGW(TAG, "button held: restart into the setup portal");
+			ESP_LOGW(TAG, "button held: admin password cleared, restart into the setup portal");
+			store_clear_admin(); /* someone with the camera in hand: the next console visit sets a new password */
 			store_set_flag("portal", 1);
 			esp_restart();
 		}

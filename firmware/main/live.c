@@ -1,7 +1,7 @@
 /*
  * Live view: KVS WebRTC MASTER (CONTRACTS section 4). The camera joins the signaling channel `kvs.channelName`
  * when power.mode is powered, or for `live.start {minutes}` / `live.requested` otherwise, and only encodes while a
- * VIEWER is connected. See docs/LIVE_VIEW.md for the state of this part.
+ * VIEWER is connected. See docs/dev/LIVE_VIEW.md for the state of this part.
  *
  * CAMOS_LIVE off (the default, and always on the ESP32-CAM): every call answers NOT_SUPPORTED and FlyBot uses
  * `snapshot.now` instead. CAMOS_LIVE on (ESP32-S3): live_kvs.c provides the implementation.

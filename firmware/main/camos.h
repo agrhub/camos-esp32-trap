@@ -1,6 +1,6 @@
 /*
  * camos-esp32-trap: ESP32 / ESP32-S3 fruit-fly trap camera speaking the CamOS device protocol v1
- * (docs/protocol-v1.md) over AWS IoT Core, with the FlyBot additions (docs/PROTOCOL_ADDITIONS.md).
+ * (docs/dev/protocol-v1.md) over AWS IoT Core, with the FlyBot additions (docs/dev/PROTOCOL_ADDITIONS.md).
  * The camera only captures and uploads; the counting is done in the cloud (OpenCV 5).
  * Shared declarations for all modules.
  */
@@ -71,6 +71,7 @@ const char *portal_ssid(void);                 /* "CAM-xxxx" */
 
 void store_load(void);
 void store_set_str(const char *key, const char *value); /* NVS string, "" erases */
+void store_clear_admin(void);                  /* the setup button: the web console asks for a new password */
 void store_set_wifi(const char *ssid, const char *pass);
 void store_set_flag(const char *name, int value);
 int store_get_flag(const char *name);
@@ -164,7 +165,7 @@ typedef struct {
 	int saturation;       /* protocol 0..100 */
 	int sharpness;        /* protocol 0..100 */
 	int orientation;      /* protocol 0..3: 0 normal, 1 mirror, 2 flip, 3 both (on top of the Kconfig flip) */
-	/* ESP32 additions under video.image (docs/PROTOCOL_ADDITIONS.md) */
+	/* ESP32 additions under video.image (docs/dev/PROTOCOL_ADDITIONS.md) */
 	int wb_mode;          /* 0 auto, 1 sunny, 2 cloudy, 3 office, 4 home */
 	int effect;           /* 0 none, 1 negative, 2 grayscale, 3 red, 4 green, 5 blue, 6 sepia */
 	int ae_level;         /* -5..5 (OV5640), -2..2 others */
@@ -176,7 +177,7 @@ typedef struct {
 	int denoise;          /* 0..8 (OV5640) */
 	sched_t sched[MAX_SCHED];
 	int n_sched;
-	/* v1 additions (docs/PROTOCOL_ADDITIONS.md) */
+	/* v1 additions (docs/dev/PROTOCOL_ADDITIONS.md) */
 	int interval_min;     /* capture.intervalMin, 0 = not set by the shadow */
 	int power_mode;       /* power.mode, -1 = not set by the shadow */
 	int power_high_mv;    /* power.highMv / power.lowMv: auto mode hysteresis, 0 = Kconfig default */

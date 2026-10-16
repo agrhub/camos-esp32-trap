@@ -1,8 +1,8 @@
 /*
- * Configuration (docs/PORTAL.md section 4). Three layers, the later wins:
+ * Configuration (docs/dev/CONFIG.md). Three layers, the later wins:
  *
  *   1. build-time defaults   firmware/defaults.example.json (public demo values) or defaults.local.json (git-ignored,
- *                            the owner's bench Wi-Fi), compiled into camos_defaults.h by main/CMakeLists.txt
+ *                            your bench Wi-Fi), compiled into camos_defaults.h by main/CMakeLists.txt
  *   2. factory partition     "fctry" (read-only NVS written by tools/factory.*): per-device certificate, key, thing
  *   3. runtime NVS           "nvs": the portal, the console, pairing / registration
  *
@@ -70,6 +70,14 @@ static void put_str(const char *key, const char *value)
 }
 
 void store_set_str(const char *key, const char *value) { put_str(key, value); }
+
+/* Forgot the web console password: the setup button clears it (the next visit activates again) */
+void store_clear_admin(void)
+{
+	put_str("admin_hash", "");
+	put_str("admin_salt", "");
+	ESP_LOGW(TAG, "web console admin password cleared");
+}
 
 void store_set_flag(const char *name, int value)
 {

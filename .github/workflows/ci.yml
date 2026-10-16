@@ -5,6 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libcjson-dev
       - run: make -C tests
   firmware:
     runs-on: ubuntu-latest
@@ -22,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: espressif/esp-idf-ci-action@v1
         with:
-          esp_idf_version: v5.4.2
+          esp_idf_version: v5.4.4
           target: ${{ matrix.target }}
           path: firmware
           command: idf.py -B build-${{ matrix.board }} -DSDKCONFIG=build-${{ matrix.board }}/sdkconfig -DSDKCONFIG_DEFAULTS="${{ matrix.defaults }}" set-target ${{ matrix.target }} build

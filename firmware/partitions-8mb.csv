@@ -1,4 +1,4 @@
-# ESP32-S3 N8R8 (Freenove FNK0085), 8 MB flash. Same NVS location and size as the other tables (provision.sh output is identical).
+# Freenove FNK0085 (N8R8 and N16R8: the release declares 8 MB), 8 MB flash. Same NVS location and size as the other tables (provision.sh output is identical).
 # Name,   Type, SubType, Offset,   Size
 nvs,      data, nvs,     0x9000,   0x8000
 otadata,  data, ota,     0x11000,  0x2000

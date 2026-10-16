@@ -1,6 +1,6 @@
 /*
- * camos-esp32-trap: a "cloud-counted" fruit-fly trap camera. It speaks the CamOS device protocol v1 (docs/protocol-v1.md)
- * to AWS IoT Core and uploads JPEGs to FlyBot (docs/PROTOCOL_ADDITIONS.md); the counting is done in the cloud.
+ * camos-esp32-trap: a "cloud-counted" fruit-fly trap camera. It speaks the CamOS device protocol v1 (docs/dev/protocol-v1.md)
+ * to AWS IoT Core and uploads JPEGs to FlyBot (docs/dev/PROTOCOL_ADDITIONS.md); the counting is done in the cloud.
  *
  * Boot: NVS -> (nothing configured, or button held 3 s: setup portal CAM-xxxx) -> battery -> console
  *       -> schedule task + MQTT agent -> network (4G when an APN is set, else Wi-Fi) + time -> pairing when pending.
@@ -84,7 +84,11 @@ void app_main(void)
 
 	/* a default / saved Wi-Fi or 4G (on by default, APN auto) is enough to start: the portal opens when neither works */
 	bool configured = g_cfg.wifi_ssid[0] || modem_available();
-	if (!configured || store_get_flag("portal") || button_held(3000)) {
+	bool held = button_held(3000);
+	if (held) {
+		store_clear_admin(); /* the button held 3 s: forgot the console password */
+	}
+	if (!configured || store_get_flag("portal") || held) {
 		portal_run(); /* does not return: restarts after /api/restart or after 10 minutes */
 	}
 

@@ -2,11 +2,11 @@
  * HTTP pieces shared by the setup portal and the local web console, and the console itself.
  *
  * Local web console (CAMOS_WEB_CONSOLE, Wi-Fi only): http://<camera IP>/ serves console.html, the same layout as the
- * AMB82 camera's console (sign-in gate, Live view / Configuration, grouped side menu). The first visit sets the admin
+ * CamOS camera console (sign-in gate, Live view / Configuration, grouped side menu). The first visit sets the admin
  * password ("activate", 8-64 characters with letters and digits); it is kept as a salted, iterated SHA-256 in NVS.
  * Sessions are a random cookie (30 min idle); every POST needs the header X-Requested-With: camos (no cross-site
- * forms); 5 wrong passwords lock sign-in for 5 minutes. Forgot the password: hold the button 3 s (portal) and
- * factory-reset from the console there, or `factory` on the serial console.
+ * forms); 5 wrong passwords lock sign-in for 5 minutes. Forgot the password: hold the setup button 3 s (it clears the
+ * password and opens the portal), or `factory` on the serial console.
  *
  *   GET  /api/session                 {activated, signedIn, model, serial, fw, uiLang}
  *   POST /api/activate {password}     first use only        POST /api/login {password}     POST /api/logout
