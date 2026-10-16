@@ -20,7 +20,7 @@ that colour here, the rest is new.
 | OTA | purple, steady | firmware update downloading and writing |
 | Deep sleep | off | the data line is held low through the sleep |
 
-Switch it off: portal "Cài đặt nâng cao > Đèn trạng thái", web console "Nguồn điện & lịch chụp", serial console
+Switch it off: portal "Advanced settings > Status LED", web console "Power & Schedule", serial console
 `set ledEnabled 0` (NVS key `led`, default from `defaults.*.json` `ledEnabled`). Kconfig: "CamOS trap camera > Status LED"
 (type, GPIO, count, brightness).
 

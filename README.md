@@ -1,7 +1,7 @@
 # camos-esp32-trap
 
 Open firmware for an ESP32-S3 (or plain ESP32) fruit-fly trap camera. It speaks the CamOS device protocol v1
-([docs/protocol-v1.md](docs/protocol-v1.md), Vietnamese) over AWS IoT Core, uploads photos to FlyBot
+([docs/protocol-v1.md](docs/protocol-v1.md), English translation) over AWS IoT Core, uploads photos to FlyBot
 ([docs/PROTOCOL_ADDITIONS.md](docs/PROTOCOL_ADDITIONS.md)), runs on Wi-Fi or 4G (SIMCom A7680C), from solar + LiPo with
 deep sleep, reports GPS (ATGM336H), and (ESP32-S3, work in progress) streams live view through Kinesis Video Streams
 WebRTC. No AI on the device: the cloud counts the insects (OpenCV 5).
@@ -100,7 +100,7 @@ flasher page (Settings > Pages > Source: GitHub Actions).
 
 ## First run (portal walkthrough)
 
-Screenshots to be taken on a phone (placeholders below). The page is in English; "Tiếng Việt" at the top right switches it.
+Screenshots to be taken on a phone (placeholders below). The page is in English; the language link at the top right switches it to Vietnamese.
 
 1. Flash, open the monitor: `serial ESP..., verify code ...`. With no default Wi-Fi and no SIM, the camera tries 4G,
    finds no modem (about 30 s, remembered) and opens `setup portal: Wi-Fi CAM-xxxx` (LED blue, breathing).

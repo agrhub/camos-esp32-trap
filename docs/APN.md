@@ -1,7 +1,7 @@
 # 4G APN auto-detect
 
 With the APN setting empty (the default), the camera reads the SIM's IMSI (`AT+CIMI`), takes MCC + MNC (the first 5
-digits) and picks the APN from the table in `firmware/main/apn.c`. An APN typed in the portal ("Cài đặt nâng cao > 4G")
+digits) and picks the APN from the table in `firmware/main/apn.c`. An APN typed in the portal ("Advanced settings > 4G")
 or the console (`set apn ...`) always wins. A network not in the table gets an empty APN: on LTE the network assigns the
 default bearer at attach and that usually works; if data does not come up, set the APN by hand.
 
@@ -18,7 +18,7 @@ values agree across several third-party guides:
 - Viettel `v-internet`, user and password empty: Mytour (mytour.vn, "set up 3G/4G network for your Android phone"),
   CellphoneS Sforum (cellphones.com.vn/sforum/cau-hinh-4g-viettel).
 - Vinaphone `m3-world` (some guides add user / password `mms`): CellphoneS Sforum (cellphones.com.vn/sforum/apn-vinaphone-la-gi),
-  FPT Shop (fptshop.com.vn, "Cách cài đặt 3G cho mạng Vinaphone"), Droam wiki (wiki.droam.com/Vietnam).
+  FPT Shop (fptshop.com.vn, a 3G setup guide for Vinaphone), Droam wiki (wiki.droam.com/Vietnam).
 - MobiFone `m-wap`, user and password empty per Sforum's reading of MobiFone's documentation
   (cellphones.com.vn/sforum/apn-mobifone); older guides add `mms` / `mms`.
 - Vietnamobile `internet`, user and password empty: CellphoneS Sforum, Mytour, config-internet.com.

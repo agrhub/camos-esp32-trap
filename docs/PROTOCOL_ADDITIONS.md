@@ -50,6 +50,8 @@ The token is only ever sent to `apiBase` (protocol 11.4).
 
 Priority for the interval and the power mode: shadow > portal > Kconfig default.
 
+`claimed` (bool) is also accepted (section 8).
+
 `reported` (and the retained `state`) carry, next to the existing `version`, `appliedAt`, `errors`, `video.image`, `capture`:
 
 ```json
@@ -118,7 +120,40 @@ console `info`; `tools/label.py` prints the QR for a sticker. The SoftAP page (1
 `POST /provision` (now also accepting `provisionToken`, `endpoint`, `apn`, and the additive `apiBase`) and adds the JSON
 API described in [PORTAL.md](PORTAL.md).
 
-## 8. A note on the CONTRACTS example
+## 8. Self-registration and claim (CONTRACTS 2a)
 
-CONTRACTS section 2 shows `{"now":"2026-10-16T08:00:00Z","epoch":1792396800}`; 1792396800 is 2026-10-19T16:00:00Z, and
-2026-10-16T08:00:00Z is 1792137600. The firmware trusts `epoch` when present, so the server should send a consistent pair.
+A camera without a certificate (the public build, after flashing) registers itself:
+
+1. Key: ECDSA P-256 made on the device from the hardware RNG, stored in NVS (`key`), never sent anywhere.
+2. `POST {apiBase}/api/device/register` (no auth, HTTPS with the ESP-IDF certificate bundle):
+   `{"v":1,"serial":"ESPF85B1B92877C","verifyCode":"9WBYWY","model":"AIC-FREENOVE-S3CAM","fw":"0.3.0","csr":"-----BEGIN CERTIFICATE REQUEST-----..."}`.
+   The CSR has subject `CN=<serial>` and is signed with ECDSA-SHA256 (checked with `openssl req -verify` on a board).
+3. `200` / `201` with `ok`, `certificatePem`, `deviceToken`, `iot.endpoint`: stored (plus `iot.thingName`,
+   `kvs.region`, `kvs.channelName`, `claimUrl`, `claimed`); the MQTT agent starts without a restart.
+4. `429`, `5xx`, no answer: retried after 30 s, doubling to 1 h, ±20 %. `409 serial_taken`: no more retries, the LED
+   goes red, the portal and web console show "registration refused" until the camera is reset in FlyBot and the
+   camera is factory-reset.
+5. Unclaimed (`claimed: false` from registration, or the shadow): the capture interval is at least 60 minutes and
+   `nextWakeAt` from the snapshot response is followed even when it is later than the schedule. The shadow key
+   `claimed: true` (addition) returns the camera to its normal schedule. The portal and console show the claim QR
+   (`claimUrl`, as SVG made on the device) with the serial and verify code.
+
+The verify code is 6 Crockford base32 characters from the hardware RNG, made once; factory reset keeps it, the serial,
+the key, the certificate, the device token and the thing (protocol 9 `factory_reset` "keeps the certificates").
+
+## 9. Time, timezone and IP (CONTRACTS 2a.6)
+
+- Clock, the first that answers: SNTP (`pool.ntp.org`, `time.google.com`) -> the modem's network time (`AT+CTZU=1`,
+  `AT+CCLK?`, 4G) -> GPS RMC time -> `GET /api/device/time`. The source is logged (`tz: clock set from sntp: ...`) and
+  reported as `clockSource` (`sntp` | `modem` | `gps` | `flybot` | `rtc` | `none`).
+- Timezone: `GET /api/device/time` returns `timezone` (IANA), `posix`, `tzSource`, `publicIp`; the POSIX string is
+  applied with `setenv("TZ")` / `tzset()` and kept in NVS. Order: a manual override (portal / console `timezone`) >
+  the shadow `timezone` (the existing protocol 8 key; `null` returns to automatic) > `/api/device/time` > the build
+  default. Reported as `timezone` and `tzSource` (`manual` | `shadow` | `farm` | `gps` | `ip` | `default` | `build`).
+- IP: DHCP / PPP. `reported` and `state` gain `localIp` and `publicIp` (additions); the existing `net` key of
+  `reported` stays the string `"wifi"` | `"4g"` (CONTRACTS 3), and `state.net.ip` (protocol 4) keeps the local address.
+
+## 10. A note on the CONTRACTS example
+
+The first CONTRACTS section 2 example paired `2026-10-16T08:00:00Z` with epoch 1792396800 (2026-10-19T16:00:00Z); it was
+corrected to 1792137600 in flybot-aws 169aa44. The firmware trusts `epoch` when present.

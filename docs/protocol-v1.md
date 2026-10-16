@@ -1,50 +1,57 @@
-# Giao thức thiết bị CamOS AI Camera
+# CamOS AI Camera device protocol
 
-> Phiên bản giao thức `1` · bản nháp 0.1 · 2026-10-12
-> Phạm vi: camera ↔ CamOS. Ứng dụng (FlyBot…) không dùng giao thức này; ứng dụng dùng [Open API](open-api.md).
+> English translation of the CamOS device protocol v1 (the original is in Vietnamese). Same section numbers, field
+> names, values, topics and examples; where the translation is unclear, the field names and examples are authoritative.
+> Additions used by this firmware are in [PROTOCOL_ADDITIONS.md](PROTOCOL_ADDITIONS.md).
 
-## 1. Kết nối
+> Protocol version `1` · draft 0.1 · 2026-10-12
+> Scope: camera ↔ CamOS. Applications (FlyBot…) do not use this protocol; applications use the [Open API](open-api.md).
+
+## 1. Connection
 
 | | |
 |---|---|
-| Giao thức | MQTT 3.1.1 trên TLS 1.2+, cổng 8883 |
-| Xác thực | Mutual TLS: mỗi camera có chứng chỉ client riêng, nạp lúc sản xuất. CN của chứng chỉ = `serial` |
+| Protocol | MQTT 3.1.1 over TLS 1.2+, port 8883 |
+| Authentication | Mutual TLS: every camera has its own client certificate, loaded at manufacturing. The certificate CN = `serial` |
 | Client ID | `serial` |
 | Keepalive | 60 s |
-| Clean session | `false` (giữ subscription và tin QoS 1 khi mất mạng ngắn) |
+| Clean session | `false` (keeps subscriptions and QoS 1 messages through short network losses) |
 | Last Will | topic `camos/{serial}/state`, retained, payload `{"v":1,"online":false}` |
-| Quyền | Broker chỉ cho camera publish/subscribe các topic bắt đầu bằng `camos/{serial}/` |
+| Permissions | The broker only lets the camera publish/subscribe topics that start with `camos/{serial}/` |
 
-Mất kết nối thì kết nối lại với thời gian chờ tăng dần (1, 2, 4… tối đa 300 s, có ngẫu nhiên ±20%). Sau khi đổi mạng (Wi-Fi ⇄ 4G) thì kết nối lại ngay.
+After a lost connection, reconnect with an increasing wait (1, 2, 4… up to 300 s, with ±20% randomness). After a
+network change (Wi-Fi ⇄ 4G), reconnect at once.
 
-## 2. Topic
+## 2. Topics
 
-| Topic | Chiều | QoS | Retained | Nội dung |
+| Topic | Direction | QoS | Retained | Content |
 |---|---|---|---|---|
-| `camos/{serial}/state` | camera → cloud | 1 | có | Trạng thái hiện tại (mục 4) |
-| `camos/{serial}/event` | camera → cloud | 1 | không | Sự kiện (mục 5) |
-| `camos/{serial}/ai` | camera → cloud | 0 | không | Kết quả nhận dạng theo khung hình khi đang live (mục 6) |
-| `camos/{serial}/telemetry` | camera → cloud | 0 | không | Số đo định kỳ (mục 7) |
-| `camos/{serial}/shadow/desired` | cloud → camera | 1 | có | Cấu hình mong muốn (mục 8) |
-| `camos/{serial}/shadow/reported` | camera → cloud | 1 | có | Cấu hình đã áp dụng |
-| `camos/{serial}/rpc/req` | cloud → camera | 1 | không | Lệnh từ cloud (mục 9) |
-| `camos/{serial}/rpc/res` | camera → cloud | 1 | không | Kết quả lệnh |
-| `camos/{serial}/up/req` | camera → cloud | 1 | không | Camera hỏi cloud (mục 10) |
-| `camos/{serial}/up/res` | cloud → camera | 1 | không | Cloud trả lời |
+| `camos/{serial}/state` | camera → cloud | 1 | yes | Current state (section 4) |
+| `camos/{serial}/event` | camera → cloud | 1 | no | Events (section 5) |
+| `camos/{serial}/ai` | camera → cloud | 0 | no | Per-frame detection results while live (section 6) |
+| `camos/{serial}/telemetry` | camera → cloud | 0 | no | Periodic measurements (section 7) |
+| `camos/{serial}/shadow/desired` | cloud → camera | 1 | yes | Desired configuration (section 8) |
+| `camos/{serial}/shadow/reported` | camera → cloud | 1 | yes | Applied configuration |
+| `camos/{serial}/rpc/req` | cloud → camera | 1 | no | Commands from the cloud (section 9) |
+| `camos/{serial}/rpc/res` | camera → cloud | 1 | no | Command results |
+| `camos/{serial}/up/req` | camera → cloud | 1 | no | Camera asks the cloud (section 10) |
+| `camos/{serial}/up/res` | cloud → camera | 1 | no | Cloud answers |
 
-Camera subscribe: `shadow/desired`, `rpc/req`, `up/res`.
+The camera subscribes to: `shadow/desired`, `rpc/req`, `up/res`.
 
-## 3. Quy ước chung
+## 3. General conventions
 
-- Payload là JSON UTF-8. Mọi tin có `"v": 1` (phiên bản giao thức).
-- `ts`: thời điểm theo mili giây Unix, UTC. Camera đồng bộ giờ bằng NTP, khi không có NTP thì dùng giờ GPS.
-- `id`: ULID do bên gửi tạo. Dùng để ghép lệnh với kết quả, và để bên nhận bỏ qua tin trùng.
-- Tọa độ khung nhận dạng và vùng ROI là số thực **chuẩn hóa 0–1** theo khung ảnh gốc, nên không phụ thuộc độ phân giải.
-- Trường không biết thì bỏ qua. Không đổi nghĩa trường cũ; thay đổi không tương thích thì tăng `v`.
+- Payloads are UTF-8 JSON. Every message has `"v": 1` (the protocol version).
+- `ts`: a point in time in Unix milliseconds, UTC. The camera syncs its clock with NTP, and uses GPS time when there is
+  no NTP.
+- `id`: a ULID made by the sender. Used to match a command with its result, and to let the receiver drop duplicates.
+- Detection box coordinates and ROI areas are real numbers **normalised 0–1** to the original frame, so they do not
+  depend on the resolution.
+- Unknown fields are ignored. The meaning of an existing field never changes; an incompatible change increments `v`.
 
 ## 4. State
 
-Camera publish khi kết nối xong và mỗi khi có thay đổi đáng kể (đổi mạng, SD, app, firmware).
+The camera publishes it once connected and whenever something notable changes (network, SD, app, firmware).
 
 ```json
 {
@@ -88,11 +95,15 @@ Camera publish khi kết nối xong và mỗi khi có thay đổi đáng kể (�
 }
 ```
 
-- `boxes`: `[x1, y1, x2, y2, classIndex, confidence]`. Camera gửi tối đa 200 box. `n` luôn là số đếm thật, `truncated: true` nếu có box bị bỏ bớt.
-- `image.key` do Device API trả về khi camera upload ảnh (mục 11.4). Camera upload ảnh trước rồi mới gửi sự kiện, kèm `eventId` để backend gắn ảnh với sự kiện. Nếu camera upload ảnh lỗi thì gửi `image: null` kèm `"imageError": "..."`; cloud vẫn nhận sự kiện.
-- Camera không có mạng thì xếp sự kiện vào hàng đợi trên SD (tối đa 10.000 tin hoặc 7 ngày), gửi lại theo thứ tự khi có mạng. Cloud bỏ tin trùng theo `id`.
+- `boxes`: `[x1, y1, x2, y2, classIndex, confidence]`. The camera sends at most 200 boxes. `n` is always the real
+  count; `truncated: true` when boxes were left out.
+- `image.key` is returned by the Device API when the camera uploads the image (section 11.4). The camera uploads the
+  image first and then sends the event, with `eventId` so the backend links the image to the event. If the image upload
+  fails, the camera sends `image: null` with `"imageError": "..."`; the cloud still takes the event.
+- Without a network, the camera queues events on the SD card (at most 10,000 messages or 7 days) and sends them in
+  order when the network is back. The cloud drops duplicates by `id`.
 
-| `type` | Trường riêng |
+| `type` | Specific fields |
 |---|---|
 | `motion` | `detectionId`, `score`, `roi` |
 | `person` | `detectionId`, `n`, `boxes` |
@@ -107,19 +118,20 @@ Camera publish khi kết nối xong và mỗi khi có thay đổi đáng kể (�
 | `low_power` | `voltage` |
 | `boot` | `reason` (`power_on` / `watchdog` / `ota` / `rpc` / `crash`), `fw` |
 
-## 6. AI (luồng khi đang live)
+## 6. AI (stream while live)
 
-Chỉ gửi khi đang có live (`live.start`), tối đa 5 tin/giây. CamOS chuyển vào data channel WebRTC của stream.
+Sent only while live (`live.start`), at most 5 messages per second. CamOS forwards it into the WebRTC data channel of
+the stream.
 
 ```json
 { "v": 1, "ts": 1760256012345, "pts": 912345, "detectionId": "person", "n": 2, "truncated": false, "boxes": [[0.41, 0.22, 0.55, 0.81, 0, 0.88]] }
 ```
 
-`pts` là timestamp video (ms) của khung hình được nhận dạng, để player khớp khung với hình.
+`pts` is the video timestamp (ms) of the frame that was analysed, so the player can match the boxes to the picture.
 
 ## 7. Telemetry
 
-Gửi mỗi 5 phút (mỗi 30 phút khi dùng 4G).
+Sent every 5 minutes (every 30 minutes on 4G).
 
 ```json
 { "v": 1, "ts": 1760256000000, "uptimeS": 86400, "cpu": 41, "heapFree": 21000000, "fps": { "main": 15, "sub": 15 }, "npuMs": { "person": 38, "fruit-fly-sticky": 2400 }, "dataUsedMB": { "wifi": 812.4, "cell": 35.1 }, "rebootCount": 2 }
@@ -127,11 +139,11 @@ Gửi mỗi 5 phút (mỗi 30 phút khi dùng 4G).
 
 ## 8. Shadow
 
-CamOS là bên giữ bản `desired`; camera là bên giữ bản `reported`. Khi `desired.version` đổi:
-1. Camera áp dụng cấu hình mới.
-2. Camera publish `reported` với cùng `version` và danh sách lỗi (nếu có).
+CamOS owns the `desired` document; the camera owns the `reported` document. When `desired.version` changes:
+1. The camera applies the new configuration.
+2. The camera publishes `reported` with the same `version` and the list of errors (if any).
 
-Những phần chưa áp dụng được thì camera giữ nguyên cấu hình cũ.
+Parts that cannot be applied keep their previous configuration.
 
 ```json
 {
@@ -158,24 +170,36 @@ Những phần chưa áp dụng được thì camera giữ nguyên cấu hình c
 }
 ```
 
-- `audio`: `{ "enabled": true, "speakerVolume": 80 }`: `enabled` bật hoặc tắt tiếng micro (luồng vẫn có track AAC, chỉ im lặng khi tắt); `speakerVolume` 0-100 là âm lượng loa (0 = tắt loa).
-- `video.image` (thêm 0.25): chỉnh ISP, áp dụng ngay (không khởi động lại luồng) và camera lưu vào flash nên giữ qua lần khởi động lại. Mọi trường đều tùy chọn, là số nguyên:
+(The OSD `name` in the example is sample data: "Plot A - trap 3".)
 
-  | Trường | Khoảng | Nghĩa |
+- `audio`: `{ "enabled": true, "speakerVolume": 80 }`: `enabled` turns the microphone sound on or off (the stream keeps
+  its AAC track, it is only silent when off); `speakerVolume` 0-100 is the speaker volume (0 = speaker off).
+- `video.image` (added in 0.25): ISP tuning, applied at once (the stream does not restart) and saved to flash by the
+  camera, so it survives restarts. Every field is optional and an integer:
+
+  | Field | Range | Meaning |
   |---|---|---|
-  | `brightness` | -64..64 | độ sáng |
-  | `contrast`, `saturation`, `sharpness` | 0..100 | tương phản, bão hòa, độ nét |
-  | `flicker` | 0..3 | chống nhấp nháy đèn: 0 tắt, 1 50 Hz, 2 60 Hz, 3 tự động |
-  | `wdr` | 0..2 | WDR: 0 tắt, 1 thủ công (mức của tuning), 2 tự động |
-  | `orientation` | 0..3 | 0 bình thường, 1 lật ngang, 2 lật dọc, 3 cả hai |
-  | `ldc` | 0..1 | sửa méo ống kính |
+  | `brightness` | -64..64 | brightness |
+  | `contrast`, `saturation`, `sharpness` | 0..100 | contrast, saturation, sharpness |
+  | `flicker` | 0..3 | anti-flicker: 0 off, 1 50 Hz, 2 60 Hz, 3 automatic |
+  | `wdr` | 0..2 | WDR: 0 off, 1 manual (the tuning's level), 2 automatic |
+  | `orientation` | 0..3 | 0 normal, 1 horizontal mirror, 2 vertical flip, 3 both |
+  | `ldc` | 0..1 | lens distortion correction |
 
-  Giá trị ngoài khoảng hoặc không phải số nguyên: camera giữ giá trị cũ của trường đó và báo `{ "path": "video.image.<trường>", "code": "BAD_VALUE" }`; trường lạ: `NOT_SUPPORTED`. Khoảng giống trang cấu hình web của camera. Quy tắc: shadow thắng; thay đổi từ trang web có hiệu lực tới `version` mới hoặc lần kết nối sau (bản `desired` retained được áp dụng lại mỗi lần camera khởi động).
-- `capture.resolution` (thêm 0.25): `"main"` (mặc định) hoặc `"max"`: ảnh của `capture` và ảnh chụp theo sự kiện lấy ở kích thước đầy đủ của sensor. Firmware 0.25: luồng chính luôn chạy ở kích thước đầy đủ của sensor (K306P 2560x1440, F37 1920x1080) và JPEG lấy từ chính luồng đó, nên hai giá trị cho cùng một ảnh; `w`/`h` trong `image` luôn là kích thước thật đọc từ JPEG. `capture.jpegQuality` chưa hỗ trợ (`NOT_SUPPORTED`).
-- Action `"siren"` trong `actions` của một tính năng: khi có sự kiện, loa phát còi báo động 5 giây (camera có loa).
-- Shadow không bao giờ chứa mật khẩu Wi-Fi. Mật khẩu chỉ đi qua RPC `net.set` và chỉ lưu trên camera.
-- `schedule` theo giờ địa phương của `timezone`.
-- `type: "app"` cần app tương ứng đã được cài. Nếu chưa có, camera báo lỗi `APP_NOT_INSTALLED` trong `reported.errors`; CamOS tự cài app rồi gửi lại.
+  A value out of range or not an integer: the camera keeps the old value of that field and reports
+  `{ "path": "video.image.<field>", "code": "BAD_VALUE" }`; an unknown field: `NOT_SUPPORTED`. The ranges are the same as
+  on the camera's web configuration page. Rule: the shadow wins; a change made on the web page lasts until a new
+  `version` or the next connection (the retained `desired` document is applied again at every camera start).
+- `capture.resolution` (added in 0.25): `"main"` (default) or `"max"`: the `capture` picture and event pictures are taken
+  at the sensor's full size. Firmware 0.25: the main stream always runs at the sensor's full size (K306P 2560x1440, F37
+  1920x1080) and the JPEG is taken from that stream, so both values give the same picture; `w`/`h` in `image` are always
+  the real size read from the JPEG. `capture.jpegQuality` is not supported yet (`NOT_SUPPORTED`).
+- Action `"siren"` in a feature's `actions`: on an event, the speaker plays a 5-second siren (cameras with a speaker).
+- The shadow never contains a Wi-Fi password. Passwords only travel through the RPC `net.set` and are only stored on the
+  camera.
+- `schedule` is in the local time of `timezone`.
+- `type: "app"` needs the matching app to be installed. If it is not, the camera reports `APP_NOT_INSTALLED` in
+  `reported.errors`; CamOS installs the app and sends the document again.
 
 `reported`:
 
@@ -185,18 +209,21 @@ Những phần chưa áp dụng được thì camera giữ nguyên cấu hình c
   "capture": { "resolution": "main", "w": 2560, "h": 1440 } }
 ```
 
-- `video.image` và `capture` trong `reported` (thêm 0.25): giá trị đang chạy sau khi áp dụng (đã lưu, hoặc của tuning ISP khi chưa ai đặt; `null` khi ISP chưa đọc được). `capture.w`/`h` là kích thước JPEG của luồng chính.
-- Lúc kết nối (thêm 0.25): `state` retained (mục 4) cũng có `video.image` và `capture` như trên, nên cloud biết cấu hình ảnh của camera ngay cả khi chưa có `desired` nào.
+- `video.image` and `capture` in `reported` (added in 0.25): the running values after applying (the saved ones, or the
+  ISP tuning's when nobody set them; `null` when the ISP could not be read yet). `capture.w`/`h` is the JPEG size of the
+  main stream.
+- At connect time (added in 0.25): the retained `state` (section 4) also carries `video.image` and `capture` as above,
+  so the cloud knows the camera's image settings even before any `desired` document exists.
 
 ## 9. RPC: cloud → camera
 
-Yêu cầu:
+Request:
 
 ```json
 { "v": 1, "id": "01JA...", "method": "capture", "params": { "detectionId": "trap-count" }, "timeoutS": 60 }
 ```
 
-Kết quả:
+Result:
 
 ```json
 { "v": 1, "id": "01JA...", "ok": true, "result": { "image": { "key": "devices/AIC0001/snap/....jpg", "w": 2560, "h": 1440, "bytes": 412345 }, "bytes": 412345, "ai": { "n": 37, "boxes": [] } } }
@@ -205,29 +232,33 @@ Kết quả:
 
 | Method | `params` | `result` |
 |---|---|---|
-| `capture` | `detectionId?` (chạy nhận dạng của tính năng đó trên ảnh) | `image` (`key`, `w`, `h`, `bytes`; `bytes` trong `image` thêm 0.25), `bytes`, `ai?`. `w`/`h` đọc từ JPEG. Ảnh upload lên Device API (mục 11.4). Kích thước theo `capture.resolution` (mục 8) |
+| `capture` | `detectionId?` (runs that feature's detection on the picture) | `image` (`key`, `w`, `h`, `bytes`; `bytes` inside `image` added in 0.25), `bytes`, `ai?`. `w`/`h` read from the JPEG. The picture is uploaded to the Device API (section 11.4). The size follows `capture.resolution` (section 8) |
 | `live.start` | `url` (RTMP), `token`, `stream` (`main`/`sub`), `maxS` | `streamId` |
 | `live.stop` | — | — |
-| `records.list` | `from`, `to` (ms) | `segments: [{ start, end, bytes, recording? }]`, `more` (tối đa 100 đoạn; `more: true` thì hỏi tiếp từ `end` cuối) |
-| `records.fetch` | `start` (ms) | — ngay khi nhận. Camera upload đoạn chứa `start` lên Device API (mục 11.4) rồi gửi sự kiện `record_result` |
+| `records.list` | `from`, `to` (ms) | `segments: [{ start, end, bytes, recording? }]`, `more` (at most 100 segments; with `more: true` ask again from the last `end`) |
+| `records.fetch` | `start` (ms) | — as soon as received. The camera uploads the segment containing `start` to the Device API (section 11.4) and then sends the `record_result` event |
 | `net.set` | `wifi: { ssid, password }`, `cellular: { apn, user?, password? }` | — |
-| `ota.start` | `version`, `url` (HTTPS), `size`, `sha256` (hex), `signature` (base64 DER, ECDSA P-256 trên SHA-256 của ảnh, khoá release của CamOS) | — ngay khi nhận; lỗi tức thì: `BAD_PARAMS`, `BUSY`, `OLD_VERSION`. Sau đó sự kiện `ota_result`: `stage: "verified"` (đúng kích thước, SHA-256 và chữ ký, chưa ghi gì), `stage: "installed"` (đã ghi slot dự phòng, camera khởi động lại), hoặc `ok: false` với `DOWNLOAD_FAILED`, `SIGNATURE_INVALID`, `INSTALL_FAILED`. Ảnh sai không bao giờ được ghi |
-| `speaker.play` | `tone` (`"beep"` hoặc `"siren"`) và `seconds` (1-60, mặc định 3); hoặc `url` (http/https, file WAV PCM 16-bit, mono hoặc stereo, tần số bất kỳ, tối đa 3 MB) | — khi đã bắt đầu phát; lỗi: `NOT_SUPPORTED` (không có loa), `BAD_PARAMS`, `BUSY` (đang tải một file khác). Âm mới thay âm đang phát |
+| `ota.start` | `version`, `url` (HTTPS), `size`, `sha256` (hex), `signature` (base64 DER, ECDSA P-256 over the SHA-256 of the image, CamOS release key) | — as soon as received; immediate errors: `BAD_PARAMS`, `BUSY`, `OLD_VERSION`. Then the `ota_result` event: `stage: "verified"` (size, SHA-256 and signature correct, nothing written yet), `stage: "installed"` (written to the spare slot, the camera restarts), or `ok: false` with `DOWNLOAD_FAILED`, `SIGNATURE_INVALID`, `INSTALL_FAILED`. A wrong image is never written |
+| `speaker.play` | `tone` (`"beep"` or `"siren"`) and `seconds` (1-60, default 3); or `url` (http/https, a 16-bit PCM WAV file, mono or stereo, any sample rate, at most 3 MB) | — once playing has started; errors: `NOT_SUPPORTED` (no speaker), `BAD_PARAMS`, `BUSY` (another file is downloading). A new sound replaces the one playing |
 | `speaker.stop` | — | — |
-| `app.install` | `id`, `version`, `url`, `size`, `sha256`, `signature` | — (kết quả báo bằng sự kiện `app_result`) |
+| `app.install` | `id`, `version`, `url`, `size`, `sha256`, `signature` | — (the result comes as the `app_result` event) |
 | `app.remove` | `id` | — |
 | `reboot` | — | — |
 | `format_sd` | — | — |
-| `factory_reset` | — | — (camera xóa mạng, cấu hình, app; giữ chứng chỉ) |
-| `log.fetch` | `lines?` | `key` (file upload lên Device API) |
+| `factory_reset` | — | — (the camera erases the network, the configuration and apps; it keeps the certificates) |
+| `log.fetch` | `lines?` | `key` (file uploaded to the Device API) |
 
-Mã lỗi: `BAD_PARAMS`, `BUSY`, `NOT_SUPPORTED`, `NO_SD`, `SD_ERROR`, `APP_NOT_INSTALLED`, `SIGNATURE_INVALID`, `DOWNLOAD_FAILED`, `UPLOAD_FAILED`, `TIMEOUT`, `INTERNAL`.
+Error codes: `BAD_PARAMS`, `BUSY`, `NOT_SUPPORTED`, `NO_SD`, `SD_ERROR`, `APP_NOT_INSTALLED`, `SIGNATURE_INVALID`,
+`DOWNLOAD_FAILED`, `UPLOAD_FAILED`, `TIMEOUT`, `INTERNAL`.
 
-Camera xử lý RPC theo thứ tự nhận. Lệnh nặng (`ota.start`, `app.install`, `records.fetch`) trả `ok` ngay khi nhận và báo kết quả cuối bằng sự kiện. Lệnh đến khi camera đang mất mạng sẽ được broker giữ lại (QoS 1, clean session false); camera bỏ qua lệnh đã quá `timeoutS` tính từ lúc nhận.
+The camera handles RPCs in the order received. Heavy commands (`ota.start`, `app.install`, `records.fetch`) answer `ok`
+as soon as received and report the final result with an event. Commands that arrive while the camera is offline are
+held by the broker (QoS 1, clean session false); the camera skips commands older than `timeoutS`, counted from
+receipt.
 
-## 10. Camera hỏi cloud: camera → cloud
+## 10. Camera asks the cloud: camera → cloud
 
-Cùng dạng với RPC, nhưng chiều ngược lại (`up/req` → `up/res`).
+Same shape as RPC, in the other direction (`up/req` → `up/res`).
 
 | Method | `params` | `result` |
 |---|---|---|
@@ -235,44 +266,52 @@ Cùng dạng với RPC, nhưng chiều ngược lại (`up/req` → `up/res`).
 | `ota.check` | `channel`, `fw` | `available`, `version`, `url`, `size`, `sha256`, `signature` |
 | `time` | — | `serverTime` |
 
-## 11. Video, ảnh và file lên CamOS
+## 11. Video, pictures and files to CamOS
 
 ### 11.1 Video
 
-- RTMP (sau này RTMPS) tới `url` do `live.start` cấp, dạng `rtmp://{host}/{app}/{streamId}?token={token}`. Token dùng một lần, hết hạn sau 60 s nếu camera chưa kết nối.
-- Video H.264, keyframe mỗi 2 s; âm thanh AAC nếu bật. Camera tự dừng khi quá `maxS` hoặc khi nhận `live.stop`.
+- RTMP (later RTMPS) to the `url` given by `live.start`, in the form `rtmp://{host}/{app}/{streamId}?token={token}`. The
+  token is single-use and expires after 60 s if the camera has not connected.
+- H.264 video, a keyframe every 2 s; AAC audio when enabled. The camera stops by itself after `maxS` or on `live.stop`.
 
-### 11.2 Ghi hình trên thẻ SD
+### 11.2 Recording on the SD card
 
-- Camera ghi luồng chính (H.264) thành các đoạn MP4 dài 300 s, tên theo giờ UTC lúc bắt đầu: `rec/YYYYMMDD-HHMMSS-<giây>.mp4` khi đã đóng; đoạn đang ghi chưa có `-<giây>`.
-- Đoạn dở dang do mất điện không có index MP4 nên không phát được; camera xóa khi khởi động. Trước khi tự khởi động lại (OTA, `reboot`), camera đóng đoạn đang ghi.
-- Thẻ còn dưới 1 GB trống thì camera xóa đoạn cũ nhất.
-- `records.fetch` kết thúc bằng sự kiện:
+- The camera records the main stream (H.264) as 300-second MP4 segments, named by the UTC time at their start:
+  `rec/YYYYMMDD-HHMMSS-<seconds>.mp4` once closed; the segment being recorded has no `-<seconds>` yet.
+- A segment cut by a power loss has no MP4 index and cannot be played; the camera deletes it at start-up. Before
+  restarting by itself (OTA, `reboot`), the camera closes the segment being recorded.
+- When the card has less than 1 GB free, the camera deletes the oldest segment.
+- `records.fetch` ends with the event:
 
 ```json
-{ "v": 1, "id": "rr<rpcId>", "ts": 1760256012345, "clock": "utc", "type": "record_result", "rpcId": "<id của records.fetch>",
+{ "v": 1, "id": "rr<rpcId>", "ts": 1760256012345, "clock": "utc", "type": "record_result", "rpcId": "<id of records.fetch>",
   "ok": true, "key": "devices/AIC.../records/....mp4", "start": 1760255700000, "end": 1760256000000, "bytes": 27342122 }
 ```
 
-Lỗi: `"ok": false, "error": { "code": "NOT_FOUND" | "IN_PROGRESS" | "SD_ERROR" | "UPLOAD_FAILED" }`. `IN_PROGRESS`: `start` nằm trong đoạn đang ghi, hỏi lại sau khi đoạn đóng.
+Errors: `"ok": false, "error": { "code": "NOT_FOUND" | "IN_PROGRESS" | "SD_ERROR" | "UPLOAD_FAILED" }`. `IN_PROGRESS`:
+`start` is inside the segment being recorded; ask again after it closes.
 
-### 11.3 Clip theo sự kiện
+### 11.3 Event clips
 
-Tính năng có `actions` chứa `"clip"`: camera giữ ~60 s video gần nhất trong RAM; khi có sự kiện, nó lấy từ keyframe trước mốc −5 s tới +15 s, đóng gói MP4 ngay trên camera (chỉ video, `moov` ở đầu), upload lên `/device/v1/clips?eventId=&start=&end=` rồi gửi:
+A feature whose `actions` contain `"clip"`: the camera keeps the last ~60 s of video in RAM; on an event it takes from
+the keyframe before −5 s to +15 s, packs an MP4 on the camera (video only, `moov` first), uploads it to
+`/device/v1/clips?eventId=&start=&end=` and then sends:
 
 ```json
-{ "v": 1, "id": "cr<eventId>", "ts": 1760256030000, "clock": "utc", "type": "clip_ready", "eventId": "<id sự kiện>",
+{ "v": 1, "id": "cr<eventId>", "ts": 1760256030000, "clock": "utc", "type": "clip_ready", "eventId": "<event id>",
   "key": "devices/AIC.../clips/....mp4", "start": 1760256007000, "end": 1760256028000, "bytes": 2233000 }
 ```
 
-Lỗi: `"ok": false, "error": { "code": "NO_VIDEO" | "UPLOAD_FAILED" | "INTERNAL" }`. Mỗi lúc chỉ làm một clip; cooldown của tính năng giữ nhịp.
+Errors: `"ok": false, "error": { "code": "NO_VIDEO" | "UPLOAD_FAILED" | "INTERNAL" }`. One clip at a time; the feature's
+cooldown sets the pace.
 
-### 11.4 Ảnh và file: Device API
+### 11.4 Pictures and files: Device API
 
-Camera upload thẳng lên API của CamOS; backend tự chọn nơi lưu (S3, GCS, đĩa) và trả `key`. Camera không cần biết nơi lưu, không dùng URL ký sẵn.
+The camera uploads straight to the CamOS API; the backend chooses the storage (S3, GCS, disk) and returns a `key`. The
+camera does not need to know where things are stored and does not use pre-signed URLs.
 
 ```
-POST {apiBase}/device/v1/images?kind=snapshot&w=1920&h=1080&eventId={id}    (hoặc &rpcId={id} khi chụp theo lệnh capture)
+POST {apiBase}/device/v1/images?kind=snapshot&w=1920&h=1080&eventId={id}    (or &rpcId={id} for a capture command)
 Content-Type: image/jpeg
 Content-Length: ...
 <JPEG>
@@ -280,42 +319,57 @@ Content-Length: ...
 201 {"key": "devices/AIC54F29F5167FA/snap/20261013/....jpg"}
 ```
 
-- **Xác thực:** HTTPS với chứng chỉ của camera (mTLS), cùng chứng chỉ dùng cho MQTT; serial lấy từ chứng chỉ. Bản dev dùng HTTP và header `X-Device-Serial`.
-- **Token (thêm 0.25):** khi API không dùng mTLS (AWS API Gateway), camera gửi header `X-Device-Token: <token>` trong mọi request tới `apiBase` (ảnh, đoạn ghi, clip, và tải OTA/âm thanh nếu URL nằm dưới `apiBase`; không bao giờ gửi tới host khác), cùng với `X-Device-Serial`. Token đặt bằng `CAMOS=APITOKEN <token>` (tối đa 127 ký tự in được, không có khoảng trắng), lưu trên camera.
-- **TLS (thêm 0.25):** `https://` kiểm chứng chứng chỉ server theo CA lưu bằng `CAMOS=CA` (CA dev, hoặc Amazon Root CA 1 trên AWS; có thể nạp nhiều CA nối nhau, tổng ≤ 2048 byte PEM), gửi tên host trong SNI. Camera trình chứng chỉ của mình chỉ khi server yêu cầu. `CAMOS=APIVERIFY OFF` bỏ kiểm chứng (chỉ cho dev).
-- **`apiBase`:** CamOS cấp khi kích hoạt (cùng lúc với địa chỉ broker). Bản dev mặc định là `http://{broker}:8090` (`https://{broker}:8443` khi camera có chứng chỉ), đổi được bằng `CAMOS=API <url>`, dạng `http(s)://host[:port][/stage]`; từ 0.25 giá trị này được lưu (`CAMOS=API OFF` về mặc định).
-- **Lỗi:** `401` thiết bị lạ, `413` file quá lớn, `415` sai loại, `5xx` lỗi lưu trữ. Upload lỗi thì sự kiện vẫn được gửi với `image: null` và `imageError`; lệnh `capture` trả `UPLOAD_FAILED`.
-- **Đoạn ghi SD:** `POST {apiBase}/device/v1/records?start=&end=&rpcId=`, `Content-Type: video/mp4`, trả `201 {"key"}` như ảnh.
-- **Clip sự kiện:** `POST {apiBase}/device/v1/clips?eventId=&start=&end=`, `video/mp4`.
-- **Sau này:** `/device/v1/logs` (`log.fetch`), cùng cách xác thực.
+- **Authentication:** HTTPS with the camera's certificate (mTLS), the same certificate as for MQTT; the serial comes from
+  the certificate. The dev build uses HTTP and the `X-Device-Serial` header.
+- **Token (added in 0.25):** when the API does not use mTLS (AWS API Gateway), the camera sends the header
+  `X-Device-Token: <token>` in every request to `apiBase` (pictures, recordings, clips, and OTA / sound downloads when
+  the URL is under `apiBase`; never to another host), together with `X-Device-Serial`. The token is set with
+  `CAMOS=APITOKEN <token>` (at most 127 printable characters, no spaces) and stored on the camera.
+- **TLS (added in 0.25):** `https://` verifies the server certificate against the CA stored with `CAMOS=CA` (a dev CA, or
+  Amazon Root CA 1 on AWS; several CAs may be concatenated, at most 2048 bytes of PEM in total) and sends the host name
+  in SNI. The camera presents its own certificate only when the server asks for it. `CAMOS=APIVERIFY OFF` disables
+  verification (dev only).
+- **`apiBase`:** given by CamOS at activation (together with the broker address). The dev default is
+  `http://{broker}:8090` (`https://{broker}:8443` when the camera has a certificate), changed with `CAMOS=API <url>`, in
+  the form `http(s)://host[:port][/stage]`; from 0.25 the value is stored (`CAMOS=API OFF` returns to the default).
+- **Errors:** `401` unknown device, `413` file too large, `415` wrong type, `5xx` storage error. When an upload fails,
+  the event is still sent with `image: null` and `imageError`; the `capture` command returns `UPLOAD_FAILED`.
+- **SD recordings:** `POST {apiBase}/device/v1/records?start=&end=&rpcId=`, `Content-Type: video/mp4`, returns
+  `201 {"key"}` like pictures.
+- **Event clips:** `POST {apiBase}/device/v1/clips?eventId=&start=&end=`, `video/mp4`.
+- **Later:** `/device/v1/logs` (`log.fetch`), same authentication.
 
-## 12. Đưa camera lên mạng
+## 12. Bringing a camera online
 
-### 12.1 QR trên nhãn (chủ vườn quét bằng FlyBot)
+### 12.1 Label QR (the grower scans it with FlyBot)
 
 ```
 CAMOS:1;SN:AIC0001A2B3;VC:K7P4QX;M:AIC-AMB82-K306P;;
 ```
 
-### 12.2 QR cấu hình mạng (FlyBot hiện, camera quét)
+### 12.2 Network configuration QR (FlyBot shows it, the camera scans it)
 
 ```
 CAMOS:1;T:WPA;S:<ssid>;P:<password>;K:<provisionToken>;E:<mqtt-host>;A:<apn>;;
 ```
 
-- Ký tự `;`, `:`, `\` trong giá trị được thoát bằng `\`, giống chuẩn QR Wi-Fi.
-- `A` (APN) không bắt buộc. `E` không bắt buộc; mặc định dùng endpoint nạp lúc sản xuất.
-- Camera báo đã đọc mã bằng LED/âm thanh, rồi kết nối và gửi `hello` kèm `provisionToken`.
+- The characters `;`, `:`, `\` in values are escaped with `\`, as in the Wi-Fi QR standard.
+- `A` (APN) is optional. `E` is optional; by default the endpoint loaded at manufacturing is used.
+- The camera signals that it read the code with the LED / a sound, then connects and sends `hello` with
+  `provisionToken`.
 
-### 12.3 SoftAP (dự phòng)
+### 12.3 SoftAP (fallback)
 
-- Giữ nút pair 5 s. Camera phát Wi-Fi `CAM-{4 ký tự cuối serial}` (WPA2, mật khẩu = mã xác minh trên nhãn) và chạy HTTP tại `http://192.168.4.1`.
+- Hold the pair button for 5 s. The camera opens the Wi-Fi `CAM-{last 4 characters of the serial}` (WPA2, password =
+  the verify code on the label) and serves HTTP at `http://192.168.4.1`.
 - `GET /info` → `{ serial, model, fw, wifiScan: [{ ssid, rssi, secure }] }`
-- `POST /provision` với `{ ssid, password, provisionToken, endpoint?, apn? }` → `{ ok }`; camera tắt SoftAP rồi kết nối mạng.
-- SoftAP tự tắt sau 10 phút. Trang này chỉ nhận thông tin mạng.
+- `POST /provision` with `{ ssid, password, provisionToken, endpoint?, apn? }` → `{ ok }`; the camera turns the SoftAP off
+  and connects to the network.
+- The SoftAP turns itself off after 10 minutes. This page only takes network information.
 
-## 13. Việc còn mở
+## 13. Open items
 
-- Dạng `roi` cho motion (lưới ô hay đa giác) chốt sau P0, khi biết `MotionDetection` của SDK hỗ trợ gì.
-- Gom nhiều tin `ai` vào một gói để tiết kiệm dữ liệu 4G.
-- Ký và mã hóa gói `.camapp`: định dạng chữ ký (Ed25519 đề xuất).
+- The `roi` format for motion (a grid of cells or polygons) is settled after P0, once it is known what the SDK's
+  `MotionDetection` supports.
+- Bundle several `ai` messages into one packet to save 4G data.
+- Signing and encrypting `.camapp` packages: the signature format (Ed25519 proposed).

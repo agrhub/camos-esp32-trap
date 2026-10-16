@@ -5,6 +5,8 @@
 | `build.ps1` | Windows build / flash / monitor helper (`tools\build.ps1 freenove build`, see the top-level README) |
 | `provision.sh` | per-camera key + self-signed certificate (CN = serial), the AWS IoT registration command, and an NVS image with Wi-Fi / APN / FlyBot URL / token (the alternative to the portal for many cameras or the button-less AI-Thinker board) |
 | `label.py` | the label QR `CAMOS:1;SN:...;VC:...;M:...;;` for FlyBot's "add camera" scan |
+| `factory.sh` / `factory.ps1` | factory provisioning: the read-only `fctry` NVS image (serial, verify code, certificate, key, thing) flashed at 0x14000; prints the flybot-aws registration command (README "Factory provisioning") |
+| `serial_log.py` | non-interactive serial capture and console driver: `python tools/serial_log.py COM7 --reset --seconds 60`, `--cmd info --cmd scan` |
 | `PINPROBE.md` | how to confirm a generic ESP32-S3 CAM board's pin map before flashing |
 
 ## Provisioning with provision.sh

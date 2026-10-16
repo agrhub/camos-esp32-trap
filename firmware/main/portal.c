@@ -7,7 +7,7 @@
  *                                 are build defaults, serial, verify code, label QR text, claim URL, last errors
  *   POST /api/config {key: value} any subset of the portal keys (docs/PORTAL.md)
  *   GET  /api/wifi/scan[?refresh=1]  [{ssid, rssi, secure, channel}] deduplicated, strongest first (scanned at start)
- *   POST /api/connect {ssid, password, ...}  save everything and restart onto that network (AMB82 "Kết nối")
+ *   POST /api/connect {ssid, password, ...}  save everything and restart onto that network (AMB82 "Connect")
  *   POST /api/cert {cert, key}    device certificate and private key (PEM) for the owner path
  *   POST /api/pair                join the Wi-Fi (AP stays up) and POST /api/device/pair with a provisioning token
  *   POST /api/restart
@@ -125,7 +125,7 @@ static esp_err_t config_get(httpd_req_t *req)
 	return web_send_json(req, o);
 }
 
-/* AMB82 flow: pick a network, type the password, "Kết nối": the camera saves, closes this network and joins.
+/* AMB82 flow: pick a network, type the password, "Connect": the camera saves, closes this network and joins.
  * A wrong password brings the portal back in about a minute with the error (wifi.c). */
 static esp_err_t connect_post(httpd_req_t *req)
 {
