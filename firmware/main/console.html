@@ -64,8 +64,31 @@ pre.log{background:#141b23;color:#d3dbe5;padding:12px;height:60vh;overflow:auto;
 .tools{display:flex;align-items:center;gap:4px;padding:6px 8px;background:#1c2531;color:#cfd6df}
 .tools button,.tools select{background:none;border:0;color:#cfd6df;height:30px;padding:0 10px;border-radius:3px;cursor:pointer}
 .tools select{background:#1c2531}.tools button:hover{background:#2c3846;color:#fff}.tools button.on{color:var(--brand)}.tools .sp{flex:1}
-.side{width:280px;flex-shrink:0}
-.claimq{display:flex;gap:12px;align-items:center}.claimq img{width:110px;height:110px;border:1px solid var(--line);border-radius:3px}
+.side{width:300px;flex-shrink:0}.side .kv{grid-template-columns:120px 1fr}
+.screen .osd.r{left:auto;right:10px;text-align:right}.screen .osd b{font-weight:600}
+.screen .idle{position:absolute;left:0;right:0;bottom:12px;text-align:center;padding:0 16px}
+.mbadge{display:inline-block;background:var(--bad);color:#fff;border-radius:3px;padding:0 6px;margin-left:6px;font-weight:600;text-shadow:none}
+.pic{position:relative;display:inline-block;line-height:0;max-width:100%}.pic img{max-width:100%}
+.pic canvas{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair;touch-action:none}
+.player:fullscreen .screen img{max-height:100vh}
+.split{display:flex;gap:14px;align-items:flex-start}.split .pvw{flex:0 0 480px;max-width:100%;position:sticky;top:66px}
+.split .pvw .player{min-height:0}.split .pvw .screen{min-height:240px}.split .pvw .screen img{max-height:none;width:100%}
+.split .cfg{flex:1;min-width:0}.split .row>label:first-child{width:170px}.split .row input[type=range]{width:200px}
+@media (max-width:1180px){.split{display:block}.split .pvw{position:static;flex:none;max-width:640px;margin-bottom:12px}}
+.row input[type=time]{height:30px;padding:0 8px;border:1px solid #cdd3da;border-radius:3px}
+.bar{height:14px;background:#eef1f4;border-radius:7px;overflow:hidden;width:260px;max-width:100%;display:inline-block;vertical-align:middle}
+.bar i{display:block;height:100%;background:var(--brand)}.bar i.warn{background:var(--warn)}.bar i.bad{background:var(--bad)}
+.meter{position:relative}.meter b{position:absolute;top:-3px;width:2px;height:20px;background:var(--bad)}
+.pb{display:flex;gap:14px;padding:14px;min-height:calc(100% - 52px)}.pb .days{width:200px;flex-shrink:0}
+.pb .days a{display:flex;justify-content:space-between;padding:7px 12px;border-left:3px solid transparent;cursor:pointer;color:var(--fg);text-decoration:none}
+.pb .days a.on{border-left-color:var(--brand);background:#e3f6f1;font-weight:600}.pb .days a:hover{background:#f3f7f6}
+.pb .main{flex:1;min-width:0}.pb .view{background:#000;display:flex;align-items:center;justify-content:center;min-height:320px;border-radius:3px 3px 0 0}
+.pb .view img{max-width:100%;max-height:60vh;display:block}
+.timeline{position:relative;height:34px;background:#1c2531;border-radius:0 0 3px 3px;margin-bottom:14px}
+.timeline i{position:absolute;top:6px;width:2px;height:14px;background:var(--brand);cursor:pointer}.timeline i.M{background:#e5534b}.timeline i.on{background:#fff;width:3px}
+.timeline span{position:absolute;bottom:1px;font-size:10px;color:#8e9aab;transform:translateX(-50%)}
+.table-scroll{max-height:40vh;overflow:auto}
+.claimq{display:flex;gap:12px;align-items:center}.claimq>div{min-width:0}.claimq .note{overflow-wrap:anywhere}.kv>div{min-width:0;overflow-wrap:anywhere}.claimq img{width:110px;height:110px;border:1px solid var(--line);border-radius:3px}
 .badge{display:inline-block;font-size:11px;font-weight:600;color:#5b6672;background:#eef1f4;border-radius:10px;padding:1px 8px;margin-left:6px}
 .badge.warn{background:#fff3df;color:#9a5b00}
 @media (max-width:860px){
@@ -73,6 +96,7 @@ pre.log{background:#141b23;color:#d3dbe5;padding:12px;height:60vh;overflow:auto;
  .wrap{display:block}aside{width:auto;display:flex;overflow-x:auto;padding:0;border-right:0;border-bottom:1px solid var(--line)}
  aside .grp{display:none}aside a{white-space:nowrap;padding:10px 12px;border-left:0;border-bottom:3px solid transparent}aside a.on{border-bottom-color:var(--brand)}
  main{padding:12px}.row>label:first-child{width:100%}.kv{grid-template-columns:130px 1fr}.live{display:block;padding:8px}.side{width:auto;margin-top:12px}
+ .split{display:block}.split .pvw{position:static;flex:none;margin-bottom:12px}.pb{display:block;padding:8px}.pb .days{width:auto;margin-bottom:12px}
 }
 .dlg{position:fixed;inset:0;background:rgba(15,20,28,.55);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
 .dlg .box{background:var(--panel);border-radius:4px;box-shadow:0 10px 40px rgba(0,0,0,.35);max-width:440px;width:100%}
@@ -100,7 +124,7 @@ pre.log{background:#141b23;color:#d3dbe5;padding:12px;height:60vh;overflow:auto;
 <div id="app" class="hidden" style="height:100%">
  <header>
   <div class="logo"><svg class="logo-mark" width="30" height="30"><use href="#mark"/></svg><span>CamOS<small id="hModel"></small></span></div>
-  <nav><a data-top="live" id="tLive"></a><a data-top="config" id="tConfig"></a></nav>
+  <nav><a data-top="live" id="tLive"></a><a data-top="playback" id="tPlay"></a><a data-top="config" id="tConfig"></a></nav>
   <div class="right"><span class="user">admin</span><select id="hLang"></select><button id="logoutBtn"></button></div>
  </header>
  <div id="view"></div>
@@ -121,7 +145,7 @@ const I18N = {
   restarting: 'Camera đang khởi động lại (khoảng 15 giây)…', back: 'Camera đã chạy lại.', on: 'Bật', off: 'Tắt', yes: 'Có', no: 'Không', none: '—',
   play: 'Phát', stop: 'Dừng', snapshot: 'Chụp ảnh', fps: '{0} ảnh/giây', stopped: 'Đã dừng xem', snapping: 'Đang chụp và tải lên FlyBot…',
   snapOk: 'Đã gửi ảnh {0}×{1} ({2} KB) lên FlyBot.', snapFail: 'Chụp được ảnh {0}×{1} nhưng không gửi được: {2}',
-  liveNote: 'Xem trước là ảnh JPEG liên tục (không có tiếng). Xem trực tiếp qua cloud dùng KVS WebRTC trên FlyBot.',
+  liveNote: 'Xem trực tiếp trong mạng LAN là luồng MJPEG (không có tiếng), mỗi lần một người xem; luồng dừng khi tab bị ẩn. Xem qua cloud dùng KVS WebRTC trên FlyBot.',
   model: 'Model', serial: 'Số serial', code: 'Mã xác minh', firmware: 'Firmware', built: 'Ngày build', uptime: 'Thời gian chạy', memory: 'Bộ nhớ trống', network: 'Mạng',
   signal: 'Tín hiệu', channel: 'Kênh', ip: 'Địa chỉ IP', publicIp: 'IP công cộng', mac: 'Địa chỉ MAC', mask: 'Subnet mask', gateway: 'Gateway', cloud: 'Cloud',
   connected: 'Đã kết nối', disconnected: 'Mất kết nối', server: 'Máy chủ', certificate: 'Chứng chỉ thiết bị', certOk: 'Có (mTLS)', certNo: 'Chưa có',
@@ -139,7 +163,7 @@ const I18N = {
   sync: 'Đồng bộ', timezone: 'Múi giờ', tzAuto: 'tự động', tzNote: 'Để trống: múi giờ tự động từ FlyBot (theo trang trại, GPS hoặc địa chỉ IP). Nhập để ghi đè.',
   camosLink: 'Kết nối FlyBot', status: 'Trạng thái', apiBase: 'Địa chỉ FlyBot', iotHost: 'Endpoint IoT Core', thing: 'Thing', kvs: 'Kênh KVS',
   cloudNote: 'Thường không cần đổi: camera tự đăng ký với FlyBot. Chỉ đổi khi được hướng dẫn.', regError: 'Lỗi đăng ký',
-  brightness: 'Độ sáng', contrast: 'Độ tương phản', saturation: 'Độ bão hòa', jpegQuality: 'Chất lượng JPEG', imageNote: 'Áp dụng từ lần chụp tới. Cài đặt từ cloud sẽ ghi đè cài đặt ở đây.',
+  brightness: 'Độ sáng', contrast: 'Độ tương phản', saturation: 'Độ bão hòa', jpegQuality: 'Chất lượng JPEG', imageNote: 'Thay đổi hiện ngay trên hình trực tiếp; bấm Lưu để giữ cho mọi lần chụp. Cài đặt từ cloud (FlyBot) sẽ ghi đè cài đặt ở đây.',
   resolution: 'Độ phân giải chụp', bySensor: 'theo cảm biến',
   gpsFix: 'Lấy vị trí ngay', gpsFixing: 'Đang tìm vệ tinh (tối đa 2 phút)…', location: 'Vị trí', fixAt: 'Lúc', noFix: 'Chưa có', gpsNote: 'Camera lấy vị trí mỗi ngày một lần; module GPS tắt nguồn giữa các lần.',
   fwUpdate: 'Nâng cấp firmware', running: 'Đang chạy', checkUpdate: 'Kiểm tra & nâng cấp', updateStarted: 'Đang hỏi FlyBot; nếu có bản mới camera sẽ tải, kiểm tra SHA-256 rồi khởi động lại. Xem Nhật ký.',
@@ -149,9 +173,38 @@ const I18N = {
   changePw: 'Đổi mật khẩu admin', curPw: 'Mật khẩu hiện tại', newPw: 'Mật khẩu mới', againPw: 'Nhập lại', pwChanged: 'Đã đổi mật khẩu.', pwMismatch: 'Hai mật khẩu mới không giống nhau.',
   forgot: 'Quên mật khẩu: giữ nút BOOT 3 giây để mở chế độ cài đặt, rồi gõ lệnh factory trên cổng serial.', follow: 'Tự cuộn', pause: 'Tạm dừng', resume: 'Tiếp tục', download: 'Tải về', clear: 'Xóa màn hình',
   logLost: '… (một phần nhật ký đã bị ghi đè)', dflt: 'mặc định', manual: 'ghi đè',
+  playback: 'Xem lại', gEvent: 'Sự kiện', gStorage: 'Lưu trữ', pEvents: 'Sự kiện gần đây', pMotion: 'Phát hiện chuyển động', pSchedule: 'Lịch chụp', pStorage: 'Quản lý thẻ nhớ',
+  quality: 'Chất lượng', qHigh: 'Cao', qStd: 'Tiêu chuẩn', qLow: 'Mượt', savePic: 'Lưu ảnh', sendFlybot: 'Gửi lên FlyBot', fullscreen: 'Toàn màn hình',
+  busyViewer: 'Đang có người khác xem trực tiếp (mỗi lần một người): hiển thị ảnh tĩnh mỗi 2 giây.', streamFail: 'Không mở được luồng trực tiếp: hiển thị ảnh tĩnh mỗi 2 giây.',
+  motionOsd: 'CHUYỂN ĐỘNG', savedSd: 'Đã lưu vào thẻ nhớ: {0}', streamInfo: '{0}×{1} · {2} ảnh/giây · {3} KB/ảnh',
+  sharpness: 'Độ sắc nét', orientation: 'Hướng ảnh', oNormal: 'Bình thường', oMirror: 'Lật ngang', oFlip: 'Lật dọc', oBoth: 'Lật ngang + dọc (180°)',
+  whiteBalance: 'Cân bằng trắng', wbAuto: 'Tự động', wbSunny: 'Nắng', wbCloudy: 'Nhiều mây', wbOffice: 'Văn phòng (đèn huỳnh quang)', wbHome: 'Trong nhà (đèn sợi đốt)',
+  effect: 'Hiệu ứng', fxNone: 'Không', fxNegative: 'Âm bản', fxGrayscale: 'Đen trắng', fxRed: 'Ánh đỏ', fxGreen: 'Ánh xanh lá', fxBlue: 'Ánh xanh dương', fxSepia: 'Nâu cổ điển',
+  exposure: 'Phơi sáng', aeLevel: 'Bù phơi sáng', autoW: 'Tự động', manualVal: 'Giá trị thủ công', gain: 'Độ khuếch đại', gainCeiling: 'Giới hạn khuếch đại (tự động)', denoise: 'Khử nhiễu',
+  restore: 'Khôi phục', defaultsBtn: 'Mặc định', unsaved: 'Chưa lưu: chỉ đang xem thử trên camera.', restored: 'Đã khôi phục giá trị đã lưu.', sensor: 'Cảm biến', grpPicture: 'Hình ảnh', grpExposure: 'Phơi sáng & khuếch đại', grpCapture: 'Chụp ảnh',
+  noCard: 'Không có thẻ nhớ microSD (hoặc thẻ không phải FAT32). Lắp thẻ rồi khởi động lại camera.', notBuilt: 'Camera này không hỗ trợ thẻ nhớ.', noCardShort: 'Không có thẻ', notBuiltShort: 'Không hỗ trợ', sdCard: 'Thẻ nhớ',
+  dayList: 'Ngày', photos: '{0} ảnh', noPhotos: 'Không có ảnh trong ngày này.', time: 'Giờ', trigger: 'Nguồn chụp', size: 'Dung lượng', del: 'Xóa', deleteDay: 'Xóa cả ngày',
+  confirmDelete: 'Xóa {0}?', confirmDeleteDay: 'Xóa tất cả ảnh ngày {0}?', pickPhoto: 'Chọn một ảnh trong danh sách hoặc trên thanh thời gian.', prev: 'Trước', next: 'Sau',
+  trS: 'Theo lịch', trR: 'Chụp ngay', trB: 'Khởi động', trM: 'Chuyển động', trW: 'Web',
+  card: 'Thẻ', capacity: 'Dung lượng', used: 'Đã dùng', free: 'Còn trống', sdSave: 'Lưu mọi ảnh vào thẻ nhớ', format: 'Định dạng thẻ', confirmFormat: 'Định dạng thẻ nhớ? Mọi ảnh trên thẻ sẽ bị xóa.', formatted: 'Đã định dạng thẻ.',
+  storageNote: 'Ảnh được lưu dạng /DCIM/YYYYMMDD/HHMMSSx.JPG (x: S theo lịch, R chụp ngay, B khởi động, M chuyển động). Khi còn trống dưới 5 % camera xóa ngày cũ nhất. Camera không có bộ mã hóa video: chỉ lưu ảnh, không lưu video.',
+  setBy: 'Thiết lập bởi', srcCloud: 'FlyBot (lịch từ cloud, chỉ xem ở đây)', srcLocal: 'Camera này', window: 'Khung giờ chụp', from: 'Từ', to: 'Đến', allDay: 'Từ = Đến nghĩa là cả ngày',
+  nextCaptures: 'Các lần chụp tới', every: 'mỗi {0} phút', noClock: 'Đồng hồ chưa đồng bộ.', schedCloudNote: 'Lịch này do FlyBot đặt (detections trong shadow). Hãy đổi trên FlyBot.',
+  schedNote: 'Chụp một ảnh mỗi chu kỳ trong khung giờ (giờ của camera; khung kết thúc trước giờ bắt đầu thì qua nửa đêm). Ở chế độ pin camera ngủ sâu giữa các lần chụp. Camera chưa có chủ chụp tối đa một ảnh mỗi giờ.',
+  motionOn: 'Bật phát hiện chuyển động', sensitivity: 'Độ nhạy', cooldown: 'Khoảng nghỉ giữa hai lần (giây)', region: 'Vùng phát hiện', regionHelp: 'Kéo chuột trên hình để vẽ vùng.', fullFrame: 'Toàn khung hình',
+  onMotion: 'Khi có chuyển động', mSd: 'Lưu ảnh vào thẻ nhớ', mUpload: 'Chụp ảnh đầy đủ và gửi lên FlyBot', level: 'Mức thay đổi', mRunning: 'Đang theo dõi', mOff: 'Tắt',
+  mNeedPowered: 'Đang chờ: chỉ chạy khi chế độ nguồn đang chạy là luôn cấp nguồn (Nguồn điện & lịch chụp). Hiện tại: {0}.', mLive: 'Tạm dừng khi đang xem trực tiếp qua cloud.',
+  mCount: 'Số lần từ khi khởi động', lastMotion: 'Lần cuối', perMille: '{0} ‰ (kích hoạt từ {1} ‰)',
+  motionNote: 'So sánh khung hình trên bản thu nhỏ của hình trực tiếp, khoảng hai lần mỗi giây, trong vùng đã vẽ. Thay đổi đột ngột cả khung hình (bật đèn, phơi sáng) được bỏ qua. Không nhận dạng người hay vật: ESP32-S3 không có bộ tăng tốc AI.',
+  eTime: 'Thời gian', eType: 'Loại', eDetail: 'Chi tiết', noEvents: 'Chưa có sự kiện nào từ khi camera khởi động.', eventsNote: '64 sự kiện gần nhất từ khi camera khởi động (chụp ảnh, chuyển động, thẻ nhớ, firmware, cài đặt). Cloud giữ toàn bộ lịch sử.',
+  fwUpload: 'Tải lên tệp firmware', fwFile: 'Tệp (.bin)', fwSha: 'SHA-256 (không bắt buộc)', upload: 'Tải lên & cài đặt', uploading: 'Đang tải lên {0} %…', fwOk: 'Đã cài. Camera đang khởi động lại với firmware mới…',
+  pickFile: 'Hãy chọn tệp .bin trước.', confirmFw: 'Cài {0} ({1} KB) và khởi động lại camera?', fwNote: 'Tệp ứng dụng (camos-esp32.bin trong bản phát hành), không phải tệp gộp để nạp xuất xưởng. Camera kiểm tra tệp trước khi khởi động lại; bản không kết nối được mạng hoặc trang quản lý sẽ tự quay về bản cũ ở lần khởi động sau.',
+  tcpip: 'TCP/IP', ipMode: 'Địa chỉ', dhcpOpt: 'Tự động (DHCP)', staticOpt: 'Tĩnh', dns: 'DNS',
+  ipNote: 'Địa chỉ tĩnh sai sẽ làm mất kết nối tới camera: giữ nút BOOT 3 giây để vào chế độ cài đặt, hoặc gõ set ipMode 0 trên cổng serial. Áp dụng khi khởi động lại.',
   E: { BAD_LOGIN: 'Sai mật khẩu.', LOCKED: 'Sai mật khẩu nhiều lần: thử lại sau 5 phút.', WEAK_PASSWORD: 'Mật khẩu cần 8-64 ký tự, có cả chữ và số.',
    BAD_PASSWORD: 'Mật khẩu hiện tại không đúng.', BAD_VALUE: 'Giá trị không hợp lệ: {0}', BUSY: 'Camera đang bận (đang chụp hoặc xem trực tiếp).', NO_PREVIEW: 'Không lấy được hình.',
-   LOGIN_REQUIRED: 'Cần đăng nhập lại.', NOT_ALLOWED: 'Không được phép.', NOT_AVAILABLE: 'Wi-Fi không chạy (đang dùng 4G).', NOT_SUPPORTED: 'Camera này không hỗ trợ.' },
+   LOGIN_REQUIRED: 'Cần đăng nhập lại.', NOT_ALLOWED: 'Không được phép.', NOT_AVAILABLE: 'Wi-Fi không chạy (đang dùng 4G).', NOT_SUPPORTED: 'Camera này không hỗ trợ.',
+   BAD_IMAGE: 'Tệp firmware không hợp lệ: {0}', NO_CARD: 'Không có thẻ nhớ.', NOT_FOUND: 'Không tìm thấy.' },
  },
  en: {
   dlgOk: 'OK', dlgCancel: 'Cancel', lang: 'English', signIn: 'Sign in', activate: 'Activate', activateTitle: 'Activate the camera',
@@ -165,7 +218,7 @@ const I18N = {
   restarting: 'The camera is restarting (about 15 seconds)…', back: 'The camera is back.', on: 'On', off: 'Off', yes: 'Yes', no: 'No', none: '—',
   play: 'Play', stop: 'Stop', snapshot: 'Snapshot', fps: '{0} fps', stopped: 'Preview stopped', snapping: 'Capturing and uploading to FlyBot…',
   snapOk: 'Sent a {0}×{1} photo ({2} KB) to FlyBot.', snapFail: 'Captured {0}×{1} but could not upload: {2}',
-  liveNote: 'The preview is a stream of JPEG pictures (no sound). Live view through the cloud uses KVS WebRTC in FlyBot.',
+  liveNote: 'Live view on the LAN is an MJPEG stream (no sound), one viewer at a time; it stops while this tab is hidden. Live view through the cloud uses KVS WebRTC in FlyBot.',
   model: 'Model', serial: 'Serial number', code: 'Verify code', firmware: 'Firmware', built: 'Build date', uptime: 'Uptime', memory: 'Free memory', network: 'Network',
   signal: 'Signal', channel: 'Channel', ip: 'IP address', publicIp: 'Public IP', mac: 'MAC address', mask: 'Subnet mask', gateway: 'Gateway', cloud: 'Cloud',
   connected: 'Connected', disconnected: 'Disconnected', server: 'Server', certificate: 'Device certificate', certOk: 'Yes (mTLS)', certNo: 'Not yet',
@@ -183,7 +236,7 @@ const I18N = {
   sync: 'Sync', timezone: 'Timezone', tzAuto: 'automatic', tzNote: 'Empty: the timezone comes from FlyBot (farm, GPS or IP address). Type one to override.',
   camosLink: 'FlyBot connection', status: 'Status', apiBase: 'FlyBot address', iotHost: 'IoT Core endpoint', thing: 'Thing', kvs: 'KVS channel',
   cloudNote: 'Usually nothing to change: the camera registers itself with FlyBot. Change only when told to.', regError: 'Registration error',
-  brightness: 'Brightness', contrast: 'Contrast', saturation: 'Saturation', jpegQuality: 'JPEG quality', imageNote: 'Applied from the next capture. Settings from the cloud override these.',
+  brightness: 'Brightness', contrast: 'Contrast', saturation: 'Saturation', jpegQuality: 'JPEG quality', imageNote: 'Changes show on the live picture at once; Save keeps them for every capture. Settings from the cloud (FlyBot) override these.',
   resolution: 'Capture resolution', bySensor: 'by sensor',
   gpsFix: 'Get position now', gpsFixing: 'Looking for satellites (up to 2 minutes)…', location: 'Position', fixAt: 'At', noFix: 'None yet', gpsNote: 'The camera takes one position a day; the GPS module is powered off in between.',
   fwUpdate: 'Firmware upgrade', running: 'Running', checkUpdate: 'Check & upgrade', updateStarted: 'Asking FlyBot; when a newer build exists the camera downloads it, checks its SHA-256 and restarts. See the Log.',
@@ -193,9 +246,38 @@ const I18N = {
   changePw: 'Change the admin password', curPw: 'Current password', newPw: 'New password', againPw: 'Again', pwChanged: 'Password changed.', pwMismatch: 'The new passwords do not match.',
   forgot: 'Forgot the password: hold BOOT for 3 s to open setup mode, then type factory on the serial console.', follow: 'Follow', pause: 'Pause', resume: 'Resume', download: 'Download', clear: 'Clear',
   logLost: '… (part of the log was overwritten)', dflt: 'default', manual: 'override',
+  playback: 'Playback', gEvent: 'Event', gStorage: 'Storage', pEvents: 'Events', pMotion: 'Motion Detection', pSchedule: 'Capture Schedule', pStorage: 'Storage Management',
+  quality: 'Quality', qHigh: 'High', qStd: 'Standard', qLow: 'Smooth', savePic: 'Save picture', sendFlybot: 'Send to FlyBot', fullscreen: 'Full screen',
+  busyViewer: 'Someone else is watching the live picture (one viewer at a time): showing a still every 2 s.', streamFail: 'The live stream is not available: showing a still every 2 s.',
+  motionOsd: 'MOTION', savedSd: 'Also saved on the SD card: {0}', streamInfo: '{0}×{1} · {2} fps · {3} KB/frame',
+  sharpness: 'Sharpness', orientation: 'Orientation', oNormal: 'Normal', oMirror: 'Mirror', oFlip: 'Flip', oBoth: 'Mirror + flip (180°)',
+  whiteBalance: 'White balance', wbAuto: 'Auto', wbSunny: 'Sunny', wbCloudy: 'Cloudy', wbOffice: 'Office (fluorescent)', wbHome: 'Home (incandescent)',
+  effect: 'Effect', fxNone: 'None', fxNegative: 'Negative', fxGrayscale: 'Black & white', fxRed: 'Red tint', fxGreen: 'Green tint', fxBlue: 'Blue tint', fxSepia: 'Sepia',
+  exposure: 'Exposure', aeLevel: 'Exposure compensation', autoW: 'Auto', manualVal: 'Manual value', gain: 'Gain', gainCeiling: 'Gain ceiling (auto)', denoise: 'Noise reduction',
+  restore: 'Restore', defaultsBtn: 'Defaults', unsaved: 'Not saved: previewed on the camera only.', restored: 'Saved values restored.', sensor: 'Sensor', grpPicture: 'Picture', grpExposure: 'Exposure & gain', grpCapture: 'Capture',
+  noCard: 'No microSD card in the camera (or the card is not FAT32). Insert one and restart the camera.', notBuilt: 'This camera has no SD card support.', noCardShort: 'Not inserted', notBuiltShort: 'Not supported', sdCard: 'SD card',
+  dayList: 'Days', photos: '{0} photos', noPhotos: 'No photos on this day.', time: 'Time', trigger: 'Trigger', size: 'Size', del: 'Delete', deleteDay: 'Delete the day',
+  confirmDelete: 'Delete {0}?', confirmDeleteDay: 'Delete every photo of {0}?', pickPhoto: 'Pick a photo in the list or on the time line.', prev: 'Previous', next: 'Next',
+  trS: 'Schedule', trR: 'On demand', trB: 'Boot', trM: 'Motion', trW: 'Web',
+  card: 'Card', capacity: 'Capacity', used: 'Used', free: 'Free', sdSave: 'Save every photo to the card', format: 'Format the card', confirmFormat: 'Format the card? Every photo on it is erased.', formatted: 'Card formatted.',
+  storageNote: 'Photos are kept as /DCIM/YYYYMMDD/HHMMSSx.JPG (x: S schedule, R on demand, B boot, M motion). When less than 5 % is free the oldest day is deleted. This camera has no video encoder: it stores photos, not video.',
+  setBy: 'Set by', srcCloud: 'FlyBot (cloud schedule, read only here)', srcLocal: 'This camera', window: 'Capture window', from: 'From', to: 'To', allDay: 'From = To means all day',
+  nextCaptures: 'Next captures', every: 'every {0} min', noClock: 'The clock is not synced yet.', schedCloudNote: 'FlyBot sets this schedule (detections in the shadow). Change it in FlyBot.',
+  schedNote: 'One photo every interval inside the window (camera local time; a window that ends before it starts crosses midnight). In battery mode the camera deep sleeps in between. An unclaimed camera takes at most one photo an hour.',
+  motionOn: 'Enable motion detection', sensitivity: 'Sensitivity', cooldown: 'Wait between triggers (s)', region: 'Detection area', regionHelp: 'Drag on the picture to draw the area.', fullFrame: 'Whole picture',
+  onMotion: 'On motion', mSd: 'Save the picture to the SD card', mUpload: 'Capture a full photo and send it to FlyBot', level: 'Change now', mRunning: 'Watching', mOff: 'Off',
+  mNeedPowered: 'Waiting: motion detection runs only when the effective power mode is powered (Power & Schedule). Now: {0}.', mLive: 'Paused while cloud live view runs.',
+  mCount: 'Triggers since start', lastMotion: 'Last motion', perMille: '{0} ‰ (trigger at {1} ‰)',
+  motionNote: 'Frame difference on a small copy of the live picture, about twice a second, inside the area. A sudden change of the whole picture (lights, exposure) is ignored. No person or object recognition: the ESP32-S3 has no AI accelerator.',
+  eTime: 'Time', eType: 'Type', eDetail: 'Details', noEvents: 'No events since the camera started.', eventsNote: 'The last 64 events since the camera started (capture, motion, SD card, firmware, settings). The cloud keeps the full history.',
+  fwUpload: 'Upload a firmware file', fwFile: 'File (.bin)', fwSha: 'SHA-256 (optional)', upload: 'Upload & install', uploading: 'Uploading {0} %…', fwOk: 'Installed. The camera restarts into the new firmware…',
+  pickFile: 'Pick a .bin file first.', confirmFw: 'Install {0} ({1} KB) and restart the camera?', fwNote: 'The app image (camos-esp32.bin of a release), not the merged factory image. The camera checks the image before it restarts; a build that cannot reach the network or the console rolls back at the next restart.',
+  tcpip: 'TCP/IP', ipMode: 'Address', dhcpOpt: 'Automatic (DHCP)', staticOpt: 'Static', dns: 'DNS',
+  ipNote: 'A wrong static address makes the camera unreachable: hold BOOT 3 s for setup mode, or type set ipMode 0 on the serial console. Applied at the next restart.',
   E: { BAD_LOGIN: 'Wrong password.', LOCKED: 'Too many wrong passwords: try again in 5 minutes.', WEAK_PASSWORD: 'Passwords need 8-64 characters, letters and digits.',
    BAD_PASSWORD: 'The current password is wrong.', BAD_VALUE: 'Invalid value: {0}', BUSY: 'The camera is busy (capturing or streaming).', NO_PREVIEW: 'No picture.',
-   LOGIN_REQUIRED: 'Sign in again.', NOT_ALLOWED: 'Not allowed.', NOT_AVAILABLE: 'Wi-Fi is not running (on 4G).', NOT_SUPPORTED: 'Not supported on this camera.' },
+   LOGIN_REQUIRED: 'Sign in again.', NOT_ALLOWED: 'Not allowed.', NOT_AVAILABLE: 'Wi-Fi is not running (on 4G).', NOT_SUPPORTED: 'Not supported on this camera.',
+   BAD_IMAGE: 'Not a valid firmware file: {0}', NO_CARD: 'No SD card.', NOT_FOUND: 'Not found.' },
  },
 };
 /* English by default; Vietnamese only when picked (remembered in this browser and on the camera, NVS uiLang) */
@@ -258,17 +340,19 @@ function stopTimers() { timers.forEach((s) => s()); timers = []; }
 function every(ms, fn) { let on = true, h; const loop = async () => { if (!on) return; try { await fn(); } catch (e) { /* next time */ } if (on) h = setTimeout(loop, ms); }; loop(); timers.push(() => { on = false; clearTimeout(h); }); }
 let FEAT = { modem: false, gps: false };
 const MENU = () => [
-  ['gSystem', [['device', 'pDevice'], ['time', 'pTime'], ['maint', 'pMaint'], ['logs', 'pLogs']]],
+  ['gSystem', [['device', 'pDevice'], ['time', 'pTime'], ['maint', 'pMaint'], ['events', 'pEvents'], ['logs', 'pLogs']]],
   ['gNetwork', [['wifi', 'pWifi']].concat(FEAT.modem ? [['cell', 'pCell']] : [], [['cloud', 'pCloud']])],
   ['gImage', [['image', 'pImage']]],
+  ['gEvent', [['motion', 'pMotion'], ['schedule', 'pSchedule']]],
+  ['gStorage', [['storage', 'pStorage']]],
   ['gPower', [['power', 'pPower']].concat(FEAT.gps ? [['gps', 'pGps']] : [])],
   ['gSecurity', [['account', 'pAccount']]],
 ];
 function header() {
-  $('#tLive').textContent = t('liveView'); $('#tConfig').textContent = t('configuration'); $('#logoutBtn').textContent = t('logout');
+  $('#tLive').textContent = t('liveView'); $('#tPlay').textContent = t('playback'); $('#tConfig').textContent = t('configuration'); $('#logoutBtn').textContent = t('logout');
   $('#hModel').textContent = session.model || ''; langSelect($('#hLang'));
 }
-document.querySelector('header nav').onclick = (e) => { const a = e.target.closest('a'); if (a) location.hash = a.dataset.top === 'config' ? 'config/device' : 'live'; };
+document.querySelector('header nav').onclick = (e) => { const a = e.target.closest('a'); if (a) location.hash = a.dataset.top === 'config' ? 'config/device' : a.dataset.top; };
 $('#logoutBtn').onclick = async () => { try { await api('logout', {}); } catch (e) { /* gone */ } boot(); };
 window.onhashchange = () => route();
 let routing = Promise.resolve();
@@ -276,11 +360,12 @@ function route() { routing = routing.then(drawRoute, drawRoute); return routing;
 async function drawRoute() {
   stopTimers();
   const [top, page] = location.hash.slice(1).split('/');
-  const isConfig = top === 'config';
-  $('#tLive').classList.toggle('on', !isConfig); $('#tConfig').classList.toggle('on', isConfig);
+  const isConfig = top === 'config', isPlay = top === 'playback';
+  $('#tLive').classList.toggle('on', !isConfig && !isPlay); $('#tPlay').classList.toggle('on', isPlay); $('#tConfig').classList.toggle('on', isConfig);
   const view = $('#view');
   try {
-    const st = await api('status'); FEAT = st.features || FEAT;
+    const st = await api('status'); FEAT = st.features || FEAT; camClock(st);
+    if (isPlay) { await PLAYBACK(view, st); return; }
     if (!isConfig) { await LIVE(view, st); return; }
     const groups = MENU(), pg = {}; groups.forEach(([g, items]) => items.forEach(([id, k]) => { pg[id] = [g, k]; }));
     const id = pg[page] ? page : 'device';
@@ -317,36 +402,154 @@ function claimPanel(st, cfg) {
     ${kv([[t('serial'), `<b>${esc(st.serial)}</b>`], [t('code'), `<b>${esc(st.verifyCode)}</b>`]])}</div></div>`);
 }
 
+/* ---------------------------------------------------------------- live picture (MJPEG /api/stream, stills as the fallback) */
+const SIZES = [['320x240', 'QVGA 320×240'], ['640x480', 'VGA 640×480'], ['800x600', 'SVGA 800×600'], ['1024x768', 'XGA 1024×768'], ['1280x720', 'HD 1280×720'], ['1600x1200', 'UXGA 1600×1200']];
+const QUALS = () => [['10', t('qHigh')], ['12', t('qStd')], ['20', t('qLow')]];
+const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAAC';
+let camClockOff = 0; /* camera local time minus browser time (ms), from /api/status */
+function camClock(st) { if (st && st.time && st.time.synced && st.time.local) { const [d, h] = st.time.local.split(' '); const [y, mo, da] = d.split('-').map(Number); const [hh, mi, ss] = h.split(':').map(Number); camClockOff = Date.UTC(y, mo - 1, da, hh, mi, ss) - Date.now(); } }
+const camNow = () => new Date(Date.now() + camClockOff).toISOString().replace('T', ' ').slice(0, 19);
+const prefs = (() => { let p = {}; try { p = JSON.parse(localStorage.getItem('camosLive') || '{}'); } catch (e) { /* private */ } return p; })();
+function savePrefs() { try { localStorage.setItem('camosLive', JSON.stringify(prefs)); } catch (e) { /* private */ } }
+const players = new Set();
+document.addEventListener('visibilitychange', () => players.forEach((p) => (document.hidden ? p.pause() : p.resume())));
+
+/* A live picture in `box`: start() / stop() / setSize(w, h, q); the stream closes while the tab is hidden */
+function livePicture(box, opt = {}) {
+  box.innerHTML = `<div class="pic"><img alt="">${opt.overlay ? '<canvas></canvas>' : ''}</div><span class="osd"><b class="clk"></b> <span class="nm"></span></span><span class="osd r"><span class="fp"></span><span class="mbadge hidden">${t('motionOsd')}</span></span><span class="idle hidden"></span>`;
+  const img = box.querySelector('img'), idle = box.querySelector('.idle');
+  const p = { w: opt.w || 640, h: opt.h || 480, q: opt.q || 12, on: false, wanted: false, gen: 0, timer: null, img, canvas: box.querySelector('canvas') };
+  const note = (text) => { idle.textContent = text || ''; idle.classList.toggle('hidden', !text); };
+  const stills = (g) => {
+    let n = 0;
+    const loop = async () => {
+      if (g !== p.gen) return;
+      if (++n % 8 === 0) { try { const s = await api('status'); if (!s.stream.active && g === p.gen) { open(); return; } } catch (e) { /* later */ } }
+      try { const r = await fetch(`/api/frame.jpg?w=${p.w}&h=${p.h}`, { cache: 'no-store' }); if (r.ok && g === p.gen) { const u = URL.createObjectURL(await r.blob()); const old = img.src; img.src = u; if (old.startsWith('blob:')) URL.revokeObjectURL(old); } } catch (e) { /* next */ }
+      if (g === p.gen) p.timer = setTimeout(loop, 2000);
+    };
+    loop();
+  };
+  const open = () => {
+    const g = ++p.gen; clearTimeout(p.timer); p.on = true; note('');
+    img.onerror = async () => { if (g !== p.gen) return; let s = {}; try { s = await api('status'); } catch (e) { /* */ } if (g !== p.gen) return; note(s.stream && s.stream.active ? t('busyViewer') : t('streamFail')); stills(g); };
+    img.src = `/api/stream?w=${p.w}&h=${p.h}&q=${p.q}&t=${Date.now()}`;
+  };
+  const close = () => { p.gen++; clearTimeout(p.timer); p.on = false; img.onerror = null; img.src = BLANK; };
+  p.start = () => { p.wanted = true; if (!document.hidden) open(); };
+  p.stop = () => { p.wanted = false; close(); };
+  p.pause = () => { if (p.on) close(); };
+  p.resume = () => { if (p.wanted && !p.on) open(); };
+  p.setSize = (w, h, q) => { p.w = w; p.h = h; p.q = q || p.q; if (p.wanted) open(); };
+  p.osd = (st) => {
+    box.querySelector('.clk').textContent = camNow(); box.querySelector('.nm').textContent = opt.name || '';
+    if (st) {
+      box.querySelector('.fp').textContent = st.stream.active && p.on ? t('streamInfo', st.stream.w, st.stream.h, st.stream.fps, (st.stream.avgBytes / 1024).toFixed(1)) : '';
+      box.querySelector('.mbadge').classList.toggle('hidden', !(st.motion && st.motion.active));
+    }
+  };
+  p.note = note;
+  players.add(p);
+  timers.push(() => { p.stop(); players.delete(p); });
+  return p;
+}
+/* The picture now on screen as a JPEG download (the stream frame through a canvas; else one still) */
+async function savePicture(img, w, h) {
+  const name = `${session.serial || 'camos'}-${camNow().replace(/[: ]/g, '-')}.jpg`;
+  const done = (blob) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); };
+  if (img.naturalWidth > 1) {
+    const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+    try { c.getContext('2d').drawImage(img, 0, 0); const b = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.92)); if (b) return done(b); } catch (e) { /* fall back */ }
+  }
+  const r = await fetch(`/api/frame.jpg?w=${w}&h=${h}`, { cache: 'no-store' }); if (r.ok) done(await r.blob());
+}
+
 /* ---------------------------------------------------------------- live view */
 async function LIVE(view, st) {
   const cfg = await api('config');
-  view.innerHTML = `<div class="live"><div class="player"><div class="screen"><img id="pv" alt=""><span class="osd" id="osd"></span><span class="idle hidden" id="idle"></span></div>
-    <div class="tools"><button id="play" class="on"></button><button id="snap"></button><span class="sp"></span><select id="size"><option value="640x480">VGA 640×480</option><option value="320x240">QVGA 320×240</option><option value="800x600">SVGA 800×600</option><option value="1280x720">HD 1280×720</option></select><span id="fps"></span></div></div>
+  camClock(st);
+  const size = prefs.size || '640x480', q = prefs.q || '12';
+  view.innerHTML = `<div class="live"><div class="player" id="player"><div class="screen" id="screen"></div>
+    <div class="tools"><button id="play"></button><button id="savePic">${t('savePic')}</button><button id="snap">${t('sendFlybot')}</button><span class="sp"></span>
+    ${sel('size', size, SIZES)}${sel('qual', q, QUALS())}<button id="fs">${t('fullscreen')}</button></div></div>
     <div class="side">${claimPanel(st, cfg)}${panel(t('status'), '<div id="sideKv"></div>')}<div class="panel"><div class="body"><span class="msg" id="snapMsg"></span><p class="note">${t('liveNote')}</p></div></div></div></div>`;
-  let on = true, frames = 0, t0 = performance.now(), url = null;
-  const img = $('#pv');
+  const [w, h] = size.split('x').map(Number);
+  const pic = livePicture($('#screen'), { w, h, q: +q, name: st.model });
   const draw = (s) => { $('#sideKv').innerHTML = kv([[t('network'), `${dot(s.net.connected ? 'ok' : 'bad')}${esc(s.net.type === '4g' ? '4G' : (s.net.ssid || 'Wi-Fi'))}`], [t('cloud'), `${dot(s.cloud.connected ? 'ok' : 'bad')}${s.cloud.connected ? t('connected') : t('disconnected')}`],
-    [t('battery'), esc(fmtBatt(s.battery))], [t('powerMode'), esc(`${s.power.mode} → ${s.power.effective}`)], [t('nextCapture'), esc(s.nextCaptureAt || t('none'))]]); };
+    [t('battery'), esc(fmtBatt(s.battery))], [t('powerMode'), esc(`${s.power.mode} → ${s.power.effective}`)], [t('nextCapture'), esc(s.nextCaptureAt || t('none'))],
+    [t('pMotion'), s.motion.enabled ? (s.motion.running ? dot(s.motion.active ? 'bad' : 'ok') + t('mRunning') : dot('warn') + esc(s.power.effective)) : t('mOff')], [t('sdCard'), s.sd.present ? `${s.sd.freeMB} MB ${t('free').toLowerCase()}` : t(FEAT.sd ? 'noCardShort' : 'notBuiltShort')]]); };
   draw(st);
-  const setPlay = () => { $('#play').textContent = on ? t('stop') : t('play'); $('#play').classList.toggle('on', on); $('#idle').textContent = t('stopped'); $('#idle').classList.toggle('hidden', on); };
-  setPlay(); $('#snap').textContent = t('snapshot');
-  $('#play').onclick = () => { on = !on; setPlay(); };
-  every(150, async () => {
-    if (!on || document.hidden) return;
-    const [w, h] = $('#size').value.split('x');
-    const r = await fetch(`/api/frame.jpg?w=${w}&h=${h}`, { cache: 'no-store' });
-    if (!r.ok) { let j = {}; try { j = await r.json(); } catch (e) { /* */ } $('#osd').textContent = errText(j.error, j.message); await new Promise((res) => setTimeout(res, 1500)); return; }
-    const u = URL.createObjectURL(await r.blob()); img.src = u; if (url) URL.revokeObjectURL(url); url = u;
-    frames++; const dt = (performance.now() - t0) / 1000; if (dt > 2) { $('#fps').textContent = t('fps', (frames / dt).toFixed(1)); frames = 0; t0 = performance.now(); }
-    $('#osd').textContent = new Date().toLocaleTimeString();
-  });
-  every(10000, async () => draw(await api('status')));
+  const setPlay = () => { $('#play').textContent = pic.wanted ? t('stop') : t('play'); $('#play').classList.toggle('on', pic.wanted); pic.note(pic.wanted ? '' : t('stopped')); };
+  pic.start(); setPlay();
+  $('#play').onclick = () => { pic.wanted ? pic.stop() : pic.start(); setPlay(); };
+  const resize = () => { const [ww, hh] = $('#size').value.split('x').map(Number); prefs.size = $('#size').value; prefs.q = $('#qual').value; savePrefs(); pic.setSize(ww, hh, +$('#qual').value); };
+  $('#size').onchange = resize; $('#qual').onchange = resize;
+  $('#fs').onclick = () => { const el = $('#player'); document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen && el.requestFullscreen(); };
+  $('#savePic').onclick = () => savePicture(pic.img, pic.w, pic.h);
+  let last = st;
+  every(1000, async () => pic.osd(null));
+  every(2000, async () => { if (document.hidden) return; last = await api('status'); camClock(last); pic.osd(last); });
+  every(10000, async () => draw(last));
   $('#snap').onclick = async () => {
-    const m = $('#snapMsg'); const was = on; on = false; setPlay(); $('#snap').disabled = true; say(m, t('snapping'), true);
-    try { const r = await api('snapshot', {}); r.ok ? say(m, t('snapOk', r.w, r.h, Math.round(r.bytes / 1024)), true) : say(m, t('snapFail', r.w, r.h, r.message)); }
-    catch (err) { say(m, err.message); }
-    $('#snap').disabled = false; on = was; setPlay();
+    const m = $('#snapMsg'); $('#snap').disabled = true; say(m, t('snapping'), true);
+    try {
+      const r = await api('snapshot', {});
+      const sd = r.sdFile ? ' ' + t('savedSd', r.sdFile) : '';
+      r.ok ? say(m, t('snapOk', r.w, r.h, Math.round(r.bytes / 1024)) + sd, true) : say(m, t('snapFail', r.w, r.h, r.message) + sd);
+    } catch (err) { say(m, err.message); }
+    $('#snap').disabled = false;
   };
+}
+
+/* ---------------------------------------------------------------- playback (photos on the microSD card) */
+const trName = (c) => t('tr' + c) === 'tr' + c ? c : t('tr' + c);
+const fmtDay = (d) => `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+const fmtHms = (n) => `${n.slice(0, 2)}:${n.slice(2, 4)}:${n.slice(4, 6)}`;
+async function PLAYBACK(view, st) {
+  if (!FEAT.sd) { view.innerHTML = `<main>${panel(t('playback'), `<p class="note">${t('notBuilt')}</p>`)}</main>`; return; }
+  const info = await api('sd');
+  if (!info.present) { view.innerHTML = `<main>${panel(t('playback'), `<p class="note">${t('noCard')}</p>`)}</main>`; return; }
+  const days = info.days.sort((a, b) => b.day.localeCompare(a.day));
+  let day = (location.hash.split('/')[1] || (days[0] && days[0].day) || ''), files = [], cur = -1;
+  view.innerHTML = `<div class="pb"><div class="days panel"><h3>${t('dayList')}</h3><div id="dl"></div></div>
+    <div class="main"><div class="view" id="pv"><span class="note">${t('pickPhoto')}</span></div><div class="timeline" id="tl"></div>
+    <div class="panel"><h3 id="dh"></h3><div class="body table-scroll"><table id="ft"></table></div>
+    <div class="actions"><button class="btn" id="pPrev">${t('prev')}</button><button class="btn" id="pNext">${t('next')}</button><button class="btn" id="pDl">${t('download')}</button>
+    <button class="btn danger" id="pDel">${t('del')}</button><span class="sp" style="flex:1"></span><button class="btn danger" id="pDelDay">${t('deleteDay')}</button><span class="msg" id="pMsg"></span></div></div></div></div>`;
+  const drawDays = () => { $('#dl').innerHTML = days.length ? days.map((d) => `<a data-d="${d.day}" class="${d.day === day ? 'on' : ''}"><span>${fmtDay(d.day)}</span><span class="note">${d.files}</span></a>`).join('') : `<p class="note" style="padding:0 12px">${t('noPhotos')}</p>`; };
+  const url = (f, dl) => `/api/sd/file?day=${day}&name=${encodeURIComponent(f.name)}${dl ? '&dl=1' : ''}`;
+  const show = (i) => {
+    if (i < 0 || i >= files.length) return; cur = i; const f = files[i];
+    $('#pv').innerHTML = `<img src="${url(f)}" alt="">`;
+    document.querySelectorAll('#ft tr.pick').forEach((r) => r.classList.toggle('on', +r.dataset.i === i));
+    document.querySelectorAll('#tl i').forEach((x) => x.classList.toggle('on', +x.dataset.i === i));
+  };
+  const load = async () => {
+    drawDays();
+    $('#dh').textContent = day ? `${fmtDay(day)} · ${t('photos', 0)}` : '';
+    files = day ? (await api('sd/files?day=' + day)).sort((a, b) => a.name.localeCompare(b.name)) : [];
+    $('#dh').textContent = day ? `${fmtDay(day)} · ${t('photos', files.length)}` : '';
+    $('#ft').innerHTML = files.length ? `<tr><th>${t('time')}</th><th>${t('trigger')}</th><th>${t('size')}</th></tr>` + files.map((f, i) => `<tr class="pick" data-i="${i}"><td>${fmtHms(f.name)}</td><td>${esc(trName(f.trigger))}</td><td>${Math.round(f.bytes / 1024)} KB</td></tr>`).join('') : `<tr><td class="note">${t('noPhotos')}</td></tr>`;
+    const secs = (n) => +n.slice(0, 2) * 3600 + +n.slice(2, 4) * 60 + +n.slice(4, 6);
+    $('#tl').innerHTML = [0, 6, 12, 18, 24].map((hh) => `<span style="left:${hh / 24 * 100}%">${String(hh).padStart(2, '0')}:00</span>`).join('') + files.map((f, i) => `<i class="${f.trigger}" data-i="${i}" style="left:${secs(f.name) / 864}%" title="${fmtHms(f.name)}"></i>`).join('');
+    cur = -1; $('#pv').innerHTML = `<span class="note">${t(files.length ? 'pickPhoto' : 'noPhotos')}</span>`;
+    if (files.length) show(files.length - 1);
+  };
+  $('#dl').onclick = (e) => { const a = e.target.closest('a'); if (a) { day = a.dataset.d; load(); } };
+  $('#ft').onclick = (e) => { const r = e.target.closest('tr.pick'); if (r) show(+r.dataset.i); };
+  $('#tl').onclick = (e) => { const x = e.target.closest('i'); if (x) show(+x.dataset.i); };
+  $('#pPrev').onclick = () => show(cur - 1); $('#pNext').onclick = () => show(cur + 1);
+  $('#pDl').onclick = () => { if (cur >= 0) { const a = document.createElement('a'); a.href = url(files[cur], true); a.click(); } };
+  $('#pDel').onclick = async () => {
+    if (cur < 0) return; const f = files[cur];
+    if (!(await ask(t('confirmDelete', `${fmtDay(day)} ${fmtHms(f.name)}`), { danger: true }))) return;
+    try { await api('sd/delete', { day, name: f.name }); const d = days.find((x) => x.day === day); if (d) d.files--; await load(); } catch (err) { say($('#pMsg'), err.message); }
+  };
+  $('#pDelDay').onclick = async () => {
+    if (!day || !(await ask(t('confirmDeleteDay', fmtDay(day)), { danger: true }))) return;
+    try { await api('sd/delete', { day }); days.splice(days.findIndex((x) => x.day === day), 1); day = days[0] ? days[0].day : ''; await load(); } catch (err) { say($('#pMsg'), err.message); }
+  };
+  await load();
 }
 
 /* ---------------------------------------------------------------- pages */
@@ -356,7 +559,8 @@ const PAGES = {
     const draw = (s) => {
       el.innerHTML = claimPanel(s, cfg) + panel(t('pDevice'), kv([[t('model'), esc(s.model)], [t('serial'), esc(s.serial)], [t('code'), esc(s.verifyCode)], [t('firmware'), esc(s.fw)], [t('built'), esc(s.built)],
           [t('uptime'), fmtUp(s.uptimeS)], [t('memory'), `${s.heapFreeKB} KB · PSRAM ${(s.psramFreeKB / 1024).toFixed(1)} MB`], [t('camTime'), s.time.synced ? esc(s.time.local) : t('notSynced')],
-          [t('ledState'), esc(s.led.enabled ? s.led.state : t('off'))]]))
+          [t('ledState'), esc(s.led.enabled ? s.led.state : t('off'))], [t('sensor'), esc(s.image.sensor || t('none')) + (s.image.w ? ` · ${s.image.w}×${s.image.h}` : '')],
+          [t('sdCard'), s.sd && s.sd.present ? `${dot('ok')}${s.sd.freeMB} / ${s.sd.totalMB} MB ${t('free').toLowerCase()}` : dot('') + t(FEAT.sd ? 'noCardShort' : 'notBuiltShort')]]))
         + panel(t('network'), kv([[s.net.type === '4g' ? '4G' : 'Wi-Fi', `${dot(s.net.connected ? 'ok' : 'bad')}${esc(s.net.type === '4g' ? (s.net.cell && s.net.cell.operator) || '4G' : s.net.ssid || t('none'))}`],
           [t('signal'), s.net.rssi ? s.net.rssi + ' dBm' : t('none')], [t('ip'), esc(s.net.ip || t('none'))], [t('publicIp'), esc(s.publicIp || t('none'))], [t('mac'), esc(s.net.mac || t('none'))]]))
         + panel(t('cloud'), kv([[t('status'), `${dot(s.cloud.connected ? 'ok' : 'bad')}${s.cloud.connected ? t('connected') : t('disconnected')}`], [t('server'), esc(s.cloud.host || t('none'))],
@@ -380,8 +584,22 @@ const PAGES = {
 
   async maint(el, st) {
     el.innerHTML = panel(t('fwUpdate'), row(t('running'), `<b>${esc(st.fw)}</b> <span class="note">(${esc(st.built)})</span>`), `<button class="btn primary" id="fGo">${t('checkUpdate')}</button><span class="msg" id="fMsg"></span>`)
+      + panel(t('fwUpload'), row(t('fwFile'), '<input type="file" id="fwFile" accept=".bin,application/octet-stream">') + row(t('fwSha'), txt('fwSha', '', 'sha256')) + `<p class="note">${t('fwNote')}</p>`,
+        `<button class="btn primary" id="fwGo">${t('upload')}</button><span class="msg" id="fwMsg"></span>`)
       + panel(t('maintenance'), `<p class="note">${t('factoryNote')}</p>`, `<button class="btn" id="boot">${t('reboot')}</button><button class="btn danger" id="reset">${t('factory')}</button><span class="msg" id="mMsg"></span>`);
     $('#fGo').onclick = async () => { try { await api('ota', {}); say($('#fMsg'), t('updateStarted'), true); } catch (err) { say($('#fMsg'), err.message); } };
+    $('#fwGo').onclick = async () => {
+      const f = $('#fwFile').files[0], m = $('#fwMsg'); if (!f) return say(m, t('pickFile'));
+      if (!(await ask(t('confirmFw', f.name, Math.round(f.size / 1024)), { danger: true }))) return;
+      $('#fwGo').disabled = true;
+      const x = new XMLHttpRequest(); x.open('POST', '/api/firmware'); x.setRequestHeader('X-Requested-With', 'camos'); x.setRequestHeader('Content-Type', 'application/octet-stream');
+      const sha = $('#fwSha').value.trim(); if (sha) x.setRequestHeader('X-Fw-Sha256', sha);
+      x.upload.onprogress = (e) => { if (e.lengthComputable) say(m, t('uploading', Math.round(e.loaded * 100 / e.total)), true); };
+      x.onload = async () => { let j = {}; try { j = JSON.parse(x.responseText); } catch (e) { /* */ }
+        if (x.status === 200 && j.ok) { say(m, t('fwOk'), true); await waitBack(); location.reload(); } else { say(m, errText(j.error, j.message)); $('#fwGo').disabled = false; } };
+      x.onerror = () => { say(m, errText('', 'network')); $('#fwGo').disabled = false; };
+      x.send(f);
+    };
     $('#boot').onclick = async () => { if (await ask(t('confirmReboot'), { danger: true })) { try { await doRestart($('#mMsg')); } catch (err) { say($('#mMsg'), err.message); } } };
     $('#reset').onclick = async () => { if (!(await ask(t('confirmFactory'), { danger: true }))) return; try { await api('factory-reset', {}); say($('#mMsg'), t('factoryDone'), true); await waitBack(); location.reload(); } catch (err) { say($('#mMsg'), err.message); } };
   },
@@ -405,9 +623,12 @@ const PAGES = {
   },
 
   async wifi(el, st) {
-    const n = st.net;
+    const n = st.net, cfgW = await api('config');
     el.innerHTML = panel(t('current'), kv([['Wi-Fi', `${dot(n.connected && n.type === 'wifi' ? 'ok' : 'bad')}${esc(n.ssid || t('none'))}`], [t('signal'), n.rssi ? `${n.rssi} dBm (${t('channel')} ${n.channel ?? '?'})` : t('none')],
         [t('ip'), `${esc(n.ip || t('none'))} ${t('dhcp')}`], [t('publicIp'), esc(st.publicIp || t('none'))], [t('mask'), esc(n.mask || t('none'))], [t('gateway'), esc(n.gateway || t('none'))], [t('mac'), esc(n.mac || t('none'))]]))
+      + panel(t('tcpip'), row(t('ipMode'), sel('ipMode', cfgW.ipMode ? 1 : 0, [[0, t('dhcpOpt')], [1, t('staticOpt')]])) + `<div id="ipBox">`
+        + row(t('ip'), txt('sIp', cfgW.staticIp, n.ip || '')) + row(t('mask'), txt('sMask', cfgW.staticMask, '255.255.255.0')) + row(t('gateway'), txt('sGw', cfgW.staticGateway, n.gateway || ''))
+        + row(t('dns'), txt('sDns', cfgW.staticDns, n.gateway || '')) + `</div><p class="note">${t('ipNote')}</p>`, saveBar('ipSave'))
       + panel(t('changeWifi'), `<table id="nets"><tr><td class="note">${t('scanning')}</td></tr></table>${row(t('ssid'), txt('wSsid', ''))}${row(t('password'), '<input type="password" id="wPass" maxlength="64">')}<p class="note">${t('wifiNote')}</p>`,
         `<button class="btn" id="wScan">${t('scan')}</button><button class="btn primary" id="wGo">${t('connect')}</button><span class="msg" id="wMsg"></span>`);
     const bars = (r) => { const k = r >= -55 ? 4 : r >= -65 ? 3 : r >= -75 ? 2 : 1; return '▂▄▆█'.slice(0, k); };
@@ -419,6 +640,10 @@ const PAGES = {
       } catch (err) { $('#nets').innerHTML = `<tr><td class="msg err">${esc(err.message)}</td></tr>`; }
     };
     $('#nets').onclick = (e) => { const tr = e.target.closest('tr.pick'); if (!tr) return; document.querySelectorAll('tr.pick').forEach((r) => r.classList.toggle('on', r === tr)); $('#wSsid').value = tr.dataset.s; $('#wPass').focus(); };
+    const ipBox = () => $('#ipBox').classList.toggle('hidden', $('#ipMode').value !== '1'); ipBox(); $('#ipMode').onchange = ipBox;
+    $('#ipSave').onclick = () => { const st1 = $('#ipMode').value === '1'; const b = { ipMode: st1 ? 1 : 0 };
+      if (st1) { b.staticIp = $('#sIp').value.trim(); b.staticMask = $('#sMask').value.trim(); b.staticGateway = $('#sGw').value.trim(); b.staticDns = $('#sDns').value.trim(); if (!b.staticIp || !b.staticGateway) return say($('#ipSaveMsg'), errText('BAD_VALUE', 'IP / gateway')); }
+      saveCfg(b, $('#ipSaveMsg'), true); };
     $('#wScan').onclick = () => scan(true);
     $('#wGo').onclick = async () => {
       const ssid = $('#wSsid').value.trim(); if (!ssid) return say($('#wMsg'), t('pickNet'));
@@ -444,12 +669,127 @@ const PAGES = {
   },
 
   async image(el, st) {
-    const i = st.image;
-    const rng = (id, v, min, max) => `<input type="range" id="${id}" value="${v}" min="${min}" max="${max}"><span id="${id}V">${v}</span>`;
-    el.innerHTML = panel('', row(t('brightness'), rng('iB', i.brightness, -64, 64)) + row(t('contrast'), rng('iC', i.contrast, 0, 100)) + row(t('saturation'), rng('iS', i.saturation, 0, 100))
-      + row(t('jpegQuality'), rng('iQ', i.jpegQuality, 1, 100)) + row(t('resolution'), `<b>${i.w ? i.w + '×' + i.h : '?'}</b>`, t('bySensor')) + `<p class="note">${t('imageNote')}</p>`, saveBar('iSave'));
-    for (const id of ['iB', 'iC', 'iS', 'iQ']) $('#' + id).oninput = () => { $('#' + id + 'V').textContent = $('#' + id).value; };
-    $('#iSave').onclick = async () => { try { await api('image', { brightness: +$('#iB').value, contrast: +$('#iC').value, saturation: +$('#iS').value, jpegQuality: +$('#iQ').value }); say($('#iSaveMsg'), t('saved'), true); } catch (err) { say($('#iSaveMsg'), err.message); } };
+    const d = await api('image');
+    let v = Object.assign({}, d.video.image), q = d.capture.jpegQuality, dirty = false, pending = null;
+    const DEF = { brightness: 0, contrast: 50, saturation: 50, sharpness: 50, orientation: 0, whiteBalance: 'auto', effect: 'none', aeLevel: 0, exposureAuto: true, exposure: 300, gainAuto: true, gain: 0, gainCeiling: 2, denoise: 0 };
+    const rng = (id, min, max) => `<input type="range" id="i_${id}" min="${min}" max="${max}"><span id="i_${id}V" style="min-width:36px"></span>`;
+    const ae = d.sensor === 'OV5640' ? 5 : 2;
+    el.innerHTML = `<div class="split"><div class="pvw"><div class="player"><div class="screen" id="iScreen"></div></div><p class="note">${esc(d.sensor || '')}${d.capture.w ? ` · ${t('resolution')} ${d.capture.w}×${d.capture.h}` : ''}</p></div><div class="cfg">`
+      + panel(t('grpPicture'), row(t('brightness'), rng('brightness', -64, 64)) + row(t('contrast'), rng('contrast', 0, 100)) + row(t('saturation'), rng('saturation', 0, 100)) + row(t('sharpness'), rng('sharpness', 0, 100))
+        + row(t('orientation'), sel('i_orientation', 0, [[0, t('oNormal')], [1, t('oMirror')], [2, t('oFlip')], [3, t('oBoth')]]))
+        + row(t('whiteBalance'), sel('i_whiteBalance', 'auto', [['auto', t('wbAuto')], ['sunny', t('wbSunny')], ['cloudy', t('wbCloudy')], ['office', t('wbOffice')], ['home', t('wbHome')]]))
+        + row(t('effect'), sel('i_effect', 'none', [['none', t('fxNone')], ['negative', t('fxNegative')], ['grayscale', t('fxGrayscale')], ['red', t('fxRed')], ['green', t('fxGreen')], ['blue', t('fxBlue')], ['sepia', t('fxSepia')]]))
+        + row(t('denoise'), rng('denoise', 0, 8)))
+      + panel(t('grpExposure'), row(t('exposure'), chk('i_exposureAuto', true, t('autoW'))) + `<div id="expMan">${row(t('manualVal'), rng('exposure', 0, 1200))}</div>` + row(t('aeLevel'), rng('aeLevel', -ae, ae))
+        + row(t('gain'), chk('i_gainAuto', true, t('autoW'))) + `<div id="gainMan">${row(t('manualVal'), rng('gain', 0, 30))}</div>`
+        + row(t('gainCeiling'), sel('i_gainCeiling', 2, ['2×', '4×', '8×', '16×', '32×', '64×', '128×'].map((x, i) => [i, x]))))
+      + panel(t('grpCapture'), row(t('jpegQuality'), '<input type="range" id="i_q" min="1" max="100"><span id="i_qV"></span>') + row(t('resolution'), `<b>${d.capture.w ? d.capture.w + '×' + d.capture.h : '?'}</b>`, t('bySensor')) + `<p class="note">${t('imageNote')}</p>`,
+        `<button class="btn primary" id="iSave">${t('save')}</button><button class="btn" id="iRestore">${t('restore')}</button><button class="btn" id="iDef">${t('defaultsBtn')}</button><span class="msg" id="iSaveMsg"></span>`)
+      + '</div></div>';
+    const pic = livePicture($('#iScreen'), { w: 640, h: 480, q: 12, name: st.model });
+    pic.start();
+    every(1000, async () => pic.osd(null));
+    const ranges = ['brightness', 'contrast', 'saturation', 'sharpness', 'denoise', 'exposure', 'aeLevel', 'gain'], sels = ['orientation', 'whiteBalance', 'effect', 'gainCeiling'], bools = ['exposureAuto', 'gainAuto'];
+    const fill = () => {
+      ranges.forEach((k) => { $('#i_' + k).value = v[k]; $('#i_' + k + 'V').textContent = v[k]; });
+      sels.forEach((k) => { $('#i_' + k).value = v[k]; }); bools.forEach((k) => { $('#i_' + k).checked = !!v[k]; });
+      $('#i_q').value = q; $('#i_qV').textContent = q;
+      $('#expMan').classList.toggle('hidden', !!v.exposureAuto); $('#gainMan').classList.toggle('hidden', !!v.gainAuto);
+    };
+    const read = () => {
+      ranges.forEach((k) => { v[k] = +$('#i_' + k).value; }); bools.forEach((k) => { v[k] = $('#i_' + k).checked; });
+      sels.forEach((k) => { const x = $('#i_' + k).value; v[k] = k === 'orientation' || k === 'gainCeiling' ? +x : x; }); q = +$('#i_q').value;
+    };
+    const msg = $('#iSaveMsg');
+    const preview = () => { read(); fill(); dirty = true; say(msg, t('unsaved')); msg.className = 'msg'; clearTimeout(pending);
+      pending = setTimeout(async () => { try { await api('image', { image: v, save: false }); } catch (err) { say(msg, err.message); } }, 250); };
+    el.querySelectorAll('.cfg input, .cfg select').forEach((x) => { if (x.id !== 'i_q') { x.oninput = preview; x.onchange = preview; } });
+    $('#i_q').oninput = () => { $('#i_qV').textContent = $('#i_q').value; dirty = true; say(msg, t('unsaved')); msg.className = 'msg'; };
+    $('#iSave').onclick = async () => { read(); clearTimeout(pending); try { await api('image', { image: v, jpegQuality: q, save: true }); dirty = false; say(msg, t('saved'), true); } catch (err) { say(msg, err.message); } };
+    $('#iRestore').onclick = async () => { clearTimeout(pending); try { const r = await api('image', { restore: true }); v = Object.assign({}, r.video.image); q = r.capture.jpegQuality; fill(); dirty = false; say(msg, t('restored'), true); } catch (err) { say(msg, err.message); } };
+    $('#iDef').onclick = () => { v = Object.assign({}, DEF); fill(); preview(); };
+    fill();
+    timers.push(() => { if (dirty) api('image', { restore: true }).catch(() => { /* gone */ }); }); /* leaving unsaved: back to the saved values */
+  },
+
+  async events(el) {
+    el.innerHTML = panel('', `<div class="table-scroll" style="max-height:65vh"><table id="ev"></table></div><p class="note">${t('eventsNote')}</p>`);
+    const fmt = (s) => { const d = Math.floor(s / 86400); return (d ? d + 'd ' : '') + new Date(s * 1000).toISOString().slice(11, 19); };
+    every(5000, async () => {
+      if (document.hidden) return;
+      const list = await api('events');
+      $('#ev').innerHTML = list.length ? `<tr><th>${t('eTime')}</th><th>${t('eType')}</th><th>${t('eDetail')}</th></tr>` + list.map((e) => `<tr><td>${esc(e.time || '+' + fmt(e.uptimeS))}</td><td>${e.type === 'motion' ? dot('bad') : ''}${esc(e.type)}</td><td>${esc(e.text)}</td></tr>`).join('') : `<tr><td class="note">${t('noEvents')}</td></tr>`;
+    });
+  },
+
+  async motion(el, st) {
+    const cfg = await api('config');
+    const parse = (s) => { const a = String(s || '').split(',').map(Number); return a.length === 4 && a.every((x) => x >= 0) ? a : [0, 0, 100, 100]; };
+    let roi = parse(cfg.motionRoi);
+    el.innerHTML = `<div class="split"><div class="pvw"><div class="player"><div class="screen" id="mScreen"></div></div><p class="note">${t('regionHelp')} <a id="mFull" style="cursor:pointer">${t('fullFrame')}</a></p></div><div class="cfg">`
+      + panel(t('pMotion'), row(t('motionOn'), chk('mOn', cfg.motion)) + row(t('status'), '<span id="mState"></span>') + row(t('level'), '<span class="bar meter" id="mBar"><i></i><b></b></span> <span id="mLvl" class="note"></span>')
+        + row(t('sensitivity'), `<input type="range" id="mSens" min="1" max="100" value="${cfg.motionSens}"><span id="mSensV">${cfg.motionSens}</span>`)
+        + row(t('cooldown'), num('mCool', cfg.motionCooldown, 5, 3600)) + row(t('region'), '<code id="mRoi"></code>')
+        + row(t('mCount'), '<span id="mCnt"></span>') + row(t('lastMotion'), '<span id="mLast"></span>'))
+      + panel(t('onMotion'), row('', chk('mSd', cfg.motionSd, t('mSd')) + (FEAT.sd ? '' : ` <span class="note">(${t('notBuiltShort')})</span>`)) + row('', chk('mUp', cfg.motionUpload, t('mUpload'))) + `<p class="note">${t('motionNote')}</p>`, saveBar('mSave'))
+      + '</div></div>';
+    const pic = livePicture($('#mScreen'), { w: 640, h: 480, q: 12, overlay: true, name: st.model });
+    pic.start();
+    const cv = pic.canvas, ctx = cv.getContext('2d');
+    const drawRoi = () => {
+      cv.width = cv.clientWidth; cv.height = cv.clientHeight; const W = cv.width, H = cv.height;
+      ctx.clearRect(0, 0, W, H); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(0, 0, W, H);
+      const [x, y, w, h] = roi.map((n, i) => n * (i % 2 ? H : W) / 100); ctx.clearRect(x, y, w, h);
+      ctx.strokeStyle = '#18b693'; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+      $('#mRoi').textContent = roi.join(',');
+    };
+    pic.img.addEventListener('load', drawRoi); window.addEventListener('resize', drawRoi); timers.push(() => window.removeEventListener('resize', drawRoi));
+    let drag = null;
+    const pct = (e) => { const r = cv.getBoundingClientRect(); return [Math.max(0, Math.min(100, (e.clientX - r.left) * 100 / r.width)), Math.max(0, Math.min(100, (e.clientY - r.top) * 100 / r.height))]; };
+    cv.onpointerdown = (e) => { drag = pct(e); cv.setPointerCapture(e.pointerId); };
+    cv.onpointermove = (e) => { if (!drag) return; const p = pct(e); roi = [Math.min(drag[0], p[0]), Math.min(drag[1], p[1]), Math.abs(p[0] - drag[0]), Math.abs(p[1] - drag[1])].map(Math.round); drawRoi(); };
+    cv.onpointerup = () => { if (!drag) return; drag = null; if (roi[2] < 5 || roi[3] < 5) roi = [0, 0, 100, 100]; roi[2] = Math.min(roi[2], 100 - roi[0]); roi[3] = Math.min(roi[3], 100 - roi[1]); drawRoi(); };
+    $('#mFull').onclick = () => { roi = [0, 0, 100, 100]; drawRoi(); };
+    $('#mSens').oninput = () => { $('#mSensV').textContent = $('#mSens').value; };
+    setTimeout(drawRoi, 300);
+    const draw = (s) => {
+      const m = s.motion;
+      $('#mState').innerHTML = !m.enabled ? dot('') + t('mOff') : m.running ? dot(m.active ? 'bad' : 'ok') + t('mRunning') : dot('warn') + esc(m.why === 'live' ? t('mLive') : t('mNeedPowered', s.power.effective));
+      const scale = Math.max(m.threshold * 3, 30);
+      $('#mBar').querySelector('i').style.width = Math.min(100, m.level * 100 / scale) + '%'; $('#mBar').querySelector('i').className = m.level >= m.threshold && m.threshold ? 'bad' : '';
+      $('#mBar').querySelector('b').style.left = Math.min(100, m.threshold * 100 / scale) + '%';
+      $('#mLvl').textContent = m.running ? t('perMille', m.level, m.threshold) : '';
+      $('#mCnt').textContent = m.count; $('#mLast').textContent = m.lastAt || t('none');
+    };
+    draw(st);
+    every(1000, async () => { if (document.hidden) return; const s = await api('status'); draw(s); pic.osd(s); });
+    $('#mSave').onclick = () => saveCfg({ motion: $('#mOn').checked, motionSens: +$('#mSens').value, motionCooldown: +$('#mCool').value, motionRoi: roi.join(','), motionSd: $('#mSd').checked, motionUpload: $('#mUp').checked }, $('#mSaveMsg'));
+  },
+
+  async schedule(el) {
+    const s = await api('schedule');
+    const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const mins = (x) => { const [h, m] = x.split(':').map(Number); return h * 60 + m; };
+    const cloud = s.source === 'cloud';
+    const list = s.items.map((i) => `<tr><td>${esc(i.id)}</td><td>${i.from} – ${i.to}</td><td>${t('every', i.everyMin)}</td></tr>`).join('');
+    el.innerHTML = panel(t('pSchedule'), row(t('setBy'), `<b>${cloud ? t('srcCloud') : t('srcLocal')}</b>`) + row(t('powerMode'), esc(s.powerEffective))
+        + `<table>${list}</table>` + (cloud ? `<p class="note">${t('schedCloudNote')}</p>` : ''))
+      + (cloud ? '' : panel(t('srcLocal'), row(t('interval'), num('sInt', s.intervalMin, 1, 1440)) + row(t('window'), `${t('from')} <input type="time" id="sFrom" value="${hm(s.schedFrom)}"> ${t('to')} <input type="time" id="sTo" value="${hm(s.schedTo)}">`, t('allDay'))
+        + `<p class="note">${t('schedNote')}</p>`, saveBar('sSave')))
+      + panel(t('nextCaptures'), s.clockSynced ? (s.next.length ? `<table>${s.next.map((n) => `<tr><td>${esc(n.at)}</td><td class="note">${esc(n.id)}</td></tr>`).join('')}</table>` : t('none')) + (s.nextWakeAt ? `<p class="note">nextWakeAt (FlyBot): ${esc(s.nextWakeAt)}</p>` : '') : `<p class="note">${t('noClock')}</p>`);
+    if (!cloud) $('#sSave').onclick = async () => { if (await saveCfg({ intervalMin: +$('#sInt').value, schedFrom: mins($('#sFrom').value || '00:00'), schedTo: mins($('#sTo').value || '23:59') }, $('#sSaveMsg'))) setTimeout(() => route(), 800); };
+  },
+
+  async storage(el) {
+    if (!FEAT.sd) { el.innerHTML = panel('', `<p class="note">${t('notBuilt')}</p>`); return; }
+    const s = await api('sd');
+    const used = s.totalMB ? s.totalMB - s.freeMB : 0, pct = s.totalMB ? Math.round(used * 100 / s.totalMB) : 0;
+    el.innerHTML = panel(t('card'), s.present ? kv([[t('card'), `${dot('ok')}${esc(s.card)}`], [t('capacity'), `${s.totalMB} MB`], [t('used'), `<span class="bar"><i class="${pct > 90 ? 'bad' : pct > 75 ? 'warn' : ''}" style="width:${pct}%"></i></span> ${used} MB (${pct} %)`], [t('free'), `${s.freeMB} MB`],
+        [t('playback'), `<a href="#playback">${t('photos', s.days.reduce((n, d) => n + d.files, 0))}</a>`]]) : `<p class="note">${t('noCard')}</p>`,
+        s.present ? `<button class="btn danger" id="sdFmt">${t('format')}</button><span class="msg" id="sdFmtMsg"></span>` : '')
+      + panel(t('pStorage'), row(t('sdSave'), chk('sdSave', s.save)) + `<p class="note">${t('storageNote')}</p>`, saveBar('sdS'));
+    $('#sdS').onclick = () => saveCfg({ sdSave: $('#sdSave').checked }, $('#sdSMsg'));
+    if (s.present) $('#sdFmt').onclick = async () => { if (!(await ask(t('confirmFormat'), { danger: true }))) return; say($('#sdFmtMsg'), t('loading'), true); try { await api('sd/format', {}); say($('#sdFmtMsg'), t('formatted'), true); setTimeout(() => route(), 800); } catch (err) { say($('#sdFmtMsg'), err.message); } };
   },
 
   async power(el, st) {
