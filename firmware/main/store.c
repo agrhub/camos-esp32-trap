@@ -170,6 +170,11 @@ static const str_field_t fields[] = {
 	{ "apPassword", "ap_pass", g_cfg.ap_pass, sizeof(g_cfg.ap_pass), true, "", false },
 	{ "verifyCode", "vcode", g_cfg.verify_code, sizeof(g_cfg.verify_code), false, "", true },
 	{ "uiLang", "ui_lang", g_cfg.ui_lang, sizeof(g_cfg.ui_lang), false, "en", false },
+	{ "motionRoi", "mo_roi", g_cfg.motion_roi, sizeof(g_cfg.motion_roi), false, "0,0,100,100", false },
+	{ "staticIp", "st_ip", g_cfg.static_ip, sizeof(g_cfg.static_ip), false, "", false },
+	{ "staticMask", "st_mask", g_cfg.static_mask, sizeof(g_cfg.static_mask), false, "255.255.255.0", false },
+	{ "staticGateway", "st_gw", g_cfg.static_gw, sizeof(g_cfg.static_gw), false, "", false },
+	{ "staticDns", "st_dns", g_cfg.static_dns, sizeof(g_cfg.static_dns), false, "", false },
 };
 #define N_FIELDS (sizeof(fields) / sizeof(fields[0]))
 
@@ -188,6 +193,15 @@ static const int_field_t ints[] = {
 	{ "ledEnabled", "led", &g_cfg.led, CAMOS_DEFAULT_LED, 0, 1, false },
 	{ "batteryMonitor", "batt_mon", &g_cfg.batt_mon, CAMOS_DEFAULT_BATTERY_MONITOR, 0, 1, false },
 	{ "claimed", "claimed", &g_cfg.claimed, 0, 0, 1, true }, /* factory image and owner pairing set 1 */
+	{ "sdSave", "sd_save", &g_cfg.sd_save, 1, 0, 1, false },
+	{ "schedFrom", "sched_from", &g_cfg.sched_from, 0, 0, 1439, false },
+	{ "schedTo", "sched_to", &g_cfg.sched_to, 1439, 0, 1439, false },
+	{ "motion", "motion", &g_cfg.motion, 0, 0, 1, false },
+	{ "motionSens", "mo_sens", &g_cfg.motion_sens, 50, 1, 100, false },
+	{ "motionCooldown", "mo_cool", &g_cfg.motion_cool, 60, 5, 3600, false },
+	{ "motionUpload", "mo_upload", &g_cfg.motion_upload, 0, 0, 1, false },
+	{ "motionSd", "mo_sd", &g_cfg.motion_sd, 1, 0, 1, false },
+	{ "ipMode", "ip_mode", &g_cfg.ip_mode, 0, 0, 1, false },
 };
 #define N_INTS (sizeof(ints) / sizeof(ints[0]))
 
@@ -347,6 +361,31 @@ bool store_paired(void)
 
 /* ------------------------------------------------------------------ portal / console keys */
 
+/* "x,y,w,h" in percent, inside 0..100, w and h at least 5 */
+bool roi_parse(const char *s, int out[4])
+{
+	int v[4];
+	char tail;
+	if (!s || sscanf(s, "%d,%d,%d,%d%c", &v[0], &v[1], &v[2], &v[3], &tail) != 4) {
+		return false;
+	}
+	if (v[0] < 0 || v[1] < 0 || v[2] < 5 || v[3] < 5 || v[0] + v[2] > 100 || v[1] + v[3] > 100) {
+		return false;
+	}
+	if (out) {
+		memcpy(out, v, sizeof(v));
+	}
+	return true;
+}
+
+static bool ip4_ok(const char *s)
+{
+	int a, b, c, d;
+	char tail;
+	return sscanf(s, "%d.%d.%d.%d%c", &a, &b, &c, &d, &tail) == 4 && a >= 0 && a <= 255 && b >= 0 && b <= 255 && c >= 0 &&
+		   c <= 255 && d >= 0 && d <= 255;
+}
+
 bool store_apply_kv(const char *key, const char *value)
 {
 	if (!key || !value) {
@@ -372,6 +411,12 @@ bool store_apply_kv(const char *key, const char *value)
 		if (!strcmp(key, "uiLang") && value[0] && strcmp(value, "en") && strcmp(value, "vi")) {
 			return false;
 		}
+		if (!strcmp(key, "motionRoi") && value[0] && !roi_parse(value, NULL)) {
+			return false;
+		}
+		if (!strncmp(key, "static", 6) && value[0] && !ip4_ok(value)) {
+			return false;
+		}
 		bool changed = strcmp(f->dst, value) != 0;
 		/* an empty value means "back to the default" */
 		strlcpy(f->dst, value[0] ? value : f->dflt, f->n);
@@ -380,6 +425,9 @@ bool store_apply_kv(const char *key, const char *value)
 		}
 		put_str(f->nvs, value[0] ? f->dst : "");
 		src_str[i] = value[0] ? 'n' : (f->dflt[0] ? 'd' : 0);
+		if (!strcmp(key, "motionRoi")) {
+			motion_config_changed();
+		}
 		if ((!strcmp(key, "ssid") || !strcmp(key, "password")) && (changed || g_wifi_error[0])) {
 			/* a new network: the next boot falls back to the portal if it cannot join (wifi.c) */
 			store_set_flag("wifi_new", 1);
@@ -426,6 +474,12 @@ bool store_apply_kv(const char *key, const char *value)
 		}
 		if (!strcmp(key, "gps") && v) {
 			store_set_flag("gps_absent", 0); /* switched on again: probe the module */
+		}
+		if (!strncmp(key, "motion", 6)) {
+			motion_config_changed();
+		}
+		if (!strncmp(key, "sched", 5)) {
+			sched_changed();
 		}
 		return true;
 	}

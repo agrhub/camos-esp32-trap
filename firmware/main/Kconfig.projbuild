@@ -421,6 +421,38 @@ menu "CamOS trap camera"
             Served while the camera is awake on Wi-Fi: always in powered mode, during the awake window in battery
             mode (a signed-in visit keeps it awake 2 minutes). Not served over 4G.
 
+    config CAMOS_WEB_BENCH_IP
+        string "Bench only: this client IP skips the console sign-in (empty = never)"
+        depends on CAMOS_WEB_CONSOLE
+        default ""
+        help
+            For automated tests of the web console from one bench computer on the LAN (for example 192.168.1.76):
+            requests from exactly this address are treated as signed in. Leave it empty in every image that leaves
+            the bench; the boot log warns when it is set.
+
+    menu "microSD card (photos for the console's Playback page)"
+        config CAMOS_SD
+            bool "Save photos to a microSD card (SD_MMC, 1-bit)"
+            depends on IDF_TARGET_ESP32S3
+            default y if CAMOS_BOARD_FREENOVE_S3CAM
+            default n
+            help
+                Freenove ESP32-S3 CAM: the card slot is SD_MMC CLK 39, CMD 38, D0 40. The AI-Thinker ESP32-CAM
+                shares its card pins with the flash LED, the button and the battery ADC: not supported there.
+        config CAMOS_SD_CLK
+            int "SD CLK GPIO"
+            depends on CAMOS_SD
+            default 39
+        config CAMOS_SD_CMD
+            int "SD CMD GPIO"
+            depends on CAMOS_SD
+            default 38
+        config CAMOS_SD_D0
+            int "SD D0 GPIO"
+            depends on CAMOS_SD
+            default 40
+    endmenu
+
     config CAMOS_LIVE
         bool "Live view: KVS WebRTC MASTER (ESP32-S3 only, esp-webrtc-solution)"
         depends on IDF_TARGET_ESP32S3

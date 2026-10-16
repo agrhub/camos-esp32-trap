@@ -1,5 +1,5 @@
 # FlyBot Sentinel: CamOS device protocol v1 subset on ESP32 camera boards (no AI on the device).
 cmake_minimum_required(VERSION 3.16)
-set(PROJECT_VER "0.3.0")
+set(PROJECT_VER "0.4.0")
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(camos-esp32)

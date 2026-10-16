@@ -92,9 +92,13 @@ void app_main(void)
 	power_setup();
 	button_task_start();
 	shadow_init();
+	if (sd_mount()) {
+		events_note("sd", "card mounted");
+	}
 	console_start();
 	sched_start();
 	proto_start();
+	motion_start(); /* idle unless enabled in the console and the effective mode is powered */
 
 	bool timer_wake = esp_reset_reason() == ESP_RST_DEEPSLEEP && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER;
 	if (!g_cfg.cert || !g_cfg.key) {

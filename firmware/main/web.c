@@ -8,14 +8,19 @@
  * forms); 5 wrong passwords lock sign-in for 5 minutes. Forgot the password: hold the button 3 s (portal) and
  * factory-reset from the console there, or `factory` on the serial console.
  *
- *   GET  /api/session                 {activated, signedIn, model, serial, fw}
+ *   GET  /api/session                 {activated, signedIn, model, serial, fw, uiLang}
  *   POST /api/activate {password}     first use only        POST /api/login {password}     POST /api/logout
  *   POST /api/password {current, new}
  *   GET  /api/status                  device, time, net, cloud, power, battery, location, led
  *   GET  /api/config  POST /api/config (portal keys)          POST /api/cert {cert, key}
  *   GET  /api/wifi/scan[?refresh=1]   [{ssid, rssi, secure, channel}]
- *   POST /api/image {brightness, contrast, saturation, jpegQuality}   local settings, the cloud shadow overrides them
- *   GET  /api/frame.jpg?w=640&h=480   live preview frame       POST /api/snapshot   capture + upload (trigger rpc)
+ *   GET  /api/image                   {video: {image}, capture, sensor}
+ *   POST /api/image {image: {...video.image keys}, jpegQuality, save}   save false = preview only; {restore: true}
+ *   GET  /api/stream?w=&h=&q=         MJPEG live view (multipart/x-mixed-replace), one viewer at a time (stream.c)
+ *   GET  /api/frame.jpg?w=640&h=480   one preview frame        POST /api/snapshot   capture + upload (trigger rpc)
+ *   GET  /api/schedule                {source, items, next}    GET  /api/events     recent events, newest first
+ *   GET  /api/sd  GET /api/sd/files?day=  GET /api/sd/file?day=&name=[&dl=1]  POST /api/sd/delete  POST /api/sd/format
+ *   POST /api/firmware                application/octet-stream app image, optional X-Fw-Sha256 header; restarts
  *   POST /api/pair  POST /api/gps  POST /api/ota  POST /api/reboot  POST /api/factory-reset
  *   GET  /api/logs?since=N            {text, next, lost}
  */
@@ -34,6 +39,8 @@
 #include "esp_netif.h"
 #include "esp_mac.h"
 #include "mbedtls/sha256.h"
+#include "esp_ota_ops.h"
+#include "lwip/sockets.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "camos.h"
@@ -337,8 +344,45 @@ static const char *session_new(void)
 	return sessions[slot].id;
 }
 
+/* A new firmware image that a signed-in browser reached over the network has proven itself (a camera without the
+ * cloud would otherwise roll back at the next restart; proto.c does the same on the first MQTT connect) */
+static void mark_valid_once(void)
+{
+	static bool done;
+	if (!done) {
+		done = true;
+		esp_ota_mark_app_valid_cancel_rollback();
+	}
+}
+
+/* CAMOS_WEB_BENCH_IP: the bench computer is treated as signed in (empty in every image that leaves the bench) */
+static bool bench_client(httpd_req_t *req)
+{
+	const char *bench = CONFIG_CAMOS_WEB_BENCH_IP;
+	if (!bench[0]) {
+		return false;
+	}
+	struct sockaddr_storage a;
+	socklen_t l = sizeof(a);
+	char ip[48] = "";
+	if (getpeername(httpd_req_to_sockfd(req), (struct sockaddr *)&a, &l) != 0) {
+		return false;
+	}
+	if (a.ss_family == AF_INET) {
+		inet_ntop(AF_INET, &((struct sockaddr_in *)&a)->sin_addr, ip, sizeof(ip));
+	} else if (a.ss_family == AF_INET6) {
+		inet_ntop(AF_INET, &((struct sockaddr_in6 *)&a)->sin6_addr.s6_addr[12], ip, sizeof(ip)); /* v4-mapped */
+	}
+	return !strcmp(ip, bench);
+}
+
 static bool session_ok(httpd_req_t *req)
 {
+	if (bench_client(req)) {
+		sched_keep_awake(120);
+		mark_valid_once();
+		return true;
+	}
 	char sid[40];
 	size_t n = sizeof(sid);
 	if (httpd_req_get_cookie_val(req, "camos_sid", sid, &n) != ESP_OK || strlen(sid) != 32) {
@@ -349,6 +393,7 @@ static bool session_ok(httpd_req_t *req)
 		if (sessions[i].id[0] && !strcmp(sessions[i].id, sid) && now - sessions[i].last_us < (int64_t)SESSION_IDLE_S * 1000000) {
 			sessions[i].last_us = now;
 			sched_keep_awake(120); /* battery mode: someone is looking */
+			mark_valid_once();
 			return true;
 		}
 	}
@@ -606,10 +651,35 @@ static esp_err_t status_get(httpd_req_t *req)
 	cJSON *l = cJSON_AddObjectToObject(o, "led");
 	cJSON_AddStringToObject(l, "state", led_state_name(led_get()));
 	cJSON_AddBoolToObject(l, "enabled", led_enabled());
+	cJSON_AddStringToObject(img, "sensor", cam_sensor_name());
+	stream_stats_t ss;
+	stream_get_stats(&ss);
+	cJSON *sj = cJSON_AddObjectToObject(o, "stream");
+	cJSON_AddBoolToObject(sj, "active", stream_active());
+	cJSON_AddNumberToObject(sj, "w", ss.w);
+	cJSON_AddNumberToObject(sj, "h", ss.h);
+	cJSON_AddNumberToObject(sj, "quality", ss.quality);
+	cJSON_AddNumberToObject(sj, "fps", (int)(ss.fps * 10 + 0.5f) / 10.0);
+	cJSON_AddNumberToObject(sj, "avgBytes", ss.avg_bytes);
+	cJSON_AddNumberToObject(sj, "frames", ss.frames);
+	motion_json(o);
+	cJSON *sd = cJSON_AddObjectToObject(o, "sd");
+	uint64_t total = 0, free_b = 0;
+	cJSON_AddBoolToObject(sd, "present", sd_present());
+	if (sd_usage(&total, &free_b)) {
+		cJSON_AddNumberToObject(sd, "totalMB", (double)(total >> 20));
+		cJSON_AddNumberToObject(sd, "freeMB", (double)(free_b >> 20));
+	}
+	cJSON_AddBoolToObject(sd, "save", g_cfg.sd_save);
 	cJSON *f = cJSON_AddObjectToObject(o, "features");
 	cJSON_AddBoolToObject(f, "modem", CAMOS_MODEM);
 	cJSON_AddBoolToObject(f, "gps", gps_available());
 	cJSON_AddBoolToObject(f, "live", live_supported());
+#if CONFIG_CAMOS_SD
+	cJSON_AddBoolToObject(f, "sd", true);
+#else
+	cJSON_AddBoolToObject(f, "sd", false);
+#endif
 	return web_send_json(req, o);
 }
 
@@ -639,23 +709,47 @@ static esp_err_t scan_get(httpd_req_t *req)
 	return web_scan_get(req);
 }
 
-/* Local image settings go through the shadow code so the same ranges and errors apply; the cloud overrides them */
+/* Local image settings go through the shadow code so the same ranges and errors apply; the cloud overrides them.
+ * save false: applied to the running camera only (the Image page previews while a slider moves); restore: back to
+ * the saved values. */
+static esp_err_t image_get(httpd_req_t *req)
+{
+	GUARD(req);
+	cJSON *o = cJSON_CreateObject();
+	shadow_image_json(o);
+	cJSON_AddStringToObject(o, "sensor", cam_sensor_name());
+	cJSON_AddNumberToObject(o, "shadowVersion", shadow_version());
+	return web_send_json(req, o);
+}
+
 static esp_err_t image_post(httpd_req_t *req)
 {
 	GUARD(req);
-	cJSON *j = web_read_json(req, 512);
+	cJSON *j = web_read_json(req, 1024);
 	if (!cJSON_IsObject(j)) {
 		cJSON_Delete(j);
 		return web_send_error(req, "400 Bad Request", "BAD_PARAMS", NULL);
 	}
+	if (cJSON_IsTrue(cJSON_GetObjectItem(j, "restore"))) {
+		cJSON_Delete(j);
+		shadow_reload();
+		return image_get(req);
+	}
+	bool save = !cJSON_IsFalse(cJSON_GetObjectItem(j, "save"));
 	cJSON *doc = cJSON_CreateObject();
+	cJSON *in = cJSON_GetObjectItem(j, "image");
 	cJSON *video = cJSON_AddObjectToObject(doc, "video");
-	cJSON *img = cJSON_AddObjectToObject(video, "image");
-	const char *keys[] = { "brightness", "contrast", "saturation" };
-	for (int i = 0; i < 3; i++) {
-		cJSON *v = cJSON_GetObjectItem(j, keys[i]);
-		if (cJSON_IsNumber(v)) {
-			cJSON_AddNumberToObject(img, keys[i], v->valuedouble);
+	if (cJSON_IsObject(in)) {
+		cJSON_AddItemToObject(video, "image", cJSON_Duplicate(in, true));
+	} else {
+		/* the 0.3 page: brightness, contrast, saturation at the top level */
+		cJSON *img = cJSON_AddObjectToObject(video, "image");
+		const char *keys[] = { "brightness", "contrast", "saturation" };
+		for (int i = 0; i < 3; i++) {
+			cJSON *v = cJSON_GetObjectItem(j, keys[i]);
+			if (cJSON_IsNumber(v)) {
+				cJSON_AddNumberToObject(img, keys[i], v->valuedouble);
+			}
 		}
 	}
 	cJSON *q = cJSON_GetObjectItem(j, "jpegQuality");
@@ -666,12 +760,15 @@ static esp_err_t image_post(httpd_req_t *req)
 	cJSON_Delete(j);
 	char *s = cJSON_PrintUnformatted(doc);
 	cJSON_Delete(doc);
-	char *reported = s ? shadow_apply(s, strlen(s), true) : NULL;
+	char *reported = s ? shadow_apply(s, strlen(s), save) : NULL;
 	free(s);
 	if (!reported) {
 		return web_send_error(req, "500 Internal Server Error", "INTERNAL", NULL);
 	}
-	proto_publish_reported(reported);
+	if (save) {
+		proto_publish_reported(reported);
+		events_note("image", "image settings saved in the console");
+	}
 	cJSON *r = cJSON_Parse(reported);
 	free(reported);
 	cJSON *errors = cJSON_DetachItemFromObject(r, "errors");
@@ -680,12 +777,29 @@ static esp_err_t image_post(httpd_req_t *req)
 		cJSON *o = cJSON_CreateObject();
 		cJSON_AddFalseToObject(o, "ok");
 		cJSON_AddStringToObject(o, "error", "BAD_VALUE");
+		char paths[160] = "";
+		const cJSON *e;
+		cJSON_ArrayForEach(e, errors)
+		{
+			const char *p = cJSON_GetStringValue(cJSON_GetObjectItem(e, "path"));
+			if (p) {
+				strlcat(paths, paths[0] ? ", " : "", sizeof(paths));
+				strlcat(paths, p, sizeof(paths));
+			}
+		}
+		cJSON_AddStringToObject(o, "message", paths);
 		cJSON_AddItemToObject(o, "errors", errors);
 		httpd_resp_set_status(req, "400 Bad Request");
 		return web_send_json(req, o);
 	}
 	cJSON_Delete(errors);
 	return web_send_ok(req);
+}
+
+static esp_err_t stream_get(httpd_req_t *req)
+{
+	GUARD(req);
+	return web_stream_get(req);
 }
 
 static esp_err_t frame_get(httpd_req_t *req)
@@ -701,7 +815,7 @@ static esp_err_t frame_get(httpd_req_t *req)
 			h = atoi(v);
 		}
 	}
-	if (!((w == 320 && h == 240) || (w == 640 && h == 480) || (w == 800 && h == 600) || (w == 1280 && h == 720))) {
+	if (!frame_size_ok(w, h)) {
 		w = 640, h = 480;
 	}
 	camera_fb_t *fb = NULL;
@@ -726,6 +840,9 @@ static esp_err_t snapshot_post(httpd_req_t *req)
 	cJSON_AddNumberToObject(o, "w", up.w);
 	cJSON_AddNumberToObject(o, "h", up.h);
 	cJSON_AddNumberToObject(o, "bytes", (double)up.bytes);
+	if (up.sd_file[0]) {
+		cJSON_AddStringToObject(o, "sdFile", up.sd_file);
+	}
 	if (e == ESP_OK) {
 		cJSON_AddStringToObject(o, "snapshotId", up.key);
 	} else {
@@ -856,14 +973,194 @@ static esp_err_t logs_get(httpd_req_t *req)
 	return web_send_json(req, o);
 }
 
+static esp_err_t schedule_get(httpd_req_t *req)
+{
+	GUARD(req);
+	cJSON *o = sched_json(8);
+	cJSON_AddNumberToObject(o, "intervalMin", shadow_interval_min());
+	cJSON_AddNumberToObject(o, "schedFrom", g_cfg.sched_from);
+	cJSON_AddNumberToObject(o, "schedTo", g_cfg.sched_to);
+	cJSON_AddStringToObject(o, "powerEffective", power_mode_name(power_effective()));
+	return web_send_json(req, o);
+}
+
+static esp_err_t events_get(httpd_req_t *req)
+{
+	GUARD(req);
+	return web_send_json(req, events_json());
+}
+
+/* ------------------------------------------------------------------ microSD (Playback and Storage pages) */
+
+static void query_arg(httpd_req_t *req, const char *key, char *out, size_t n)
+{
+	char q[96];
+	out[0] = 0;
+	if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK) {
+		httpd_query_key_value(q, key, out, n);
+	}
+}
+
+static esp_err_t sd_get(httpd_req_t *req)
+{
+	GUARD(req);
+	cJSON *o = cJSON_CreateObject();
+	uint64_t total = 0, free_b = 0;
+	bool ok = sd_usage(&total, &free_b);
+	cJSON_AddBoolToObject(o, "present", sd_present());
+	cJSON_AddStringToObject(o, "card", sd_card_name());
+	if (ok) {
+		cJSON_AddNumberToObject(o, "totalMB", (double)(total >> 20));
+		cJSON_AddNumberToObject(o, "freeMB", (double)(free_b >> 20));
+	}
+	cJSON_AddBoolToObject(o, "save", g_cfg.sd_save);
+	cJSON_AddItemToObject(o, "days", sd_list_days());
+	return web_send_json(req, o);
+}
+
+static esp_err_t sd_files_get(httpd_req_t *req)
+{
+	GUARD(req);
+	char day[12];
+	query_arg(req, "day", day, sizeof(day));
+	return web_send_json(req, sd_list_files(day));
+}
+
+static esp_err_t sd_file_get(httpd_req_t *req)
+{
+	GUARD(req);
+	char day[12], name[16], dl[4];
+	query_arg(req, "day", day, sizeof(day));
+	query_arg(req, "name", name, sizeof(name));
+	query_arg(req, "dl", dl, sizeof(dl));
+	return sd_serve(req, day, name, dl[0] == '1');
+}
+
+static esp_err_t sd_delete_post(httpd_req_t *req)
+{
+	GUARD(req);
+	cJSON *j = web_read_json(req, 256);
+	const char *day = cJSON_GetStringValue(cJSON_GetObjectItem(j, "day"));
+	const char *name = cJSON_GetStringValue(cJSON_GetObjectItem(j, "name"));
+	esp_err_t e = day ? sd_delete(day, name) : ESP_ERR_INVALID_ARG;
+	char line[48];
+	snprintf(line, sizeof(line), "deleted %s%s%s", day ? day : "", name ? "/" : "", name ? name : "");
+	cJSON_Delete(j);
+	if (e != ESP_OK) {
+		return web_send_error(req, "400 Bad Request", "BAD_VALUE", "day / name");
+	}
+	events_note("sd", line);
+	return web_send_ok(req);
+}
+
+static esp_err_t sd_format_post(httpd_req_t *req)
+{
+	GUARD(req);
+	esp_err_t e = sd_format();
+	if (e != ESP_OK) {
+		return web_send_error(req, "500 Internal Server Error", e == ESP_ERR_INVALID_STATE ? "NO_CARD" : "INTERNAL", esp_err_to_name(e));
+	}
+	events_note("sd", "card formatted");
+	return web_send_ok(req);
+}
+
+/* ------------------------------------------------------------------ firmware upload (System > Maintenance) */
+
+static esp_err_t firmware_post(httpd_req_t *req)
+{
+	GUARD(req);
+	const esp_partition_t *part = esp_ota_get_next_update_partition(NULL);
+	if (!part) {
+		return web_send_error(req, "500 Internal Server Error", "NO_OTA_SLOT", NULL);
+	}
+	if (req->content_len < 64 * 1024 || req->content_len > part->size) {
+		return web_send_error(req, "400 Bad Request", "BAD_IMAGE", "size");
+	}
+	char want[72] = "";
+	httpd_req_get_hdr_value_str(req, "X-Fw-Sha256", want, sizeof(want));
+	sched_keep_awake(600);
+	led_set(LED_OTA);
+	char *buf = malloc(4096);
+	esp_ota_handle_t h = 0;
+	esp_err_t e = buf ? esp_ota_begin(part, OTA_WITH_SEQUENTIAL_WRITES, &h) : ESP_ERR_NO_MEM;
+	mbedtls_sha256_context sha;
+	mbedtls_sha256_init(&sha);
+	mbedtls_sha256_starts(&sha, 0);
+	size_t got = 0;
+	const char *why = NULL;
+	ESP_LOGI(TAG, "firmware upload: %u bytes into %s", (unsigned)req->content_len, part->label);
+	while (e == ESP_OK && got < req->content_len) {
+		int r = httpd_req_recv(req, buf, 4096);
+		if (r == HTTPD_SOCK_ERR_TIMEOUT) {
+			continue;
+		}
+		if (r <= 0) {
+			why = "upload interrupted";
+			e = ESP_FAIL;
+			break;
+		}
+		if (got == 0 && (uint8_t)buf[0] != 0xE9) {
+			why = "not an ESP32 app image";
+			e = ESP_ERR_INVALID_ARG;
+			break;
+		}
+		mbedtls_sha256_update(&sha, (const uint8_t *)buf, r);
+		e = esp_ota_write(h, buf, r);
+		got += r;
+	}
+	free(buf);
+	uint8_t d[32];
+	char hexd[65];
+	mbedtls_sha256_finish(&sha, d);
+	mbedtls_sha256_free(&sha);
+	hex(d, sizeof(d), hexd);
+	if (e == ESP_OK) {
+		e = esp_ota_end(h); /* checks the image (and its signature when secure boot is on) */
+		h = 0;
+		if (e != ESP_OK) {
+			why = "image check failed";
+		}
+	} else if (h) {
+		esp_ota_abort(h);
+	}
+	if (e == ESP_OK && want[0] && strcasecmp(want, hexd)) {
+		why = "SHA-256 differs";
+		e = ESP_ERR_INVALID_CRC;
+	}
+	if (e == ESP_OK) {
+		e = esp_ota_set_boot_partition(part);
+	}
+	if (e != ESP_OK) {
+		led_set(proto_connected() ? LED_ONLINE : LED_CONNECTING);
+		ESP_LOGE(TAG, "firmware upload failed: %s (%s)", why ? why : "write", esp_err_to_name(e));
+		events_note("firmware", why ? why : "upload failed");
+		return web_send_error(req, "400 Bad Request", "BAD_IMAGE", why ? why : esp_err_to_name(e));
+	}
+	ESP_LOGW(TAG, "firmware upload OK (sha256 %s), restarting into %s", hexd, part->label);
+	events_note("firmware", "new firmware uploaded, restarting");
+	cJSON *o = cJSON_CreateObject();
+	cJSON_AddTrueToObject(o, "ok");
+	cJSON_AddStringToObject(o, "sha256", hexd);
+	cJSON_AddNumberToObject(o, "bytes", (double)got);
+	web_send_json(req, o);
+	remember_reboot_reason("ota");
+	static esp_timer_handle_t t;
+	const esp_timer_create_args_t a = { .callback = restart_later, .name = "fw-restart" };
+	if (t || esp_timer_create(&a, &t) == ESP_OK) {
+		esp_timer_start_once(t, 1500000);
+	}
+	return ESP_OK;
+}
+
 void web_start(void)
 {
 	if (srv) {
 		return;
 	}
 	httpd_config_t hc = HTTPD_DEFAULT_CONFIG();
-	hc.max_uri_handlers = 24;
-	hc.lru_purge_enable = true;
+	hc.max_uri_handlers = 40;
+	hc.max_open_sockets = 8; /* LWIP_MAX_SOCKETS 16: 8 + 3 for the server + MQTT, HTTPS, SNTP, DNS */
+	hc.lru_purge_enable = true; /* a live stream (async request) is never the one purged */
 	hc.stack_size = 10240; /* snapshot (TLS upload) and pairing run inside handlers */
 	hc.recv_wait_timeout = 15;
 	hc.send_wait_timeout = 15;
@@ -886,8 +1183,18 @@ void web_start(void)
 		{ .uri = "/api/config", .method = HTTP_POST, .handler = config_post },
 		{ .uri = "/api/cert", .method = HTTP_POST, .handler = cert_post },
 		{ .uri = "/api/wifi/scan", .method = HTTP_GET, .handler = scan_get },
+		{ .uri = "/api/image", .method = HTTP_GET, .handler = image_get },
 		{ .uri = "/api/image", .method = HTTP_POST, .handler = image_post },
+		{ .uri = "/api/stream", .method = HTTP_GET, .handler = stream_get },
 		{ .uri = "/api/frame.jpg", .method = HTTP_GET, .handler = frame_get },
+		{ .uri = "/api/schedule", .method = HTTP_GET, .handler = schedule_get },
+		{ .uri = "/api/events", .method = HTTP_GET, .handler = events_get },
+		{ .uri = "/api/sd", .method = HTTP_GET, .handler = sd_get },
+		{ .uri = "/api/sd/files", .method = HTTP_GET, .handler = sd_files_get },
+		{ .uri = "/api/sd/file", .method = HTTP_GET, .handler = sd_file_get },
+		{ .uri = "/api/sd/delete", .method = HTTP_POST, .handler = sd_delete_post },
+		{ .uri = "/api/sd/format", .method = HTTP_POST, .handler = sd_format_post },
+		{ .uri = "/api/firmware", .method = HTTP_POST, .handler = firmware_post },
 		{ .uri = "/api/snapshot", .method = HTTP_POST, .handler = snapshot_post },
 		{ .uri = "/api/pair", .method = HTTP_POST, .handler = pair_post },
 		{ .uri = "/api/gps", .method = HTTP_POST, .handler = gps_post },
@@ -903,6 +1210,9 @@ void web_start(void)
 	char ip[16];
 	net_ip(ip, sizeof(ip));
 	ESP_LOGI(TAG, "web console at http://%s/ (%s)", ip, activated() ? "admin password set" : "first visit sets the admin password");
+	if (CONFIG_CAMOS_WEB_BENCH_IP[0]) {
+		ESP_LOGW(TAG, "BENCH BUILD: requests from %s skip the sign-in (CAMOS_WEB_BENCH_IP)", CONFIG_CAMOS_WEB_BENCH_IP);
+	}
 }
 
 #else

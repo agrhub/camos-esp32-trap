@@ -46,6 +46,17 @@ typedef struct {
 	int led;              /* 1 = status LED on */
 	int batt_mon;         /* 1 = battery / solar dividers are wired (an unwired ADC pin floats and reads noise) */
 	int claimed;          /* 0 = self-registered and not claimed in FlyBot yet (CONTRACTS 2a.3) */
+	int sd_save;          /* 1 = every capture is also written to the microSD card (sd.c) */
+	int sched_from;       /* local capture window (minutes after midnight) when the cloud sets no detections[] */
+	int sched_to;         /* inclusive; < sched_from crosses midnight */
+	int motion;           /* 1 = frame-difference motion detection (powered mode, motion.c) */
+	int motion_sens;      /* 1..100 */
+	int motion_cool;      /* seconds between two motion triggers */
+	int motion_upload;    /* 1 = a motion trigger also captures and uploads a full photo to FlyBot */
+	int motion_sd;        /* 1 = a motion trigger saves the picture to the microSD card */
+	char motion_roi[24];  /* "x,y,w,h" in percent of the picture */
+	int ip_mode;          /* 0 DHCP, 1 static (Wi-Fi) */
+	char static_ip[16], static_mask[16], static_gw[16], static_dns[16];
 	char ap_pass[65];
 	char *cert;           /* device certificate PEM (malloc, lives forever: esp-mqtt keeps the pointer) */
 	char *key;            /* device private key PEM */
@@ -151,6 +162,18 @@ typedef struct {
 	int brightness;       /* protocol -64..64 */
 	int contrast;         /* protocol 0..100 */
 	int saturation;       /* protocol 0..100 */
+	int sharpness;        /* protocol 0..100 */
+	int orientation;      /* protocol 0..3: 0 normal, 1 mirror, 2 flip, 3 both (on top of the Kconfig flip) */
+	/* ESP32 additions under video.image (docs/PROTOCOL_ADDITIONS.md) */
+	int wb_mode;          /* 0 auto, 1 sunny, 2 cloudy, 3 office, 4 home */
+	int effect;           /* 0 none, 1 negative, 2 grayscale, 3 red, 4 green, 5 blue, 6 sepia */
+	int ae_level;         /* -5..5 (OV5640), -2..2 others */
+	int exposure_auto;    /* 1 auto exposure */
+	int exposure;         /* 0..1200 when manual */
+	int gain_auto;        /* 1 auto gain */
+	int gain;             /* 0..30 when manual */
+	int gain_ceiling;     /* 0..6 = 2x..128x */
+	int denoise;          /* 0..8 (OV5640) */
 	sched_t sched[MAX_SCHED];
 	int n_sched;
 	/* v1 additions (docs/PROTOCOL_ADDITIONS.md) */
@@ -175,6 +198,7 @@ int shadow_version(void);
 int shadow_interval_min(void);                  /* effective capture interval: shadow > portal > Kconfig */
 power_mode_t shadow_power_mode(void);           /* configured mode (not the effective one, see power.c) */
 void shadow_clear_live_request(void);           /* live.requested handled */
+void shadow_reload(void);                       /* back to the saved settings (the console's image preview) */
 bool shadow_claimed(void);                      /* CONTRACTS 2a: false = unclaimed mode (1 snapshot per nextWakeAt) */
 
 /* ------------------------------------------------------------------ camera (cam.c) */
@@ -184,6 +208,8 @@ esp_err_t cam_capture(const settings_t *s, camera_fb_t **fb);
 void cam_release(camera_fb_t *fb);              /* returns the frame and powers the sensor down */
 void cam_sleep_prepare(void);                   /* hold PWDN / camera power off through deep sleep */
 void cam_max_size(int *w, int *h);              /* maximum JPEG size of the detected sensor, 0 before the first capture */
+void cam_apply_settings(const settings_t *s);   /* the image settings to a running sensor (call with the camera lock) */
+const char *cam_sensor_name(void);              /* "OV5640" ..., "" before the first power-up */
 /* Live view: the sensor at a small size, streaming JPEG frames (ESP32-S3). Returns ESP_OK and keeps the sensor up. */
 esp_err_t cam_stream_start(int width, int height, int quality);
 void cam_stream_stop(void);
@@ -196,6 +222,7 @@ typedef struct {
 	size_t bytes;
 	time_t next_wake_at; /* nextWakeAt hint, 0 when absent */
 	char error[64];
+	char sd_file[32];    /* "YYYYMMDD/HHMMSSx.JPG" when the photo was also saved to the microSD card */
 } upload_t;
 
 /* POST /api/device/snapshot: multipart image + meta. trigger: "schedule" | "rpc" | "boot". Retries with back-off. */
@@ -219,6 +246,7 @@ const char *tz_effective_source(void);          /* "manual" | "shadow" | "farm" 
 const char *clock_source(void);                 /* "sntp" | "modem" | "gps" | "flybot" | "rtc" | "none" */
 void clock_set_source(const char *src);
 bool store_overridden(const char *key);         /* set in the runtime NVS (not a default) */
+bool roi_parse(const char *s, int out[4]);      /* "x,y,w,h" percent (motionRoi) */
 void nvs_tz_read(char *iana, size_t in, char *posix, size_t pn, char *src, size_t sn); /* store.c */
 void nvs_tz_write(const char *iana, const char *posix, const char *src);
 bool shadow_tz(char *iana, size_t in, char *posix, size_t pn); /* the shadow set `timezone` (shadow.c) */
@@ -257,6 +285,7 @@ void sched_changed(void);                       /* settings changed: recompute t
 void sched_keep_awake(int seconds);             /* live view / console: no deep sleep for this long */
 time_t sched_next_capture(void);                /* 0 when none */
 void sched_wake_hint(time_t at);                /* nextWakeAt from the FlyBot snapshot response */
+cJSON *sched_json(int n_next);                  /* {source, items[], next[]} for the console's Schedule page */
 
 /* ------------------------------------------------------------------ battery and power (battery.c, power.c) */
 
@@ -356,6 +385,48 @@ esp_err_t preview_frame(int w, int h, int quality, camera_fb_t **fb);
 void preview_release(camera_fb_t *fb);
 void preview_stop(void);
 bool preview_active(void);
+esp_err_t preview_frame_any(camera_fb_t **fb, int *w, int *h); /* the running preview size, else QVGA (motion) */
+void camera_settings_changed(void);             /* re-apply the image settings when the camera is running */
+
+/* ------------------------------------------------------------------ MJPEG live view (stream.c) */
+
+typedef struct {
+	int w, h, quality;
+	uint32_t frames, avg_bytes;
+	uint64_t bytes;
+	float fps;
+} stream_stats_t;
+esp_err_t web_stream_get(httpd_req_t *req);       /* GET /api/stream (after the session check) */
+void stream_get_stats(stream_stats_t *out);
+void stream_stop(void);
+bool stream_active(void);
+bool frame_size_ok(int w, int h);
+
+/* ------------------------------------------------------------------ microSD card (sd.c) */
+
+bool sd_mount(void);                            /* at boot; false = no card (or no SD support in this build) */
+void sd_unmount(void);
+bool sd_present(void);
+const char *sd_card_name(void);
+bool sd_usage(uint64_t *total, uint64_t *free_bytes);
+/* /sdcard/DCIM/YYYYMMDD/HHMMSSx.JPG; name_out = "YYYYMMDD/HHMMSSx.JPG" (the caller checks sdSave / motionSd) */
+esp_err_t sd_save_jpeg(const uint8_t *buf, size_t len, const char *trigger, char *name_out, size_t name_n);
+cJSON *sd_list_days(void);                      /* [{day, files}] */
+cJSON *sd_list_files(const char *day);          /* [{name, bytes, trigger}] */
+esp_err_t sd_serve(httpd_req_t *req, const char *day, const char *file, bool download);
+esp_err_t sd_delete(const char *day, const char *file); /* file NULL or "": the whole day */
+esp_err_t sd_format(void);
+
+/* ------------------------------------------------------------------ motion detection (motion.c) */
+
+void motion_start(void);                        /* task; runs while enabled and the effective mode is powered */
+void motion_config_changed(void);
+void motion_json(cJSON *parent);                /* motion {enabled, running, active, lastAt, count, level} */
+
+/* ------------------------------------------------------------------ recent events for the console (events.c) */
+
+void events_note(const char *type, const char *text); /* also called by proto_publish_event */
+cJSON *events_json(void);                       /* newest first */
 
 /* ------------------------------------------------------------------ serial console (console.c) */
 

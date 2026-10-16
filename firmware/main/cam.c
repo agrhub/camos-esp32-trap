@@ -163,16 +163,73 @@ void cam_max_size(int *w, int *h)
 	*h = max_fs ? resolution[max_fs].height : 0;
 }
 
+/* Protocol scale -> the sensor's levels, rounded: v in [lo, hi] mapped onto [-n, n] around mid */
+static int level(int v, int lo, int hi, int n)
+{
+	int mid2 = lo + hi; /* 2 x mid */
+	int num = (2 * v - mid2) * n, den = hi - lo;
+	int r = (num + (num >= 0 ? den / 2 : -den / 2)) / den;
+	return clampi(r, -n, n);
+}
+
 static void apply_image_settings(const settings_t *s)
 {
-	/* Shadow video.image (protocol 8) -> esp32-camera -2..2.
-	 * brightness -64..64 -> /32; contrast and saturation 0..100 -> (v-50)/25 */
+	/* Shadow video.image (protocol 8) -> esp32-camera levels. The OV5640 has more steps than the OV2640:
+	 * brightness and contrast -3..3, saturation -4..4, sharpness -3..3, AE level -5..5 (others -2..2, no sharpness). */
 	sensor_t *sn = esp_camera_sensor_get();
-	sn->set_brightness(sn, clampi((s->brightness + (s->brightness >= 0 ? 16 : -16)) / 32, -2, 2));
-	sn->set_contrast(sn, clampi((s->contrast - 50 + (s->contrast >= 50 ? 12 : -12)) / 25, -2, 2));
-	sn->set_saturation(sn, clampi((s->saturation - 50 + (s->saturation >= 50 ? 12 : -12)) / 25, -2, 2));
-	sn->set_vflip(sn, CAMOS_VFLIP);
-	sn->set_hmirror(sn, CAMOS_HMIRROR);
+	if (!sn) {
+		return;
+	}
+	bool ov5640 = sn->id.PID == OV5640_PID;
+	int n3 = ov5640 ? 3 : 2;
+	sn->set_brightness(sn, level(s->brightness, -64, 64, n3));
+	sn->set_contrast(sn, level(s->contrast, 0, 100, n3));
+	sn->set_saturation(sn, level(s->saturation, 0, 100, ov5640 ? 4 : 2));
+	if (sn->set_sharpness) {
+		sn->set_sharpness(sn, level(s->sharpness, 0, 100, n3));
+	}
+	sn->set_hmirror(sn, CAMOS_HMIRROR ^ ((s->orientation & 1) != 0));
+	sn->set_vflip(sn, CAMOS_VFLIP ^ ((s->orientation & 2) != 0));
+	sn->set_whitebal(sn, 1);
+	sn->set_awb_gain(sn, 1);
+	sn->set_wb_mode(sn, clampi(s->wb_mode, 0, 4));
+	sn->set_special_effect(sn, clampi(s->effect, 0, 6));
+	sn->set_exposure_ctrl(sn, s->exposure_auto ? 1 : 0);
+	sn->set_ae_level(sn, clampi(s->ae_level, ov5640 ? -5 : -2, ov5640 ? 5 : 2));
+	if (!s->exposure_auto) {
+		sn->set_aec_value(sn, clampi(s->exposure, 0, 1200));
+	}
+	sn->set_gain_ctrl(sn, s->gain_auto ? 1 : 0);
+	if (!s->gain_auto) {
+		sn->set_agc_gain(sn, clampi(s->gain, 0, 30));
+	}
+	sn->set_gainceiling(sn, (gainceiling_t)clampi(s->gain_ceiling, 0, 6));
+	if (sn->set_denoise) {
+		sn->set_denoise(sn, clampi(s->denoise, 0, 8));
+	}
+}
+
+void cam_apply_settings(const settings_t *s)
+{
+	apply_image_settings(s);
+}
+
+const char *cam_sensor_name(void)
+{
+	sensor_t *sn = esp_camera_sensor_get();
+	if (!sn) {
+		return max_fs == FRAMESIZE_QSXGA ? "OV5640" : max_fs == FRAMESIZE_QXGA ? "OV3660" : max_fs ? "OV2640" : "";
+	}
+	switch (sn->id.PID) {
+	case OV5640_PID:
+		return "OV5640";
+	case OV3660_PID:
+		return "OV3660";
+	case OV2640_PID:
+		return "OV2640";
+	default:
+		return "unknown";
+	}
 }
 
 /* First power-up: UXGA works on every sensor; the detected one decides the real size */

@@ -99,6 +99,11 @@ esp_err_t capture_now(const char *trigger, upload_t *out)
 		out->bytes = fb->len;
 		ESP_LOGI(TAG, "JPEG %dx%d, %u bytes, free heap %u, free PSRAM %u", out->w, out->h, (unsigned)fb->len,
 				 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL), (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+		if (g_cfg.sd_save && sd_present()) {
+			sd_save_jpeg(fb->buf, fb->len, trigger, out->sd_file, sizeof(out->sd_file)); /* kept even when the upload fails */
+		}
+		/* CONTRACTS section 2 knows schedule | rpc | boot: a motion photo is an on-demand one for FlyBot */
+		const char *meta_trigger = strcmp(trigger, "motion") ? trigger : "rpc";
 		battery_sample();
 		if (!g_cfg.api_base[0]) {
 			strlcpy(out->error, "no api base (set apiBase)", sizeof(out->error));
@@ -110,7 +115,7 @@ esp_err_t capture_now(const char *trigger, upload_t *out)
 			strlcpy(out->error, "no network", sizeof(out->error));
 			err = ESP_FAIL;
 		} else {
-			err = flybot_snapshot(fb, trigger, out);
+			err = flybot_snapshot(fb, meta_trigger, out);
 			if (err == ESP_OK && out->next_wake_at > time(NULL)) {
 				wake_hint = out->next_wake_at;
 			}
@@ -155,6 +160,26 @@ static void pv_idle_cb(void *arg)
 }
 
 bool preview_active(void) { return preview_on; }
+
+esp_err_t preview_frame_any(camera_fb_t **fb, int *w, int *h)
+{
+	int pw = preview_on ? pv_w : 320, ph = preview_on ? pv_h : 240;
+	*w = pw, *h = ph;
+	return preview_frame(pw, ph, 12, fb);
+}
+
+void camera_settings_changed(void)
+{
+	sched_init_lock();
+	if (preview_on && xSemaphoreTake(cam_mutex, pdMS_TO_TICKS(2000)) == pdTRUE) {
+		if (preview_on) {
+			settings_t s;
+			shadow_get(&s);
+			cam_apply_settings(&s);
+		}
+		xSemaphoreGive(cam_mutex);
+	}
+}
 
 esp_err_t preview_frame(int w, int h, int quality, camera_fb_t **fb)
 {
@@ -283,10 +308,74 @@ static int schedules(const settings_t *s, sched_t out[MAX_SCHED])
 	if (!shadow_claimed() && every < 60) {
 		every = 60; /* CONTRACTS 2a.3: an unclaimed camera uploads at most once an hour */
 	}
-	sched_t t = { .every_min = every, .from_min = 0, .to_min = 24 * 60 - 1 };
+	/* the local window from the console's Schedule page (all day by default) */
+	sched_t t = { .every_min = every, .from_min = g_cfg.sched_from, .to_min = g_cfg.sched_to };
+	if (t.from_min == t.to_min) {
+		t.from_min = 0, t.to_min = 24 * 60 - 1;
+	}
 	strcpy(t.id, "interval");
 	out[0] = t;
 	return 1;
+}
+
+cJSON *sched_json(int n_next)
+{
+	settings_t s;
+	shadow_get(&s);
+	sched_t list[MAX_SCHED];
+	int n = schedules(&s, list);
+	cJSON *o = cJSON_CreateObject();
+	cJSON_AddStringToObject(o, "source", s.n_sched > 0 ? "cloud" : "local");
+	cJSON_AddBoolToObject(o, "claimed", shadow_claimed());
+	cJSON_AddBoolToObject(o, "clockSynced", clock_synced());
+	cJSON *items = cJSON_AddArrayToObject(o, "items");
+	for (int i = 0; i < n; i++) {
+		cJSON *it = cJSON_CreateObject();
+		cJSON_AddStringToObject(it, "id", list[i].id);
+		cJSON_AddNumberToObject(it, "everyMin", list[i].every_min);
+		char hm[16];
+		snprintf(hm, sizeof(hm), "%02d:%02d", list[i].from_min / 60, list[i].from_min % 60);
+		cJSON_AddStringToObject(it, "from", hm);
+		snprintf(hm, sizeof(hm), "%02d:%02d", list[i].to_min / 60, list[i].to_min % 60);
+		cJSON_AddStringToObject(it, "to", hm);
+		cJSON_AddItemToArray(items, it);
+	}
+	cJSON *next = cJSON_AddArrayToObject(o, "next");
+	if (clock_synced()) {
+		time_t after[MAX_SCHED];
+		time_t now = time(NULL);
+		for (int i = 0; i < n; i++) {
+			after[i] = now;
+		}
+		for (int k = 0; k < n_next; k++) {
+			time_t best = 0;
+			int bi = -1;
+			for (int i = 0; i < n; i++) {
+				time_t t = next_fire(&list[i], after[i]);
+				if (t && (!best || t < best)) {
+					best = t, bi = i;
+				}
+			}
+			if (bi < 0) {
+				break;
+			}
+			after[bi] = best;
+			struct tm lt;
+			localtime_r(&best, &lt);
+			char ts[24];
+			strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M", &lt);
+			cJSON *x = cJSON_CreateObject();
+			cJSON_AddStringToObject(x, "at", ts);
+			cJSON_AddStringToObject(x, "id", list[bi].id);
+			cJSON_AddItemToArray(next, x);
+		}
+	}
+	if (wake_hint > time(NULL)) {
+		char ts[25];
+		iso8601(wake_hint, ts);
+		cJSON_AddStringToObject(o, "nextWakeAt", ts); /* FlyBot's hint, can come sooner */
+	}
+	return o;
 }
 
 void sched_changed(void)

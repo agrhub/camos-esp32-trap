@@ -19,6 +19,7 @@
  * `reported` (and `state`) also carry location, net and battery (CONTRACTS section 3).
  */
 #include <string.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
@@ -40,6 +41,11 @@ static void defaults(settings_t *s)
 	s->brightness = 0;
 	s->contrast = 50;
 	s->saturation = 50;
+	s->sharpness = 50;
+	s->exposure_auto = 1;
+	s->exposure = 300;
+	s->gain_auto = 1;
+	s->gain_ceiling = 2;
 	s->power_mode = -1;
 	s->claimed = -1;
 }
@@ -77,6 +83,22 @@ void shadow_init(void)
 				 cur.tz, cur.interval_min, cur.power_mode);
 	}
 	tz_apply();
+}
+
+/* The web console previews image settings without saving them (shadow_apply persist false); Restore comes back here */
+void shadow_reload(void)
+{
+	settings_t saved;
+	if (!lock) {
+		shadow_init();
+	}
+	if (!store_get_blob("settings", &saved, sizeof(saved)) || saved.n_sched < 0 || saved.n_sched > MAX_SCHED) {
+		defaults(&saved);
+	}
+	xSemaphoreTake(lock, portMAX_DELAY);
+	cur = saved;
+	xSemaphoreGive(lock);
+	camera_settings_changed();
 }
 
 void shadow_get(settings_t *out)
@@ -196,6 +218,32 @@ static void apply_detections(const cJSON *arr, settings_t *s, cJSON *errors)
 	}
 }
 
+/* video.image fields: the protocol ones (brightness, contrast, saturation, sharpness, orientation) and the ESP32
+ * additions (white balance, effect, AE level, manual exposure / gain, gain ceiling, denoise). flicker, wdr and ldc have
+ * no OV2640 / OV5640 control in esp32-camera: NOT_SUPPORTED. */
+static const char *const wb_names[] = { "auto", "sunny", "cloudy", "office", "home", NULL };
+static const char *const fx_names[] = { "none", "negative", "grayscale", "red", "green", "blue", "sepia", NULL };
+typedef struct {
+	const char *key;
+	size_t off;
+	int lo, hi;
+	const char *const *names; /* string enum instead of a number */
+	bool boolean;
+} img_field_t;
+#define F(k, m, lo, hi) { k, offsetof(settings_t, m), lo, hi, NULL, false }
+static const img_field_t img_fields[] = {
+	F("brightness", brightness, -64, 64), F("contrast", contrast, 0, 100), F("saturation", saturation, 0, 100),
+	F("sharpness", sharpness, 0, 100), F("orientation", orientation, 0, 3),
+	{ "whiteBalance", offsetof(settings_t, wb_mode), 0, 4, wb_names, false },
+	{ "effect", offsetof(settings_t, effect), 0, 6, fx_names, false },
+	F("aeLevel", ae_level, -5, 5),
+	{ "exposureAuto", offsetof(settings_t, exposure_auto), 0, 1, NULL, true },
+	F("exposure", exposure, 0, 1200),
+	{ "gainAuto", offsetof(settings_t, gain_auto), 0, 1, NULL, true },
+	F("gain", gain, 0, 30), F("gainCeiling", gain_ceiling, 0, 6), F("denoise", denoise, 0, 8),
+};
+#undef F
+
 static void apply_image(const cJSON *img, settings_t *s, cJSON *errors)
 {
 	const cJSON *f;
@@ -203,17 +251,36 @@ static void apply_image(const cJSON *img, settings_t *s, cJSON *errors)
 	{
 		char path[48];
 		snprintf(path, sizeof(path), "video.image.%s", f->string);
-		int *dst = NULL, lo = 0, hi = 0;
-		if (!strcmp(f->string, "brightness")) {
-			dst = &s->brightness, lo = -64, hi = 64;
-		} else if (!strcmp(f->string, "contrast")) {
-			dst = &s->contrast, lo = 0, hi = 100;
-		} else if (!strcmp(f->string, "saturation")) {
-			dst = &s->saturation, lo = 0, hi = 100;
+		const img_field_t *fd = NULL;
+		for (size_t i = 0; i < sizeof(img_fields) / sizeof(img_fields[0]); i++) {
+			if (!strcmp(img_fields[i].key, f->string)) {
+				fd = &img_fields[i];
+			}
 		}
-		if (!dst) {
-			add_error(errors, path, "NOT_SUPPORTED"); /* sharpness, flicker, wdr, orientation, ldc */
-		} else if (!get_int(f, lo, hi, dst)) {
+		if (!fd) {
+			add_error(errors, path, "NOT_SUPPORTED"); /* flicker, wdr, ldc */
+			continue;
+		}
+		int *dst = (int *)((char *)s + fd->off), v;
+		if (fd->boolean) {
+			if (!cJSON_IsBool(f)) {
+				add_error(errors, path, "BAD_VALUE");
+				continue;
+			}
+			*dst = cJSON_IsTrue(f);
+		} else if (fd->names && cJSON_IsString(f)) {
+			int k = 0;
+			while (fd->names[k] && strcmp(fd->names[k], f->valuestring)) {
+				k++;
+			}
+			if (fd->names[k]) {
+				*dst = k;
+			} else {
+				add_error(errors, path, "BAD_VALUE");
+			}
+		} else if (get_int(f, fd->lo, fd->hi, &v)) {
+			*dst = v;
+		} else {
 			add_error(errors, path, "BAD_VALUE");
 		}
 	}
@@ -362,6 +429,7 @@ char *shadow_apply(const char *json, int len, bool persist)
 	last_errors = errors;
 	xSemaphoreGive(lock);
 	tz_apply();
+	camera_settings_changed(); /* live: a running preview / stream picks the new image settings up now */
 	if (persist) {
 		store_set_blob("settings", &s, sizeof(s));
 	}
@@ -381,9 +449,17 @@ void shadow_image_json(cJSON *parent)
 	shadow_get(&s);
 	cJSON *video = cJSON_AddObjectToObject(parent, "video");
 	cJSON *img = cJSON_AddObjectToObject(video, "image");
-	cJSON_AddNumberToObject(img, "brightness", s.brightness);
-	cJSON_AddNumberToObject(img, "contrast", s.contrast);
-	cJSON_AddNumberToObject(img, "saturation", s.saturation);
+	for (size_t i = 0; i < sizeof(img_fields) / sizeof(img_fields[0]); i++) {
+		const img_field_t *fd = &img_fields[i];
+		int v = *(const int *)((const char *)&s + fd->off);
+		if (fd->boolean) {
+			cJSON_AddBoolToObject(img, fd->key, v != 0);
+		} else if (fd->names) {
+			cJSON_AddStringToObject(img, fd->key, fd->names[v]);
+		} else {
+			cJSON_AddNumberToObject(img, fd->key, v);
+		}
+	}
 	cJSON *cap = cJSON_AddObjectToObject(parent, "capture");
 	int w, h;
 	cam_max_size(&w, &h);

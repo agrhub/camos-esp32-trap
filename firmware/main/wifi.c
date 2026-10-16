@@ -105,7 +105,25 @@ void wifi_start_sta(void)
 	}
 	started = true;
 	stopping = false;
-	esp_netif_create_default_wifi_sta();
+	esp_netif_t *sta = esp_netif_create_default_wifi_sta();
+	if (g_cfg.ip_mode == 1 && g_cfg.static_ip[0] && g_cfg.static_gw[0]) {
+		/* static address from the console's TCP/IP page (GOT_IP still comes once the station associates) */
+		esp_netif_ip_info_t ip = { 0 };
+		ip.ip.addr = esp_ip4addr_aton(g_cfg.static_ip);
+		ip.netmask.addr = esp_ip4addr_aton(g_cfg.static_mask[0] ? g_cfg.static_mask : "255.255.255.0");
+		ip.gw.addr = esp_ip4addr_aton(g_cfg.static_gw);
+		esp_netif_dhcpc_stop(sta);
+		if (esp_netif_set_ip_info(sta, &ip) == ESP_OK) {
+			esp_netif_dns_info_t dns = { 0 };
+			dns.ip.type = ESP_IPADDR_TYPE_V4;
+			dns.ip.u_addr.ip4.addr = esp_ip4addr_aton(g_cfg.static_dns[0] ? g_cfg.static_dns : g_cfg.static_gw);
+			esp_netif_set_dns_info(sta, ESP_NETIF_DNS_MAIN, &dns);
+			ESP_LOGI(TAG, "static IP %s / %s, gateway %s", g_cfg.static_ip, g_cfg.static_mask, g_cfg.static_gw);
+		} else {
+			esp_netif_dhcpc_start(sta);
+			ESP_LOGW(TAG, "static IP %s rejected: DHCP", g_cfg.static_ip);
+		}
+	}
 	wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
 	ESP_ERROR_CHECK(esp_wifi_init(&init));
 	const esp_timer_create_args_t targs = { .callback = retry_cb, .name = "wifi-retry" };

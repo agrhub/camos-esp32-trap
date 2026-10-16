@@ -79,6 +79,16 @@ cJSON *evt_new(const char *type, char id_out[27])
 
 void proto_publish_event(cJSON *evt)
 {
+	/* the console's Events page keeps a short line of every event */
+	const char *type = cJSON_GetStringValue(cJSON_GetObjectItem(evt, "type"));
+	const char *trig = cJSON_GetStringValue(cJSON_GetObjectItem(evt, "trigger"));
+	const char *err = cJSON_GetStringValue(cJSON_GetObjectItem(evt, "imageError"));
+	const char *sid = cJSON_GetStringValue(cJSON_GetObjectItem(evt, "snapshotId"));
+	const char *det = cJSON_GetStringValue(cJSON_GetObjectItem(evt, "detail"));
+	char line[96];
+	snprintf(line, sizeof(line), "%s%s%s%s", trig ? trig : "", err ? ": upload failed, " : sid ? ": uploaded " : "",
+			 err ? err : sid ? sid : "", det ? det : "");
+	events_note(type ? type : "event", line);
 	char *s = cJSON_PrintUnformatted(evt);
 	cJSON_Delete(evt);
 	if (s) {
