@@ -103,4 +103,4 @@ Xem phần "For developers" trong [README.md](README.md#8-for-developers) (tài 
 
 ## Giấy phép
 
-Apache-2.0 (xem [LICENSE](LICENSE)).
+GNU Affero General Public License v3.0 only (AGPL-3.0-only), Copyright (C) 2026 AGRHUB: xem [LICENSE](LICENSE). Các thành phần của bên thứ ba trong firmware giữ giấy phép riêng: xem [NOTICE](NOTICE). Nếu bạn chạy bản đã sửa đổi để người khác dùng qua mạng, AGPL yêu cầu bạn cung cấp mã nguồn của bản đó.

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * Status LED (docs/LED.md). One base state plus short one-shot overlays:
  *

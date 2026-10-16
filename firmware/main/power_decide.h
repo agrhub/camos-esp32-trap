@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /* power.mode decision, pure C (no ESP-IDF) so it is unit-tested on the host (tests/test_power.c). */
 #pragma once
 

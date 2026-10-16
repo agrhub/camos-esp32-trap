@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: AGPL-3.0-only
 /*
  * Mock camera for working on the setup portal and the web console without a board (and for the screenshots in
  * docs/img). Serves firmware/main/portal.html at /portal and firmware/main/console.html at /, with fake data only:

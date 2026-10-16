@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /* Host unit test for firmware/main/power_decide.c (power.mode auto hysteresis). */
 #include <stdio.h>
 #include "../firmware/main/power_decide.h"

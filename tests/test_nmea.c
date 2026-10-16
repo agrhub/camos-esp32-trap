@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /* Host unit test for firmware/main/nmea.c (ATGM336H sentences). Build: `make -C tests` (any C compiler). */
 #include <stdio.h>
 #include <string.h>

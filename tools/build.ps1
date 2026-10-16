@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 # Build / flash / monitor helper for Windows PowerShell (ESP-IDF v5.4). Usage, from the repo root or anywhere:
 #   tools\build.ps1 freenove build            # Freenove ESP32-S3-WROOM CAM (FNK0085)
 #   tools\build.ps1 esp32cam build            # AI-Thinker ESP32-CAM

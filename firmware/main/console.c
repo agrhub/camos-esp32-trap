@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * Serial console (UART0, 115200): every module can be exercised on the bench without the cloud.
  *

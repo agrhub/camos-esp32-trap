@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 #include "power_decide.h"
 
 power_mode_t power_decide(power_mode_t configured, power_mode_t previous, int mv, int high_mv, int low_mv)

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /* POST /api/device/register response (CONTRACTS 2a.2), parsed without ESP-IDF so it is host-tested (tests/test_reg.c) */
 #pragma once
 #include <stdbool.h>

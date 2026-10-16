@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * QR codes for the claim link (CONTRACTS 2a: the portal and the console show a QR of claimUrl) and the label text,
  * as SVG built on the device (espressif/qrcode = Nayuki's qrcodegen), so the pages need no JavaScript QR library.

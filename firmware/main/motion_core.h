@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /* Frame-difference motion detection, pure C (no ESP-IDF) so it is unit-tested on the host (tests/test_motion.c). */
 #pragma once
 #include <stdbool.h>

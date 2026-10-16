@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /* Host unit tests: registration response / body (reg_parse.c, CONTRACTS 2a.2), APN table (apn.c), AT+CCLK? (nmea.c). */
 #include <stdio.h>
 #include <stdlib.h>

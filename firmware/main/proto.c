@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * MQTT agent: CamOS device protocol v1 over TLS to AWS IoT Core (protocol 1, 2, 4, 5, 7, 8, 9) plus the FlyBot
  * additions (CONTRACTS section 3: RPC snapshot.now, live.start, live.stop, gps.fix, ota.apply; goodbye wakeAt).

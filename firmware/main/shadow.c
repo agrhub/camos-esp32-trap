@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * Shadow (protocol 8): the cloud keeps `desired`, the camera applies what it can and publishes `reported` with the same
  * `version` and an `errors` list for the rest. What this firmware supports:

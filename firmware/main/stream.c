@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * Live view on the LAN: GET /api/stream?w=640&h=480&q=12 answers multipart/x-mixed-replace (MJPEG) from a task of its
  * own (httpd async request), so the web console keeps answering while a viewer watches. One viewer at a time: a second

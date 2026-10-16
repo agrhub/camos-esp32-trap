@@ -121,4 +121,4 @@ calculations and the mock camera used for the screenshots:
 
 ## Licence
 
-Apache-2.0 (see [LICENSE](LICENSE)).
+GNU Affero General Public License v3.0 only (AGPL-3.0-only), Copyright (C) 2026 AGRHUB: see [LICENSE](LICENSE). Third-party components in the firmware image keep their own licences: see [NOTICE](NOTICE). If you run a modified version for others over a network, the AGPL asks you to offer them its source.

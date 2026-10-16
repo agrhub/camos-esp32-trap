@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * Motion detection on the camera (web console Event > Motion, docs/WEB_CONSOLE.md): frame difference against a running
  * average of the scene, on a small grey copy of the preview picture (JPEG decoded at 1/4 or 1/8 scale), inside a region

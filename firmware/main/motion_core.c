@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /* Frame-difference motion detection (see motion_core.h, motion.c) */
 #include <string.h>
 #include <stdlib.h>

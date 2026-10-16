@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 # Factory provisioning from PowerShell: runs tools/factory.sh with Git for Windows' bash (same options).
 #   tools\factory.ps1 COM7
 #   tools\factory.ps1 COM7 --cert D:\...\data\secrets\ESP...cert.pem --key D:\...\data\secrets\ESP...key.pem

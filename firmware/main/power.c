@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * power.mode (CONTRACTS section 3): "powered" keeps MQTT connected with snapshot and live on demand, "battery" is
  * the scheduled capture + deep sleep cycle (sched.c), "auto" picks one from the cell voltage with hysteresis:

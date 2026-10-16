@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * Network manager: 4G (SIM present and APN set, esp_modem PPP) else Wi-Fi. MQTT to IoT Core and HTTPS to FlyBot
  * run on whichever is up. Time: SNTP first; when nothing answers within TIME_SNTP_WAIT_S (some carriers block UDP

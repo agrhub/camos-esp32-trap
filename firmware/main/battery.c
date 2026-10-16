@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * Battery and solar monitor: LiPo voltage (and optionally the panel / charger input) through resistor dividers on
  * ADC pins, plus an optional charger status pin (CHRG of a TP4056 / CN3791 board).

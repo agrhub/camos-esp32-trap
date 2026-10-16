@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * microSD card (Freenove ESP32-S3 CAM: SD_MMC 1-bit, CLK 39, CMD 38, D0 40). Every capture is also saved to the card
  * (when "save photos to SD" is on) as /sdcard/DCIM/YYYYMMDD/HHMMSSx.JPG (8.3 names, x = S schedule, R rpc / console,

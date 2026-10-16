@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * OTA (RPC `ota.apply`): GET /api/device/ota gives {fw, url, sha256}; the image is streamed into the other OTA slot
  * with esp_ota_write while a SHA-256 runs over the bytes; only when the digest matches is the slot made bootable.

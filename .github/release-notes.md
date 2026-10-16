@@ -16,4 +16,4 @@ python -m esptool --chip esp32s3 --port COM7 write_flash 0x11000 camos-esp32-tra
 (`--chip esp32` for the AI-Thinker board.) A camera that is already running can also take the `-update.bin` from its web
 console: Configuration > Maintenance & Upgrade > Upload a firmware file.
 
-Set-up guide: https://github.com/{{REPO}}#readme · Licence: see LICENSE in the repository.
+Set-up guide: https://github.com/{{REPO}}#readme · Licence: GNU AGPL-3.0-only (source: https://github.com/{{REPO}}); third-party components: NOTICE.

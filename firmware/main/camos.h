@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * camos-esp32-trap: ESP32 / ESP32-S3 fruit-fly trap camera speaking the CamOS device protocol v1
  * (docs/dev/protocol-v1.md) over AWS IoT Core, with the FlyBot additions (docs/dev/PROTOCOL_ADDITIONS.md).

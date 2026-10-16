@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * Camera: JPEG at the maximum size of the sensor (protocol 9 `capture`: UXGA 1600x1200 on OV2640, QXGA 2048x1536 on
  * OV3660, QSXGA 2560x1920 on OV5640). The sensor is powered up for each capture and powered down afterwards (PWDN),

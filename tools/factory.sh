@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
 # Factory provisioning (the owner's path, CONTRACTS 2a.7): give one camera its own identity in the read-only "fctry"
 # NVS partition (0x14000, 0x6000), so it boots straight into IoT Core without self-registration.
 #

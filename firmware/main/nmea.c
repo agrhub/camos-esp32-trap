@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /* NMEA 0183 RMC / GGA parser (see nmea.h). Tolerates empty fields (no fix yet) and the ATGM336H's GN/GP/BD talkers. */
 #include <string.h>
 #include <stdio.h>

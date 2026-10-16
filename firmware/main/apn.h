@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /* APN from the SIM's home network (MCC + MNC from the IMSI). Pure C, host-tested (tests/test_apn.c). */
 #pragma once
 #include <stdbool.h>

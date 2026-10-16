@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
 """Print the label QR of a camera (protocol 12.1): CAMOS:1;SN:<serial>;VC:<verify code>;M:<model>;;
 
     python tools/label.py ESP000000000002 K7P4QX [AIC-FREENOVE-S3CAM] [-o label.png]

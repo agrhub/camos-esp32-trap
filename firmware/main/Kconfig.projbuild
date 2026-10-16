@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 menu "CamOS trap camera"
 
     choice CAMOS_BOARD

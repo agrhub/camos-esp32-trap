@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /* NMEA 0183 parser for the ATGM336H (GPS + BeiDou: $GNRMC / $GNGGA, also $GPxxx / $BDxxx).
  * Plain C, no ESP-IDF dependency, so it is unit-tested on the host (tests/test_nmea.c). */
 #pragma once

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /* Shadow `timezone` (protocol 8) is an IANA name; the C library needs a POSIX TZ string.
  * A small table of zones likely for traps; a string that already is POSIX (no '/', has a digit) passes through. */
 #include <string.h>

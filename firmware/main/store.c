@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * Configuration (docs/dev/CONFIG.md). Three layers, the later wins:
  *

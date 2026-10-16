@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * APN auto-detect (CONTRACTS 2a defaults: "4G with APN auto-detect"). Used when the APN setting is empty: the IMSI
  * gives MCC 452 (Vietnam) + a 2-digit MNC, the table gives the operator's default Internet APN. A user APN set in the

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * Setup portal (protocol 12.3 SoftAP), same look and flow as the AMB82 camera's setup page: Wi-Fi CAM-xxxx (last 4
  * characters of the serial, WPA2), a catch-all DNS answer so phones open the page by themselves, and the page at

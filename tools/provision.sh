@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
 # Provision one ESP32 camera for FlyBot Sentinel (firmware-esp32): device key + certificate, and the NVS image
 # with everything the firmware reads at boot. Run from Git Bash / Linux / macOS; needs openssl and an ESP-IDF
 # environment (IDF_PATH set, for nvs_partition_gen and esptool).

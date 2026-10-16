@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 # Build-time defaults (CONTRACTS 2a): defaults.local.json (git-ignored, your bench Wi-Fi) when present, else the
 # public defaults.example.json, turned into camos_defaults.h. No secrets go through here.
 set(CAMOS_DEFAULTS_JSON "${CMAKE_CURRENT_LIST_DIR}/../defaults.local.json")

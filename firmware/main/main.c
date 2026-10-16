@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * camos-esp32-trap: a "cloud-counted" fruit-fly trap camera. It speaks the CamOS device protocol v1 (docs/dev/protocol-v1.md)
  * to AWS IoT Core and uploads JPEGs to FlyBot (docs/dev/PROTOCOL_ADDITIONS.md); the counting is done in the cloud.

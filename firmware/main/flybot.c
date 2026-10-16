@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * FlyBot device API (flybot-aws docs/CONTRACTS.md section 2), HTTPS with the ESP-IDF certificate bundle:
  *

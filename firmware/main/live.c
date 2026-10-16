@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * Live view: KVS WebRTC MASTER (CONTRACTS section 4). The camera joins the signaling channel `kvs.channelName`
  * when power.mode is powered, or for `live.start {minutes}` / `live.requested` otherwise, and only encodes while a

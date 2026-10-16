@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /* Wi-Fi station with the reconnect policy of protocol 1 (1, 2, 4 ... 300 s, +-20 %), and the portal button.
  * Time sync and the 4G alternative live in net.c / modem.c. */
 #include <string.h>

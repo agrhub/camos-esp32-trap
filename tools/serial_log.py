@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
 """Non-interactive serial helper (pyserial): capture the boot log, or send console commands and capture the answers.
 
     python tools/serial_log.py COM7 --seconds 60 --reset            # pull DTR/RTS to reset, log 60 s

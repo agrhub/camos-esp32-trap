@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /* See reg_parse.h. Only cJSON and libc. */
 #include <string.h>
 #include <stdio.h>

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * GPS: ATGM336H (NMEA 0183 at 9600 baud, 3.3 V) on a UART, power-gated by a GPIO (P-MOSFET). A fix is taken
  * once every CAMOS_GPS_FIX_INTERVAL_H (24 h) at a wake-up, or on the RPC `gps.fix` / console `gps`. The last fix

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * HTTP pieces shared by the setup portal and the local web console, and the console itself.
  *

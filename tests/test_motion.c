@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /* Host test of the frame-difference motion detection (firmware/main/motion_core.c) */
 #include <stdio.h>
 #include <string.h>

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * The last events in RAM for the web console's Events page: every protocol event the camera publishes (capture,
  * motion, low_power, ...) and a few local ones (SD card, firmware upload). Lost at restart; the cloud keeps the

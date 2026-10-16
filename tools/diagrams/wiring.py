@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
 """
 Draws the wiring diagrams in docs/img (SVG). The pin numbers are the firmware's Kconfig defaults for the `freenove`
 preset (firmware/main/Kconfig.projbuild, menu "CamOS trap camera"); change both together.

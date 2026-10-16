@@ -1,0 +1,46 @@
+camos-esp32-trap
+Copyright (C) 2026 AGRHUB
+
+The firmware's own code (firmware/main, tests, tools, the web pages) is licensed under the GNU Affero General Public
+License, version 3 only (AGPL-3.0-only): see LICENSE.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for details.
+
+Third-party components built into the firmware image
+====================================================
+
+Each keeps its own licence; their licence texts are in their source trees (ESP-IDF, firmware/managed_components after
+the first build). Versions are those of firmware/dependencies.lock and the release workflow (ESP-IDF v5.4.4).
+
+| Component | Version | Licence | Notes |
+|---|---|---|---|
+| ESP-IDF (Espressif) | v5.4.4 | Apache-2.0 | framework, drivers, Wi-Fi / TCP/IP glue, HTTP server and client, OTA, NVS, FAT, SD/MMC |
+| FreeRTOS kernel (in ESP-IDF) | ESP-IDF fork | MIT | |
+| lwIP (in ESP-IDF) | ESP-IDF fork | BSD-3-Clause | |
+| Mbed TLS (in ESP-IDF) | ESP-IDF fork | Apache-2.0 (or GPL-2.0-or-later) | used under Apache-2.0 |
+| cJSON (in ESP-IDF) | ESP-IDF copy | MIT | |
+| ESP-MQTT (in ESP-IDF) | ESP-IDF copy | Apache-2.0 | |
+| wpa_supplicant (in ESP-IDF) | ESP-IDF fork | BSD-3-Clause | |
+| FatFs (in ESP-IDF) | ESP-IDF copy | FatFs licence (ChaN, BSD-1-Clause style) | |
+| http_parser (in ESP-IDF) | ESP-IDF copy | MIT | |
+| TLSF allocator (in ESP-IDF) | ESP-IDF copy | BSD-3-Clause | |
+| newlib C library (in the ESP-IDF toolchain / ROM) | ESP-IDF build | BSD-style licences (COPYING.NEWLIB) | |
+| Espressif Wi-Fi, PHY and coexistence libraries (esp32-wifi-lib, esp-phy-lib) | ESP-IDF v5.4.4 | Apache-2.0, **binary only** | see the note below |
+| ESP x509 certificate bundle (in ESP-IDF) | ESP-IDF copy | data from Mozilla's CA list (MPL-2.0) | |
+| espressif/esp32-camera | 2.1.8 | Apache-2.0 | includes jpge (Rich Geldreich, public domain) |
+| espressif/esp_jpeg | 1.3.1 | Apache-2.0 | includes TJpgDec (ChaN, free licence: "no restriction on use") |
+| espressif/esp_modem | 1.4.3 | Apache-2.0 | |
+| espressif/led_strip | 3.1.0 | Apache-2.0 | |
+| espressif/qrcode | 0.2.0 | Apache-2.0 | includes the QR Code generator library (Project Nayuki, MIT) |
+| Amazon Root CA 1 (firmware/main/certs/AmazonRootCA1.pem) | | public CA certificate (Amazon Trust Services) | |
+
+Not in the firmware image: the browser flasher page (docs/flash/) loads ESP Web Tools (Apache-2.0) from unpkg.com.
+
+Note on the binary-only libraries
+---------------------------------
+
+Espressif publishes its Wi-Fi, PHY and coexistence libraries under Apache-2.0 but without source code. Apache-2.0 is
+compatible with the AGPL-3.0, but the AGPL asks for the "Corresponding Source" of a conveyed binary, and these libraries
+have none. This is the same question every GPL-family firmware for the ESP32 has; an explicit additional permission
+under AGPL section 7 for linking these libraries would settle it. No such permission is granted in this file yet.

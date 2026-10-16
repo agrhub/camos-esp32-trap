@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * SIMCom A7680C (LTE Cat.1) over UART with esp_modem. The A76xx AT set is the SIM7600 set for everything this
  * firmware needs (ATE0, AT+CPIN?, AT+CSQ, AT+CGDCONT, ATD*99#, AT+CMUX, AT+CPOF), so the SIM7600 DCE profile is

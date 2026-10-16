@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * Zero-touch self-registration (flybot-aws docs/CONTRACTS.md 2a.2): a camera with no certificate makes an ECDSA P-256
  * key (hardware RNG; the key is stored in NVS and never leaves it), a CSR with CN = serial, and calls
