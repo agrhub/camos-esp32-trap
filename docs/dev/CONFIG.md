@@ -80,10 +80,70 @@ chip stays awake 5 minutes (`tools/serial_log.py` sends a newline first for that
 
 Strings: `serial`, `vcode`, `wifi_ssid`, `wifi_pass`, `apn`, `sim_pin`, `api_base`, `token`, `prov_token`, `mqtt_host`,
 `thing`, `kvs_chan`, `kvs_region`, `role_alias`, `cred_host`, `claim_url`, `tz`, `tz_auto`, `tz_posix`, `tz_src`,
-`ui_lang`, `ap_pass`, `wifi_err`, `reg_err`, `admin_salt`, `admin_hash`, `mo_roi`, `st_ip`, `st_mask`, `st_gw`,
+`ui_lang`, `ap_pass`, `wifi_err`, `reg_err`, `cap_size`, `admin_salt`, `admin_hash`, `mo_roi`, `st_ip`, `st_mask`, `st_gw`,
 `st_dns`, `cert`, `key` (PEM). Integers: `interval`, `power_mode` (0 auto, 1 battery, 2 powered), `cellular`, `gps`,
 `led`, `batt_mon`, `claimed`, `sd_save`, `sched_from`, `sched_to`, `motion`, `mo_sens`, `mo_cool`, `mo_upload`, `mo_sd`,
-`ip_mode`, `wifi_new`, `modem_absent`, `gps_absent`, `portal`, `boots`. Blobs: `settings` (the persisted shadow), `gps_fix`.
+`ip_mode`, `wifi_new`, `modem_absent`, `gps_absent`, `portal`, `boots`, `reg_retry` / `reg_taken_s` (the next
+registration question after a 409, epoch s, and its back-off), `rereg_at` (the last registration again after removal). Blobs: `settings` (the persisted shadow), `gps_fix`.
 The factory partition `fctry` (0x14000, 0x6000, read-only) uses the same namespace and keys (`serial`, `vcode`, `cert`,
 `key`, `thing`, `mqtt_host`, `claimed`). `idf.py flash` never touches either partition; `idf.py erase-flash` and the
 browser "install" image wipe both; `factory` (console, web console, RPC) keeps the identity keys.
+
+## 6. Settings from FlyBot (shadow `desired`)
+
+FlyBot publishes `desired` (retained) on `camos/<serial>/shadow/desired`; the camera applies every key it knows,
+publishes `reported` with the same `version`, and lists the rest in `reported.errors` as `{"path","code"}`:
+`NOT_SUPPORTED` (unknown key) or `BAD_VALUE` (wrong type or out of range; the old value stays). Keys left out keep their
+value. A desired value overwrites what was set on the camera itself (web console, serial console), and the retained
+document is applied again at every MQTT connect, so FlyBot's form is the source of truth for the keys it sends.
+
+| Key | Type / range | Effect | In `reported` |
+|---|---|---|---|
+| `timezone` | IANA name (`"Asia/Ho_Chi_Minh"`), or `null` | schedules run in this local time; `null` = automatic (FlyBot's `/api/device/time`, then the IP) | `timezone`, `tzSource` |
+| `detections[]` | `{id, type:"app", enabled, trigger:{everyMin 1..1440, from "HH:MM", to "HH:MM"}}`, up to 4 | capture schedules; other types `NOT_SUPPORTED` | `nextCaptureAt` |
+| `capture.intervalMin` | 1..1440, or `null` | all-day interval when no `detections[]` is set; `null` = portal / default (60) | `capture.intervalMin` |
+| `capture.window` | `{from:"HH:MM", to:"HH:MM"}`, or `null` (all day) | local window of `capture.intervalMin` (`to` before `from` crosses midnight) | `capture.window` |
+| `capture.jpegQuality` | 1..100 (higher = better) | photo JPEG quality | `capture.jpegQuality` |
+| `capture.resolution` | `"max"`, `"main"` (= max), or `"640x480"`, `"800x600"`, `"1024x768"`, `"1280x720"`, `"1280x1024"`, `"1600x1200"`, `"1920x1080"`, `"2048x1536"`, `"2560x1920"` | photo size; larger than the sensor = its maximum | `capture.resolution`, `capture.w`, `capture.h` (the size a photo gets) |
+| `video.image.brightness` | -64..64 | sensor brightness | `video.image.*` (every key below) |
+| `video.image.contrast` | 0..100 | | |
+| `video.image.saturation` | 0..100 | | |
+| `video.image.sharpness` | 0..100 | | |
+| `video.image.orientation` | 0 normal, 1 mirror, 2 flip, 3 both | | |
+| `video.image.whiteBalance` | `"auto"`, `"sunny"`, `"cloudy"`, `"office"`, `"home"` | | |
+| `video.image.effect` | `"none"`, `"negative"`, `"grayscale"`, `"red"`, `"green"`, `"blue"`, `"sepia"` | | |
+| `video.image.aeLevel` | -5..5 (OV5640; others -2..2) | exposure compensation | |
+| `video.image.exposureAuto`, `video.image.exposure` | bool, 0..1200 | automatic exposure, or the manual value | |
+| `video.image.gainAuto`, `video.image.gain` | bool, 0..30 | automatic gain, or the manual value | |
+| `video.image.gainCeiling` | 0..6 (2x..128x) | | |
+| `video.image.denoise` | 0..8 | | |
+| `power.mode` | `"auto"`, `"battery"`, `"powered"`, or `null` (portal value) | see PROTOCOL_ADDITIONS.md section 6 | `power.mode`, `power.effective` |
+| `power.highMv`, `power.lowMv` | 3000..4400 | auto-mode thresholds | `power.highMv`, `power.lowMv` |
+| `motion.enabled` | bool | frame-difference motion detection (powered mode only) | `motion.enabled` |
+| `motion.sensitivity` | 1..100 (100 = most sensitive) | | `motion.sensitivity` |
+| `motion.cooldownS` | 5..3600 | seconds between two triggers | `motion.cooldownS` |
+| `motion.upload` | bool | a trigger also captures and uploads a full photo | `motion.upload` |
+| `motion.saveSd` | bool | a trigger saves the picture to the microSD card | `motion.saveSd` |
+| `motion.area` | `[x, y, w, h]`, percent 0..100 of the picture | detection area | `motion.area` |
+| `storage.sdSave` | bool | every photo also on the microSD card | `storage.sdSave` |
+| `led.enabled` | bool | the status LED | `led.enabled` |
+| `gps.enabled` | bool | daily GPS fixes when a module is fitted | `gps.enabled` (shadow only; `state` keeps its protocol 4 `gps` fix) |
+| `console.language` | `"en"`, `"vi"` | language of the camera's own web pages | `console.language` |
+| `claimed` | bool | claim state (CONTRACTS 2a.4) | `claimed` |
+| `live.requested` | bool | a live session at the next wake (5 min) | `live.requested`, `live.supported`, `live.active` |
+| `kvs.channelName`, `kvs.region`, `kvs.credentialsEndpoint`, `kvs.roleAlias` | string | live view channel and credential provider (FlyBot fills these) | `kvs.channelName`, `kvs.region` |
+
+`NOT_SUPPORTED` (on purpose): the network (`net.*`, Wi-Fi, APN, SIM PIN, static IP: a wrong value would cut the camera
+off; use RPC `net.set`), the web console password, `video.main` / `video.sub` / `osd` / `nightMode` / `flicker` /
+`wdr` / `ldc` (no such control on these sensors), `record` and `audio` (no recording, no microphone).
+
+Example:
+
+```json
+{"version":7,"timezone":"Asia/Ho_Chi_Minh",
+ "capture":{"intervalMin":30,"window":{"from":"06:00","to":"18:00"},"jpegQuality":85,"resolution":"1600x1200"},
+ "video":{"image":{"brightness":0,"contrast":50,"saturation":60}},
+ "power":{"mode":"auto"},
+ "motion":{"enabled":true,"sensitivity":60,"cooldownS":120,"upload":false,"saveSd":true,"area":[10,10,80,80]},
+ "storage":{"sdSave":true},"led":{"enabled":false},"gps":{"enabled":true},"console":{"language":"vi"}}
+```

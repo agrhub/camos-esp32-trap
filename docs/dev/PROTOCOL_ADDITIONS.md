@@ -38,7 +38,9 @@ The token is only ever sent to `apiBase` (protocol 11.4).
 
 ## 3. Shadow (protocol 8) additions
 
-`desired` keys the firmware applies (anything else: `NOT_SUPPORTED` in `reported.errors`, as before):
+`desired` keys the firmware applies (anything else: `NOT_SUPPORTED` in `reported.errors`, as before). The complete
+list, with the web console settings FlyBot can set (`capture.window`, `capture.resolution` sizes, `motion.*`,
+`storage.sdSave`, `led.enabled`, `gps.enabled`, `console.language`), is in CONFIG.md section 6.
 
 | Key | Values | Effect |
 |---|---|---|
@@ -159,13 +161,23 @@ A camera without a certificate (the public build, after flashing) registers itse
 3. `200` / `201` with `ok`, `certificatePem`, `deviceToken`, `iot.endpoint`: stored (plus `iot.thingName`,
    `kvs.region`, `kvs.channelName`, `claimUrl`, `claimed`, and `iot.credentialsEndpoint` + `iot.roleAlias` for the live
    view when both are present); the MQTT client starts without a restart.
-4. `429`, `5xx`, no answer: retried after 30 s, doubling to 1 h, ±20 %. `409 serial_taken`: no more retries, the LED
-   goes red, the portal and web console show "registration refused" until the camera is reset in FlyBot and the
-   camera is factory-reset.
+4. `429`, `5xx`, no answer: retried after 30 s, doubling to 1 h, ±20 %. `409 serial_taken`: the LED goes red, the
+   portal and web console show "registration refused", and the camera asks again after 1 h, then 2, 4 and at most 6 h
+   (NVS `reg_retry`, `reg_taken_s`, so restarts and deep sleep keep the wait); console `reg start` asks at once and
+   starts the back-off from 1 h again. The register endpoint allows 5 calls an hour per IP.
 5. Unclaimed (`claimed: false` from registration, or the shadow): the capture interval is at least 60 minutes and
    `nextWakeAt` from the snapshot response is followed even when it is later than the schedule. The shadow key
    `claimed: true` (addition) returns the camera to its normal schedule. The portal and console show the claim QR
    (`claimUrl`, as SVG made on the device) with the serial and verify code.
+6. Removed in FlyBot: deleting a camera removes its IoT thing and certificate and drops its device token. A `401`
+   from the device API (snapshot upload, any authenticated call), or IoT closing three connection attempts in a row,
+   makes the camera ask `GET /api/device/ota` with its token (at most every 10 minutes). Only a `401` to that drops
+   the registration: NVS `cert`, `token`, `thing`, `cred_host`, `role_alias`, `claim_url`, `claimed`, `prov_token`,
+   `reg_err` are erased, `key`, `serial` and `vcode` stay, and the camera restarts into step 2 with the same verify
+   code (at most once an hour, NVS `rereg_at`). Any other answer, or none, keeps the identity. When the owner has added
+   the camera again with its serial and verify code, FlyBot answers `201` with `claimed: true`; otherwise `409` and
+   step 4. A certificate from the factory partition (`tools/factory.*`) is never dropped: such a camera is provisioned
+   again.
 
 The verify code is 6 Crockford base32 characters from the hardware RNG, made once; factory reset keeps it, the serial,
 the key, the certificate, the device token and the thing (protocol 9 `factory_reset` "keeps the certificates").
