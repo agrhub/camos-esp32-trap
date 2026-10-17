@@ -14,6 +14,8 @@
  *   power.mode                   v1 addition: "auto" | "battery" | "powered"; power.highMv / power.lowMv thresholds
  *   live.requested               v1 addition: FlyBot asks for a live session at the next wake
  *   kvs.channelName              v1 addition: the KVS signaling channel (stored in NVS)
+ *   kvs.credentialsEndpoint      v1 addition: IoT credential provider host and role alias of the live view
+ *   kvs.roleAlias                (stored in NVS, like pairing's iot.credentialsEndpoint / iot.roleAlias)
  *
  * Everything else is reported as NOT_SUPPORTED, a value out of range as BAD_VALUE (the old value stays).
  * Fields absent from `desired` keep their current value. The applied settings are kept in NVS and used at boot.
@@ -407,6 +409,15 @@ char *shadow_apply(const char *json, int len, bool persist)
 			if (region && !store_apply_kv("kvsRegion", region)) {
 				add_error(errors, "kvs.region", "BAD_VALUE");
 			}
+			/* the IoT credential provider for the live view credentials, for cameras that registered without it */
+			const char *cred = cJSON_GetStringValue(cJSON_GetObjectItem(item, "credentialsEndpoint"));
+			if (cred && !store_apply_kv("credHost", cred)) {
+				add_error(errors, "kvs.credentialsEndpoint", "BAD_VALUE");
+			}
+			const char *alias = cJSON_GetStringValue(cJSON_GetObjectItem(item, "roleAlias"));
+			if (alias && !store_apply_kv("roleAlias", alias)) {
+				add_error(errors, "kvs.roleAlias", "BAD_VALUE");
+			}
 		} else if (!strcmp(k, "video") && cJSON_IsObject(item)) {
 			const cJSON *v;
 			cJSON_ArrayForEach(v, item)
@@ -484,7 +495,7 @@ void shadow_additions_json(cJSON *parent)
 	cJSON *live = cJSON_AddObjectToObject(parent, "live");
 	cJSON_AddBoolToObject(live, "requested", s.live_requested);
 	cJSON_AddBoolToObject(live, "supported", live_supported());
-	cJSON_AddBoolToObject(live, "active", live_active());
+	cJSON_AddBoolToObject(live, "active", live_active() || live_streaming());
 	cJSON *kvs = cJSON_AddObjectToObject(parent, "kvs");
 	cJSON_AddStringToObject(kvs, "channelName", g_cfg.kvs_channel);
 	cJSON_AddStringToObject(kvs, "region", g_cfg.kvs_region);

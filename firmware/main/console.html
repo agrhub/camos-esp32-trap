@@ -163,7 +163,7 @@ const I18N = {
   cellOn: 'Dùng 4G khi có SIM', apn: 'APN', apnAuto: 'tự động theo SIM', apnInUse: 'APN đang dùng', simPin: 'Mã PIN SIM', imei: 'IMEI', iccid: 'ICCID', operator: 'Nhà mạng',
   csq: 'Tín hiệu (CSQ)', registered: 'Đăng ký mạng', cellNote: 'Để trống APN: camera tự chọn theo nhà mạng của SIM. Áp dụng khi khởi động lại.', notOn4g: 'Camera không dùng 4G lúc này.',
   sync: 'Đồng bộ', timezone: 'Múi giờ', tzAuto: 'tự động', tzNote: 'Để trống: múi giờ tự động từ FlyBot (theo trang trại, GPS hoặc địa chỉ IP). Nhập để ghi đè.',
-  camosLink: 'Kết nối FlyBot', status: 'Trạng thái', apiBase: 'Địa chỉ FlyBot', iotHost: 'Endpoint IoT Core', thing: 'Thing', kvs: 'Kênh KVS',
+  camosLink: 'Kết nối FlyBot', status: 'Trạng thái', apiBase: 'Địa chỉ FlyBot', iotHost: 'Endpoint IoT Core', thing: 'Thing', kvs: 'Kênh KVS', cloudLive: 'Xem trực tiếp qua FlyBot', liveOff: 'tắt', liveReady: 'sẵn sàng (đang chờ người xem)', liveJoining: 'đang kết nối kênh', liveViewer: 'đang có người xem · {0} ảnh/giây', liveNotBuilt: 'không có trong bản firmware này', liveNoCreds: 'chưa có quyền truy cập KVS',
   cloudNote: 'Thường không cần đổi: camera tự đăng ký với FlyBot. Chỉ đổi khi được hướng dẫn.', regError: 'Lỗi đăng ký',
   brightness: 'Độ sáng', contrast: 'Độ tương phản', saturation: 'Độ bão hòa', jpegQuality: 'Chất lượng JPEG', imageNote: 'Thay đổi hiện ngay trên hình trực tiếp; bấm Lưu để giữ cho mọi lần chụp. Cài đặt từ cloud (FlyBot) sẽ ghi đè cài đặt ở đây.',
   resolution: 'Độ phân giải chụp', bySensor: 'theo cảm biến',
@@ -236,7 +236,7 @@ const I18N = {
   cellOn: 'Use 4G when a SIM is inserted', apn: 'APN', apnAuto: 'automatic from the SIM', apnInUse: 'APN in use', simPin: 'SIM PIN', imei: 'IMEI', iccid: 'ICCID', operator: 'Operator',
   csq: 'Signal (CSQ)', registered: 'Registered', cellNote: 'Leave the APN empty and the camera picks it from the SIM\'s operator. Applied at the next restart.', notOn4g: 'The camera is not on 4G now.',
   sync: 'Sync', timezone: 'Timezone', tzAuto: 'automatic', tzNote: 'Empty: the timezone comes from FlyBot (farm, GPS or IP address). Type one to override.',
-  camosLink: 'FlyBot connection', status: 'Status', apiBase: 'FlyBot address', iotHost: 'IoT Core endpoint', thing: 'Thing', kvs: 'KVS channel',
+  camosLink: 'FlyBot connection', status: 'Status', apiBase: 'FlyBot address', iotHost: 'IoT Core endpoint', thing: 'Thing', kvs: 'KVS channel', cloudLive: 'Live view in FlyBot', liveOff: 'off', liveReady: 'ready (waiting for a viewer)', liveJoining: 'joining the channel', liveViewer: 'a viewer is watching · {0} fps', liveNotBuilt: 'not in this firmware', liveNoCreds: 'no KVS credentials yet',
   cloudNote: 'Usually nothing to change: the camera registers itself with FlyBot. Change only when told to.', regError: 'Registration error',
   brightness: 'Brightness', contrast: 'Contrast', saturation: 'Saturation', jpegQuality: 'JPEG quality', imageNote: 'Changes show on the live picture at once; Save keeps them for every capture. Settings from the cloud (FlyBot) override these.',
   resolution: 'Capture resolution', bySensor: 'by sensor',
@@ -393,6 +393,15 @@ const chk = (id, v, text = '') => `<label><input type="checkbox" id="${id}"${v ?
 const panel = (title, body, actions) => `<div class="panel">${title ? `<h3>${title}</h3>` : ''}<div class="body">${body}</div>${actions ? `<div class="actions">${actions}</div>` : ''}</div>`;
 const saveBar = (id, extra = '') => `<button class="btn primary" id="${id}">${t('save')}</button>${extra}<span class="msg" id="${id}Msg"></span>`;
 const kv = (pairs) => `<div class="kv">${pairs.map(([k, v]) => `<div>${k}</div><div>${v}</div>`).join('')}</div>`;
+// /api/status live (cloud live view, KVS WebRTC): one line for the FlyBot connection panel
+const liveText = (l) => {
+  if (!l || l.state === 'not built') return t('liveNotBuilt');
+  if (l.viewer) return `${dot('ok')}${t('liveViewer', l.fps)}`;
+  if (l.state === 'joined') return `${dot('ok')}${t('liveReady')}`;
+  if (!l.supported) return t('liveNoCreds');
+  if (l.state === 'joining' || l.state === 'waiting') return t('liveJoining');
+  return l.error ? `${dot('bad')}${esc(l.error)}` : t('liveOff');
+};
 const badge = (cfg, key) => (cfg.defaults || []).includes(key) ? `<span class="badge">${t('dflt')}</span>` : '';
 function say(el, text, ok) { el.className = 'msg ' + (ok ? 'ok' : 'err'); el.textContent = text; }
 async function saveCfg(body, msgEl, restart) {
@@ -670,7 +679,7 @@ const PAGES = {
   async cloud(el, st) {
     const cfg = await api('config');
     el.innerHTML = claimPanel(st, cfg) + panel(t('camosLink'), kv([[t('status'), `${dot(st.cloud.connected ? 'ok' : 'bad')}${st.cloud.connected ? t('connected') : t('disconnected')}`], [t('certificate'), st.cloud.certificate ? t('certOk') : t('certNo')],
-        [t('thing'), esc(st.cloud.thing || t('none'))], [t('kvs'), esc(st.cloud.kvsChannel || t('none'))]].concat(cfg.regError ? [[t('regError'), `<span class="msg err">${esc(cfg.regError)}</span>`]] : [])))
+        [t('thing'), esc(st.cloud.thing || t('none'))], [t('kvs'), esc(st.cloud.kvsChannel || t('none'))], [t('cloudLive'), liveText(st.live)]].concat(cfg.regError ? [[t('regError'), `<span class="msg err">${esc(cfg.regError)}</span>`]] : [])))
       + panel(t('server'), row(t('apiBase'), txt('cApi', cfg.apiBase), badge(cfg, 'apiBase')) + row(t('iotHost'), txt('cIot', cfg.iotHost), badge(cfg, 'iotHost')) + `<p class="note">${t('cloudNote')}</p>`, saveBar('clSave'));
     $('#clSave').onclick = () => saveCfg({ apiBase: $('#cApi').value.trim(), iotHost: $('#cIot').value.trim() }, $('#clSaveMsg'), true);
   },

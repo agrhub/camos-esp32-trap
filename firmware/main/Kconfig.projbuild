@@ -455,11 +455,59 @@ menu "CamOS trap camera"
     endmenu
 
     config CAMOS_LIVE
-        bool "Live view: KVS WebRTC MASTER (ESP32-S3 only, esp-webrtc-solution)"
+        bool "Cloud live view: KVS WebRTC MASTER with software H.264 (ESP32-S3 only)"
         depends on IDF_TARGET_ESP32S3
         default n
         help
-            See docs/dev/LIVE_VIEW.md. Off by default until the esp-webrtc-solution components are vendored
-            (firmware/components/, see the document); RPC live.start answers NOT_SUPPORTED when off.
+            The camera joins its KVS signaling channel (kvs.channelName) as MASTER and sends H.264 (esp_h264
+            software encoder) through esp_peer (ICE, DTLS-SRTP) to one VIEWER at a time. Credentials come from the
+            AWS IoT credential provider (credHost + roleAlias from pairing). The Freenove preset turns it on; RPC
+            live.start answers NOT_SUPPORTED when off. See docs/dev/LIVE_VIEW.md.
+
+    config CAMOS_LIVE_WIDTH
+        int "Live view width"
+        depends on CAMOS_LIVE
+        default 320
+    config CAMOS_LIVE_HEIGHT
+        int "Live view height"
+        depends on CAMOS_LIVE
+        default 240
+        help
+            A camera frame size (320x240, 640x480, ...). The software encoder does about 11 fps at 320x240 on a
+            240 MHz ESP32-S3 (Espressif's figure); larger sizes drop the frame rate in proportion.
+    config CAMOS_LIVE_FPS
+        int "Live view frame rate"
+        depends on CAMOS_LIVE
+        range 1 30
+        default 10
+    config CAMOS_LIVE_XCLK_MHZ
+        int "Camera XCLK for the live view (MHz)"
+        depends on CAMOS_LIVE
+        range 6 24
+        default 20
+        help
+            The live view reads raw YUV422 frames (2 bytes per pixel): the sensor's frame rate follows XCLK.
+            JPEG captures keep CAMOS_XCLK_MHZ.
+    config CAMOS_LIVE_KBPS
+        int "Live view target bitrate (kbit/s)"
+        depends on CAMOS_LIVE
+        range 50 4000
+        default 300
+
+    config CAMOS_LIVE_STANDBY
+        bool "Stay on the signaling channel in powered mode (a viewer connects at once)"
+        depends on CAMOS_LIVE
+        default y
+        help
+            Powered mode keeps the WebSocket to KVS open (no encoding until a viewer connects). Battery mode only
+            joins for live.start / live.requested.
+
+    config CAMOS_LIVE_BENCH_CREDS
+        bool "Bench only: accept temporary AWS keys on the serial console (live key ...)"
+        depends on CAMOS_LIVE
+        default n
+        help
+            For testing without the IoT credential provider: `live key id|secret|token <value>` (RAM only, never
+            stored or printed; token appends, the line is 256 characters). Leave off in images that leave the bench.
 
 endmenu

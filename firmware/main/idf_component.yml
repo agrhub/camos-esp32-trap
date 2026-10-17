@@ -9,3 +9,17 @@ dependencies:
   espressif/qrcode: "^0.2.0"
   # Local name flybot-<serial tail>.local for the web console (hostname.c)
   espressif/mdns: "^1.4.0"
+  # Live view over KVS WebRTC (live_kvs.c, CAMOS_LIVE, ESP32-S3 only): PeerConnection (ICE, DTLS-SRTP, RTP),
+  # software H.264 encoder, WebSocket client for the KVS signaling channel
+  espressif/esp_peer:
+    version: "~1.5.7"
+    rules:
+      - if: "target == esp32s3"
+  espressif/esp_h264:
+    version: "~1.4.1"
+    rules:
+      - if: "target == esp32s3"
+  espressif/esp_websocket_client:
+    version: "~1.7.0"
+    rules:
+      - if: "target == esp32s3"

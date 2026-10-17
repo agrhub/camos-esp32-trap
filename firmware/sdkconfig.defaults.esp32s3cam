@@ -12,3 +12,7 @@ CONFIG_OV3660_SUPPORT=y
 CONFIG_OV5640_SUPPORT=y
 # USB-C boards: the log also goes to the native USB port
 CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y
+# esp_peer (live view) is in the S3 component list: it needs DTLS-SRTP to compile. CAMOS_LIVE stays off on this
+# untested board (turn it on in menuconfig: docs/dev/LIVE_VIEW.md)
+CONFIG_MBEDTLS_SSL_PROTO_DTLS=y
+CONFIG_MBEDTLS_SSL_DTLS_SRTP=y

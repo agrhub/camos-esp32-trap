@@ -115,6 +115,10 @@ bool register_apply_response(const char *json, char *err, size_t errn)
 		if (r->kvs_channel[0]) {
 			store_apply_kv("kvsChannel", r->kvs_channel);
 		}
+		if (r->cred_host[0] && r->role_alias[0]) {
+			store_apply_kv("credHost", r->cred_host);
+			store_apply_kv("roleAlias", r->role_alias);
+		}
 		if (r->claim_url[0]) {
 			strlcpy(g_cfg.claim_url, r->claim_url, sizeof(g_cfg.claim_url));
 			store_set_str("claim_url", r->claim_url);

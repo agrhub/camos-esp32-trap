@@ -623,6 +623,10 @@ static esp_err_t status_get(httpd_req_t *req)
 	cJSON_AddStringToObject(c, "thing", g_cfg.thing_name);
 	cJSON_AddStringToObject(c, "apiBase", g_cfg.api_base);
 	cJSON_AddStringToObject(c, "kvsChannel", g_cfg.kvs_channel);
+	cJSON *lv = cJSON_AddObjectToObject(o, "live"); /* cloud live view (KVS): state, viewer, frame rate */
+	cJSON_AddBoolToObject(lv, "supported", live_supported());
+	cJSON_AddBoolToObject(lv, "window", live_active());
+	live_status_json(lv);
 
 	settings_t s;
 	shadow_get(&s);

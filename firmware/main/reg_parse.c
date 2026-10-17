@@ -48,6 +48,8 @@ bool reg_parse(const char *json, reg_result_t *out, char *err, size_t errn)
 		copy(out->kvs_region, sizeof(out->kvs_region), cJSON_GetStringValue(cJSON_GetObjectItem(kvs, "region")));
 		copy(out->kvs_channel, sizeof(out->kvs_channel), cJSON_GetStringValue(cJSON_GetObjectItem(kvs, "channelName")));
 		copy(out->claim_url, sizeof(out->claim_url), cJSON_GetStringValue(cJSON_GetObjectItem(j, "claimUrl")));
+		copy(out->cred_host, sizeof(out->cred_host), cJSON_GetStringValue(cJSON_GetObjectItem(iot, "credentialsEndpoint")));
+		copy(out->role_alias, sizeof(out->role_alias), cJSON_GetStringValue(cJSON_GetObjectItem(iot, "roleAlias")));
 		cJSON *c = cJSON_GetObjectItem(j, "claimed");
 		out->claimed = cJSON_IsBool(c) ? cJSON_IsTrue(c) : -1;
 	}

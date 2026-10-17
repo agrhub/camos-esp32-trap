@@ -34,7 +34,7 @@ static int roi[4] = { 0, 0, 100, 100 };
 
 static bool wanted(void)
 {
-	return g_cfg.motion && power_effective() == POWER_POWERED && !live_active();
+	return g_cfg.motion && power_effective() == POWER_POWERED && !live_streaming();
 }
 
 void motion_config_changed(void)
@@ -191,6 +191,6 @@ void motion_json(cJSON *parent)
 		cJSON_AddStringToObject(m, "lastAt", s);
 	}
 	if (g_cfg.motion && !running) {
-		cJSON_AddStringToObject(m, "why", live_active() ? "live" : "battery"); /* waiting for powered mode */
+		cJSON_AddStringToObject(m, "why", live_streaming() ? "live" : "battery"); /* waiting for powered mode */
 	}
 }

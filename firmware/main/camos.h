@@ -224,6 +224,7 @@ void cam_apply_settings(const settings_t *s);   /* the image settings to a runni
 const char *cam_sensor_name(void);              /* "OV5640" ..., "" before the first power-up */
 /* Live view: the sensor at a small size, streaming JPEG frames (ESP32-S3). Returns ESP_OK and keeps the sensor up. */
 esp_err_t cam_stream_start(int width, int height, int quality);
+esp_err_t cam_stream_start_yuv(int width, int height); /* YUV422 frames for the live view encoder */
 void cam_stream_stop(void);
 
 /* ------------------------------------------------------------------ FlyBot device API (flybot.c, CONTRACTS section 2) */
@@ -333,11 +334,14 @@ void gps_state_json(cJSON *parent);             /* gps {lat, lon, fix, ts} (prot
 
 /* ------------------------------------------------------------------ live view (live.c, ESP32-S3 + CAMOS_LIVE) */
 
-bool live_supported(void);
+void live_init(void);                           /* boot: the KVS task (powered mode joins the channel on its own) */
+bool live_supported(void);                      /* built in, paired (kvs channel + region) and with a credential source */
 esp_err_t live_start(int minutes, char *err, size_t errn);
 void live_stop(void);
-bool live_active(void);
+bool live_active(void);                         /* a live.start / live.requested window is open */
+bool live_streaming(void);                      /* a VIEWER is connected: the camera belongs to the encoder */
 int live_remaining_s(void);
+void live_status_json(cJSON *o);                /* console / web console: state, viewer, fps, bitrate, errors */
 
 /* ------------------------------------------------------------------ status LED (led.c, docs/LED.md) */
 
@@ -399,6 +403,8 @@ void preview_stop(void);
 bool preview_active(void);
 esp_err_t preview_frame_any(camera_fb_t **fb, int *w, int *h); /* the running preview size, else QVGA (motion) */
 void camera_settings_changed(void);             /* re-apply the image settings when the camera is running */
+bool camera_take(int timeout_ms);               /* the camera lock for the live view encoder (stops the preview) */
+void camera_give(void);
 
 /* ------------------------------------------------------------------ MJPEG live view (stream.c) */
 

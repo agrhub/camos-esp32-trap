@@ -16,3 +16,16 @@ CONFIG_OV3660_SUPPORT=y
 CONFIG_OV5640_SUPPORT=y
 # The native USB port also carries the log (the CH340 port is UART0: console and flashing)
 CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y
+# Cloud live view (docs/dev/LIVE_VIEW.md): KVS WebRTC MASTER with software H.264 (esp_peer, esp_h264)
+CONFIG_CAMOS_LIVE=y
+CONFIG_MBEDTLS_SSL_PROTO_DTLS=y
+CONFIG_MBEDTLS_SSL_DTLS_SRTP=y
+CONFIG_ESP_WS_CLIENT_ENABLE_DYNAMIC_BUFFER=y
+# the presigned WSS URL of the signaling channel carries the session token: the upgrade request needs room
+CONFIG_WS_BUFFER_SIZE=6144
+# A WebRTC session (ICE, DTLS-SRTP, RTP pools, the encoder) next to Wi-Fi, MQTT and the web console: allocations of
+# 1 KB and up, and Wi-Fi / lwIP buffers when they can, go to PSRAM; the camera DMA buffers stay internal
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=1024
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+# with Wi-Fi buffers in PSRAM the block-ack window defaults to 16, more than twice the 6 static RX buffers (build error)
+CONFIG_ESP_WIFI_RX_BA_WIN=6

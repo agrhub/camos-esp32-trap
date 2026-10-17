@@ -12,6 +12,8 @@ typedef struct {
 	char kvs_region[24];
 	char kvs_channel[64];
 	char claim_url[160];
+	char cred_host[128];  /* iot.credentialsEndpoint (live view credentials), "" when absent */
+	char role_alias[64];  /* iot.roleAlias */
 	int claimed;          /* 0 / 1, -1 when absent */
 } reg_result_t;
 

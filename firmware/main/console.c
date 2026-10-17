@@ -17,7 +17,7 @@
  *   mode auto|battery|powered power.mode (portal value; the shadow wins when it set one)
  *   gps [timeout s]           take a fix now
  *   at <command>              send an AT command to the modem (command mode or CMUX only)
- *   live start [min] | stop   live view (ESP32-S3)
+ *   live [status|start [min]|stop] cloud live view (ESP32-S3): state, viewer, fps, bitrate
  *   ota                       GET /api/device/ota and apply it when offered
  *   awake <s>                 no deep sleep for s seconds (default 600)
  *   sleep <s>                 deep sleep now for s seconds (modem off first)
@@ -321,12 +321,39 @@ static int cmd_at(int argc, char **argv)
 	return r == 0 ? 0 : 1;
 }
 
+#if CONFIG_CAMOS_LIVE_BENCH_CREDS
+esp_err_t live_kvs_bench_key(const char *field, const char *value);
+#endif
+
 static int cmd_live(int argc, char **argv)
 {
-	if (argc > 1 && !strcmp(argv[1], "stop")) {
+	if (argc < 2 || !strcmp(argv[1], "status")) {
+		cJSON *o = cJSON_CreateObject();
+		cJSON_AddBoolToObject(o, "supported", live_supported());
+		cJSON_AddBoolToObject(o, "window", live_active());
+		cJSON_AddNumberToObject(o, "remainingS", live_remaining_s());
+		live_status_json(o);
+		char *t = cJSON_PrintUnformatted(o);
+		printf("%s\n", t ? t : "{}");
+		free(t);
+		cJSON_Delete(o);
+		return 0;
+	}
+	if (!strcmp(argv[1], "stop")) {
 		live_stop();
 		printf("stopped\n");
 		return 0;
+	}
+#if CONFIG_CAMOS_LIVE_BENCH_CREDS
+	if (!strcmp(argv[1], "key") && argc >= 3) {
+		esp_err_t e = live_kvs_bench_key(argv[2], argc > 3 ? argv[3] : NULL);
+		printf("%s\n", e == ESP_OK ? "ok" : esp_err_to_name(e)); /* the value is never echoed */
+		return e == ESP_OK ? 0 : 1;
+	}
+#endif
+	if (strcmp(argv[1], "start")) {
+		printf("usage: live [status] | start [min] | stop\n");
+		return 1;
 	}
 	char err[96];
 	int minutes = argc > 2 ? atoi(argv[2]) : 5;
@@ -577,7 +604,7 @@ void console_start(void)
 		{ .command = "mode", .help = "mode auto|battery|powered", .func = cmd_mode },
 		{ .command = "gps", .help = "gps [timeout]: take a fix", .func = cmd_gps },
 		{ .command = "at", .help = "at <command>: send to the modem", .func = cmd_at },
-		{ .command = "live", .help = "live start [min] | stop", .func = cmd_live },
+		{ .command = "live", .help = "live [status] | start [min] | stop", .func = cmd_live },
 		{ .command = "ota", .help = "check GET /api/device/ota and apply", .func = cmd_ota },
 		{ .command = "awake", .help = "awake [s]: no deep sleep for a while", .func = cmd_awake },
 		{ .command = "sleep", .help = "sleep [s]: deep sleep now", .func = cmd_sleep },

@@ -66,7 +66,7 @@ time_t sched_next_capture(void)
 esp_err_t capture_now(const char *trigger, upload_t *out)
 {
 	memset(out, 0, sizeof(*out));
-	if (live_active()) {
+	if (live_streaming()) {
 		strlcpy(out->error, "live view running", sizeof(out->error));
 		return ESP_ERR_INVALID_STATE;
 	}
@@ -185,7 +185,7 @@ void camera_settings_changed(void)
 esp_err_t preview_frame(int w, int h, int quality, camera_fb_t **fb)
 {
 	*fb = NULL;
-	if (live_active()) {
+	if (live_streaming()) {
 		return ESP_ERR_INVALID_STATE;
 	}
 	sched_init_lock();
@@ -233,6 +233,23 @@ void preview_release(camera_fb_t *fb)
 	if (fb) {
 		esp_camera_fb_return(fb);
 	}
+	xSemaphoreGive(cam_mutex);
+}
+
+/* The cloud live view takes the camera for as long as a viewer watches: after a capture in progress, and the web
+ * console preview gives way */
+bool camera_take(int timeout_ms)
+{
+	sched_init_lock();
+	if (xSemaphoreTake(cam_mutex, pdMS_TO_TICKS(timeout_ms)) != pdTRUE) {
+		return false;
+	}
+	stop_preview_locked();
+	return true;
+}
+
+void camera_give(void)
+{
 	xSemaphoreGive(cam_mutex);
 }
 

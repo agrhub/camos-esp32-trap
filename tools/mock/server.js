@@ -77,6 +77,7 @@ const status = () => ({
   time: { synced: true, local: local(), utc: utcNow().toISOString().slice(0, 19) + 'Z', timezone: 'Asia/Ho_Chi_Minh' },
   net: { type: 'wifi', connected: true, ip: '192.168.1.50', hostname: 'flybot-000001', rssi: -58, ssid: 'Orchard-AP', channel: 6, mask: '255.255.255.0', gateway: '192.168.1.1', mac: '02:00:00:00:00:01', apn: '' },
   cloud: { connected: !flags.unclaimed, host: 'example-ats.iot.ap-southeast-2.amazonaws.com', port: 8883, certificate: true, paired: !flags.unclaimed, thing: 'cam-' + SERIAL, apiBase: 'https://flybot.agrhub.com', kvsChannel: 'cam-' + SERIAL },
+  live: { supported: true, window: false, state: 'joined', channel: 'cam-' + SERIAL, credentials: 'iot', viewer: false, sessions: 0 },
   image: { brightness: 0, contrast: 50, saturation: 50, jpegQuality: 85, shadowVersion: 12, w: 2560, h: 1920, sensor: 'OV5640' },
   battery: { voltage: 4.02, percent: 86, mv: 4020, pct: 86, charging: true, solarMv: 5650 }, power: { mode: 'auto', effective: 'powered', highMv: 4050, lowMv: 3850 },
   location: { lat: 10.9712, lng: 106.6503, fixAt: '2026-10-17T00:12:40Z' }, timezone: 'Asia/Ho_Chi_Minh', tzSource: 'farm', clockSource: 'sntp', publicIp: '203.0.113.7',

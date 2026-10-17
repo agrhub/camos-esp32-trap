@@ -110,6 +110,7 @@ void app_main(void)
 	sched_start();
 	proto_start();
 	motion_start(); /* idle unless enabled in the console and the effective mode is powered */
+	live_init();    /* cloud live view (CAMOS_LIVE): joins the KVS channel in powered mode or for live.start */
 
 	bool timer_wake = esp_reset_reason() == ESP_RST_DEEPSLEEP && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER;
 	if (!g_cfg.cert || !g_cfg.key) {

@@ -128,7 +128,7 @@ static void stream_task(void *arg)
 
 esp_err_t web_stream_get(httpd_req_t *req)
 {
-	if (live_active()) {
+	if (live_active() || live_streaming()) {
 		return web_send_error(req, "409 Conflict", "BUSY", "live view over KVS is running");
 	}
 	if (busy) {

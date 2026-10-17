@@ -3,7 +3,8 @@
  * Camera: JPEG at the maximum size of the sensor (protocol 9 `capture`: UXGA 1600x1200 on OV2640, QXGA 2048x1536 on
  * OV3660, QSXGA 2560x1920 on OV5640). The sensor is powered up for each capture and powered down afterwards (PWDN),
  * which is what lets the board sleep between captures; auto exposure restarts each time, hence the warm-up frames.
- * Live view (ESP32-S3) keeps the sensor up at a small size and hands JPEG frames to live.c.
+ * The web console preview keeps the sensor up at a small size (JPEG); the cloud live view (live_kvs.c) keeps it up in
+ * YUV422 for the H.264 encoder.
  */
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -15,6 +16,11 @@
 #include "camos.h"
 
 static const char *TAG = "cam";
+#if CONFIG_CAMOS_LIVE
+#define CAMOS_RAW_XCLK_MHZ CONFIG_CAMOS_LIVE_XCLK_MHZ /* raw frames for the live view encoder */
+#else
+#define CAMOS_RAW_XCLK_MHZ CONFIG_CAMOS_XCLK_MHZ
+#endif
 static RTC_DATA_ATTR framesize_t max_fs; /* known after the first power-up; kept through deep sleep */
 static bool streaming;
 
@@ -111,7 +117,7 @@ static int jpeg_q(int proto)
 	return clampi((100 - proto) * 63 / 100, 4, 63);
 }
 
-static esp_err_t cam_up(framesize_t fs, int quality, int fb_count)
+static esp_err_t cam_up(framesize_t fs, int quality, int fb_count, pixformat_t fmt)
 {
 	camera_config_t c = {
 		.pin_pwdn = CONFIG_CAMOS_PIN_PWDN,
@@ -130,10 +136,10 @@ static esp_err_t cam_up(framesize_t fs, int quality, int fb_count)
 		.pin_vsync = CONFIG_CAMOS_PIN_VSYNC,
 		.pin_href = CONFIG_CAMOS_PIN_HREF,
 		.pin_pclk = CONFIG_CAMOS_PIN_PCLK,
-		.xclk_freq_hz = CONFIG_CAMOS_XCLK_MHZ * 1000000,
+		.xclk_freq_hz = (fmt == PIXFORMAT_JPEG ? CONFIG_CAMOS_XCLK_MHZ : CAMOS_RAW_XCLK_MHZ) * 1000000,
 		.ledc_timer = LEDC_TIMER_0,
 		.ledc_channel = LEDC_CHANNEL_0,
-		.pixel_format = PIXFORMAT_JPEG,
+		.pixel_format = fmt,
 		.frame_size = fs,
 		.jpeg_quality = quality,
 		/* The driver default is width*height/5, which a detailed scene at good quality can exceed (the frame is then
@@ -233,12 +239,23 @@ const char *cam_sensor_name(void)
 	}
 }
 
-/* First power-up: UXGA works on every sensor; the detected one decides the real size */
-static esp_err_t detect_and_up(framesize_t want, int q, int fb_count)
+/* First power-up: UXGA JPEG works on every sensor; the detected one decides the real size */
+static esp_err_t detect_and_up(framesize_t want, int q, int fb_count, pixformat_t fmt)
 {
 	esp_err_t err;
+	if (!max_fs && fmt != PIXFORMAT_JPEG) {
+		/* raw frames for the live view: no UXGA JPEG detour (its 16 KB DMA buffer is internal RAM a WebRTC session
+		 * has little of); the detected sensor still gives the JPEG maximum for later captures */
+		err = cam_up(want, q, fb_count, fmt);
+		if (err == ESP_OK) {
+			max_fs = max_framesize(esp_camera_sensor_get()->id.PID);
+		} else {
+			ESP_LOGE(TAG, "camera init failed 0x%x", err);
+		}
+		return err;
+	}
 	if (!max_fs) {
-		err = cam_up(FRAMESIZE_UXGA, q, fb_count);
+		err = cam_up(FRAMESIZE_UXGA, q, fb_count, PIXFORMAT_JPEG);
 		if (err != ESP_OK) {
 			ESP_LOGE(TAG, "camera init failed 0x%x (wiring, power, or wrong board in menuconfig)", err);
 			return err;
@@ -246,12 +263,12 @@ static esp_err_t detect_and_up(framesize_t want, int q, int fb_count)
 		sensor_t *sn = esp_camera_sensor_get();
 		max_fs = max_framesize(sn->id.PID);
 		ESP_LOGI(TAG, "sensor PID 0x%x, maximum %dx%d", sn->id.PID, resolution[max_fs].width, resolution[max_fs].height);
-		if (want == FRAMESIZE_UXGA || (want == FRAMESIZE_INVALID && max_fs == FRAMESIZE_UXGA)) {
+		if (fmt == PIXFORMAT_JPEG && (want == FRAMESIZE_UXGA || (want == FRAMESIZE_INVALID && max_fs == FRAMESIZE_UXGA))) {
 			return ESP_OK;
 		}
 		esp_camera_deinit(); /* switch to the real size; the supply stays on */
 	}
-	err = cam_up(want == FRAMESIZE_INVALID ? max_fs : want, q, fb_count);
+	err = cam_up(want == FRAMESIZE_INVALID ? max_fs : want, q, fb_count, fmt);
 	if (err != ESP_OK) {
 		ESP_LOGE(TAG, "camera init failed 0x%x", err);
 	}
@@ -269,7 +286,7 @@ esp_err_t cam_capture(const settings_t *s, camera_fb_t **out)
 #endif
 	gpio_deep_sleep_hold_dis();
 	cam_power(true);
-	esp_err_t err = detect_and_up(FRAMESIZE_INVALID, q, 2);
+	esp_err_t err = detect_and_up(FRAMESIZE_INVALID, q, 2, PIXFORMAT_JPEG);
 	if (err != ESP_OK) {
 		cam_off();
 		return err;
@@ -314,13 +331,13 @@ static framesize_t framesize_for(int width, int height)
 	return FRAMESIZE_QVGA;
 }
 
-esp_err_t cam_stream_start(int width, int height, int quality)
+static esp_err_t stream_start(int width, int height, int quality, pixformat_t fmt)
 {
 	if (streaming) {
 		return ESP_OK;
 	}
 	cam_power(true);
-	esp_err_t err = detect_and_up(framesize_for(width, height), clampi(quality, 4, 63), 2);
+	esp_err_t err = detect_and_up(framesize_for(width, height), clampi(quality, 4, 63), 2, fmt);
 	if (err != ESP_OK) {
 		cam_off();
 		return err;
@@ -330,6 +347,17 @@ esp_err_t cam_stream_start(int width, int height, int quality)
 	apply_image_settings(&s);
 	streaming = true;
 	return ESP_OK;
+}
+
+esp_err_t cam_stream_start(int width, int height, int quality)
+{
+	return stream_start(width, height, quality, PIXFORMAT_JPEG);
+}
+
+/* Raw YUV422 (Y U Y V per pixel pair, 2 bytes per pixel) for the H.264 encoder; stop with cam_stream_stop */
+esp_err_t cam_stream_start_yuv(int width, int height)
+{
+	return stream_start(width, height, 12, PIXFORMAT_YUV422);
 }
 
 void cam_stream_stop(void)

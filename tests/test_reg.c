@@ -32,6 +32,14 @@ int main(void)
 	CHECK(!strcmp(r->kvs_channel, "cam-ESP000000000001"));
 	CHECK(!strcmp(r->claim_url, "https://flybot.agrhub.com/claim?sn=ESP000000000001"));
 	CHECK(r->claimed == 0);
+	CHECK(r->cred_host[0] == 0 && r->role_alias[0] == 0); /* not in the contract example */
+
+	/* the live view credential provider, when FlyBot sends it */
+	CHECK(reg_parse("{\"ok\":true,\"certificatePem\":\"-----BEGIN CERTIFICATE-----\\n\",\"deviceToken\":\"t\",\"iot\":{\"endpoint\":\"e\","
+					"\"credentialsEndpoint\":\"c1x2.credentials.iot.ap-southeast-2.amazonaws.com\",\"roleAlias\":\"flybot-camera-kvs\"}}",
+					r, err, sizeof(err)));
+	CHECK(!strcmp(r->cred_host, "c1x2.credentials.iot.ap-southeast-2.amazonaws.com"));
+	CHECK(!strcmp(r->role_alias, "flybot-camera-kvs"));
 
 	/* required fields */
 	CHECK(!reg_parse("{\"ok\":false}", r, err, sizeof(err)) && !strcmp(err, "ok is not true"));
