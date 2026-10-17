@@ -142,7 +142,7 @@ void time_sync_start(void)
 		cfg.sync_cb = sntp_synced;
 		esp_netif_sntp_init(&cfg);
 		sntp_started = true;
-		xTaskCreate(time_task, "time", 4096, NULL, 3, NULL);
+		xTaskCreate(time_task, "time", 8192, NULL, 3, NULL); /* HTTPS to FlyBot: a TLS handshake needs more than 4 KB */
 	} else {
 		esp_netif_sntp_start(); /* a network change: ask again */
 	}
