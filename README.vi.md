@@ -35,7 +35,7 @@ Camera đang chạy cũng tự cập nhật được từ trang web của nó (B
 [Releases](https://github.com/agrhub/camos-esp32-trap/releases) và ghi vào địa chỉ 0:
 
 ```
-python -m esptool --chip esp32s3 --port COM7 write_flash 0x0 camos-esp32-trap-freenove-v0.4.0-install.bin
+python -m esptool --chip esp32s3 --port COM7 write_flash 0x0 camos-esp32-trap-freenove-v0.4.1-install.bin
 ```
 
 (cài `esptool` bằng `pip install esptool`; trên Linux cổng là `/dev/ttyUSB0`.)
@@ -59,8 +59,11 @@ trị dùng được: không cần đổi gì nếu không cần thiết. [Thêm
 
 ## 5. Trang web của camera
 
-Khi camera đã vào Wi-Fi nhà bạn, mở `http://<IP camera>/` trên trình duyệt (IP có trong danh sách thiết bị của router,
-hoặc trên trang Wi-Fi của camera). Lần đầu trang yêu cầu đặt **mật khẩu admin** (8-64 ký tự, có chữ và số).
+Khi camera đã vào Wi-Fi nhà bạn, mở **`http://flybot-xxxxxx.local/`** trên trình duyệt của máy cùng mạng Wi-Fi, trong đó
+`xxxxxx` là 6 ký tự cuối của số serial, viết thường (serial `ESP32S3-0A1B2C` thành `flybot-0a1b2c.local`). Trang cài
+đặt và lệnh serial `info` hiện đúng tên này. Windows, macOS, iPhone và Linux mở được; nhiều trình duyệt Android không
+mở được tên `.local`, khi đó dùng `http://<IP camera>/` (IP có trong danh sách thiết bị của router, nơi camera hiện tên
+`flybot-xxxxxx`, hoặc trên trang Wi-Fi của camera). Lần đầu trang yêu cầu đặt **mật khẩu admin** (8-64 ký tự, có chữ và số).
 
 | Xem trực tiếp | Phát hiện chuyển động |
 |---|---|
