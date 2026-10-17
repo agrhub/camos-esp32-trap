@@ -137,7 +137,8 @@ the next restart. Measured on 16 Oct 2026: a 1.43 MB image uploaded and installe
 
 - **RTSP / ONVIF / RTMP video, continuous video recording, H.264 at large sizes**: the ESP32-S3 has no video encoder;
   the camera streams and stores JPEG pictures. The cloud live view in FlyBot uses a small software H.264 stream
-  (320x240, 5-8 fps measured) over KVS WebRTC ([dev/LIVE_VIEW.md](dev/LIVE_VIEW.md)).
+  (320x240, 5-8 fps measured) or the sensor's JPEG pictures over a WebRTC data channel (640x480 at up to 15 fps
+  measured) through KVS ([dev/LIVE_VIEW.md](dev/LIVE_VIEW.md)).
 - **Audio**: no microphone or speaker on the board.
 - **On-screen text burned into the photos and privacy masks**: would need a decode and re-encode of every 5 MP JPEG;
   the clock and name are drawn by the browser over the live picture only.
