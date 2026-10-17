@@ -84,8 +84,8 @@ your router's list, where the camera appears as `flybot-xxxxxx`, or on the camer
 over the Internet (Amazon Kinesis Video Streams WebRTC): 320x240 H.264, about 5-8 frames a second on the board we
 measured, one viewer at a time. On mains power it is ready all the time; on battery it joins when FlyBot asks (at its
 next wake-up). While someone watches from FlyBot, the camera's own web page shows "busy" instead of its live picture,
-and a scheduled photo due in that time is skipped. It needs FlyBot's side to hand the camera its live view
-credentials, which is not switched on yet: until then FlyBot offers a photo and the camera's web page instead.
+and a scheduled photo due in that time is skipped. FlyBot hands the camera its live view keys by itself
+(flybot.agrhub.com does); with older firmware FlyBot offers a photo and the camera's web page instead.
 Details: [docs/dev/LIVE_VIEW.md](docs/dev/LIVE_VIEW.md).
 
 ## 6. What the LED says
@@ -136,4 +136,4 @@ calculations and the mock camera used for the screenshots:
 
 ## Licence
 
-GNU Affero General Public License v3.0 only (AGPL-3.0-only), Copyright (C) 2026 AGRHUB: see [LICENSE](LICENSE). Third-party components in the firmware image keep their own licences: see [NOTICE](NOTICE). If you run a modified version for others over a network, the AGPL asks you to offer them its source.
+GNU Affero General Public License v3.0 only (AGPL-3.0-only), Copyright (C) 2026 AGRHUB: see [LICENSE](LICENSE). Third-party components in the firmware image keep their own licences: see [NOTICE](NOTICE). If you run a modified version for others over a network, the AGPL asks you to offer them its source. Linking Espressif's binary-only libraries (Wi-Fi, PHY, esp_peer, esp_h264) is allowed by an additional permission under AGPL section 7, written in [NOTICE](NOTICE).

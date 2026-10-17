@@ -56,7 +56,7 @@ in the picture, so the numbers are given per light level.
 | Two sessions in a row | the second viewer connected to the same camera without a restart |
 | LAN MJPEG after the change | 320x240 and 640x480 at about 10 fps (120 frames in 12 s, connection set-up included); answers `409 BUSY` while the cloud viewer watches |
 | Image size | 1,939,344 bytes of the 3 MB app slot (38 % free); 0.4.2 without live view: 1,532,224 bytes. ESP32-CAM preset: 1,432,336 bytes (19 % of its 1.69 MB slot free), `esp32s3cam` preset (live view off): 1,461,648 bytes |
-| Credential provider | the call with the device certificate works (mutual TLS) and answers 403 Access Denied: no role alias on the AWS side |
+| Credential provider | with the flybot-aws role alias (17 Oct 2026): the camera gets its own keys with its certificate and joins `cam-<serial>`; a viewer then played 320x240 H.264 at 8 fps, 0 frames dropped, first frame about 6 s after the viewer's offer |
 
 The 10 fps target is not reached: the software encoder needs 50-150 ms for a 320x240 frame on the S3 and the raw
 sensor mode adds its own wait. Larger sizes drop the frame rate in proportion (`CAMOS_LIVE_WIDTH` / `_HEIGHT`).
@@ -64,10 +64,11 @@ sensor mode adds its own wait. Larger sizes drop the frame rate in proportion (`
 Not measured: the 4G (A7680C) uplink, a remote viewer through a TURN relay (the camera's relay candidate is there,
 the bench viewer was on the same LAN), a session on battery, glass-to-glass latency, daylight frame rate.
 
-### What the AWS side still needs (flybot-aws, not deployed by this change)
+### The AWS side (flybot-aws, deployed on 17 Oct 2026)
 
-The camera's credential provider call answers `403 {"message":"Access Denied"}` today: the stack has no IoT role alias
-and the device policy does not allow `iot:AssumeRoleWithCertificate`. `infra/template.yaml` needs:
+flybot-aws (`infra/template.yaml`, deployed on 17 Oct 2026) has the three pieces below; FlyBot sends the endpoint and
+the alias to the camera (`IOT_CREDENTIALS_ENDPOINT`, `IOT_ROLE_ALIAS`), and publishes the desired settings, retained,
+on `camos/<serial>/shadow/desired`, the topic the firmware reads:
 
 1. An IAM role the IoT credential provider can assume, with the master rights on the camera's own channel only:
 
@@ -124,12 +125,12 @@ keys. With them loaded the camera joins its channel as it would with the credent
 
 ### Licences
 
-`esp_h264` (Apache-2.0, openh264 BSD-2-Clause inside), `esp_websocket_client` 1.7.0 (Apache-2.0) and `esp_libsrtp`
-(libsrtp, BSD-3-Clause) are free software. `esp_peer` ships its ICE / DTLS / RTP core as a binary library
-(`libpeer_default.a`) under the "Espressif Modified MIT" licence, which allows use only with Espressif chips. The
-AGPL-3.0 does not allow such a restriction by itself, so a release image with `CAMOS_LIVE` on needs an additional
-permission from the copyright holder (AGPL section 7) for linking these Espressif components, the same open point as
-the Wi-Fi libraries (see `NOTICE`). The repository itself holds none of their code (the component manager fetches it).
+`esp_h264` (Apache-2.0, openh264 BSD-2-Clause inside, the encoder shipped as a binary library), `esp_websocket_client`
+1.7.0 (Apache-2.0) and `esp_libsrtp` (libsrtp, BSD-3-Clause) are free software. `esp_peer` ships its ICE / DTLS / RTP
+core as a binary library (`libpeer_default.a`) under the "Espressif Modified MIT" licence, which allows use only with
+Espressif chips. The copyright holder grants an additional permission under AGPL section 7 for linking these Espressif
+System Libraries, like the Wi-Fi and PHY libraries: see `NOTICE`. Release images are built with `CAMOS_LIVE` on for
+the Freenove board. The repository itself holds none of their code (the component manager fetches it).
 
 ### Why esp_peer and not another WebRTC stack
 

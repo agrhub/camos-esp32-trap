@@ -26,7 +26,7 @@ the first build). Versions are those of firmware/dependencies.lock and the relea
 | http_parser (in ESP-IDF) | ESP-IDF copy | MIT | |
 | TLSF allocator (in ESP-IDF) | ESP-IDF copy | BSD-3-Clause | |
 | newlib C library (in the ESP-IDF toolchain / ROM) | ESP-IDF build | BSD-style licences (COPYING.NEWLIB) | |
-| Espressif Wi-Fi, PHY and coexistence libraries (esp32-wifi-lib, esp-phy-lib) | ESP-IDF v5.4.4 | Apache-2.0, **binary only** | see the note below |
+| Espressif Wi-Fi, PHY and coexistence libraries (esp32-wifi-lib, esp-phy-lib) | ESP-IDF v5.4.4 | Apache-2.0, **binary only** | linked under the section 7 permission below |
 | ESP x509 certificate bundle (in ESP-IDF) | ESP-IDF copy | data from Mozilla's CA list (MPL-2.0) | |
 | espressif/esp32-camera | 2.1.8 | Apache-2.0 | includes jpge (Rich Geldreich, public domain) |
 | espressif/esp_jpeg | 1.3.1 | Apache-2.0 | includes TJpgDec (ChaN, free licence: "no restriction on use") |
@@ -34,22 +34,30 @@ the first build). Versions are those of firmware/dependencies.lock and the relea
 | espressif/led_strip | 3.1.0 | Apache-2.0 | |
 | espressif/qrcode | 0.2.0 | Apache-2.0 | includes the QR Code generator library (Project Nayuki, MIT) |
 | espressif/esp_h264 | 1.4.1 | Apache-2.0 | ESP32-S3 live view only (`CAMOS_LIVE`); software encoder from openh264 (Cisco, BSD-2-Clause), shipped as a binary library |
-| espressif/esp_peer | 1.5.7 | Espressif Modified MIT (use with Espressif chips only), **core binary only** | ESP32-S3 live view only (`CAMOS_LIVE`): ICE, DTLS-SRTP, RTP in `libpeer_default.a`, derived from libpeer (MIT); see the note below |
+| espressif/esp_peer | 1.5.7 | Espressif Modified MIT (use with Espressif chips only), **core binary only** | ESP32-S3 live view only (`CAMOS_LIVE`): ICE, DTLS-SRTP, RTP in `libpeer_default.a`, derived from libpeer (MIT); linked under the section 7 permission below |
 | espressif/esp_libsrtp | 1.0.0 | BSD-3-Clause (libsrtp, Cisco) | ESP32-S3 live view only |
 | espressif/esp_websocket_client | 1.7.0 | Apache-2.0 | ESP32-S3 live view only (KVS signaling) |
 | Amazon Root CA 1 (firmware/main/certs/AmazonRootCA1.pem) | | public CA certificate (Amazon Trust Services) | |
 
 Not in the firmware image: the browser flasher page (docs/flash/) loads ESP Web Tools (Apache-2.0) from unpkg.com.
 
-Note on the binary-only libraries
----------------------------------
+Additional permission under GNU AGPL version 3 section 7
+=========================================================
 
-Espressif publishes its Wi-Fi, PHY and coexistence libraries under Apache-2.0 but without source code. Apache-2.0 is
-compatible with the AGPL-3.0, but the AGPL asks for the "Corresponding Source" of a conveyed binary, and these libraries
-have none. This is the same question every GPL-family firmware for the ESP32 has; an explicit additional permission
-under AGPL section 7 for linking these libraries would settle it. No such permission is granted in this file yet.
+If you modify this Program, or any covered work, by linking or combining it with Espressif System Libraries (or a
+modified version of those libraries), containing parts covered by the terms of their licences, the licensors of this
+Program grant you additional permission to convey the resulting work. Corresponding Source for a non-source form of
+such a combination shall not include the source code for the parts of the Espressif System Libraries used, as well as
+that of the covered work.
 
-The ESP32-S3 live view (`CAMOS_LIVE`, docs/dev/LIVE_VIEW.md) adds `esp_peer`, whose core is a binary library
-licensed for use with Espressif chips only. That use restriction, and the missing source, raise the same AGPL question
-in a stronger form: an image built with `CAMOS_LIVE` on should only be conveyed once the copyright holder grants an
-additional permission (AGPL section 7) covering these Espressif components.
+"Espressif System Libraries" means the libraries published by Espressif Systems for its chips, through ESP-IDF or the
+Espressif Component Registry, that are provided only in object or binary form, or whose licence limits their use to
+Espressif chips. At the time of writing this covers:
+
+- the Wi-Fi, PHY, coexistence and Bluetooth libraries of ESP-IDF (esp32-wifi-lib, esp-phy-lib, esp32-bt-lib);
+- the binary core of espressif/esp_peer (`libpeer_default.a`, "Espressif Modified MIT", Espressif chips only);
+- the binary encoder library of espressif/esp_h264.
+
+The permission covers only these Espressif libraries, used as libraries; it does not change the licence of any other
+code. The source files keep the SPDX identifier `AGPL-3.0-only`, read together with this permission. Those who
+distribute modified versions may remove this permission from their copies, in whole or in part (section 7).

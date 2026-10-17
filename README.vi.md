@@ -12,6 +12,7 @@ tại `docs/img/trap-assembled.jpg`.)*
 - Tấm pin mặt trời + pin sạc: camera ngủ giữa các lần chụp và tự thức dậy đúng giờ.
 - GPS: FlyBot tự đặt vị trí bẫy lên bản đồ.
 - Trang web ngay trên camera để xem trực tiếp, cài đặt và xem ảnh lưu trên thẻ nhớ.
+- Xem trực tiếp trong FlyBot từ bất cứ đâu (board Freenove): hình H.264 nhỏ qua WebRTC, xem mục 5.
 
 ## 1. Cần mua gì
 
@@ -72,6 +73,13 @@ mở được tên `.local`, khi đó dùng `http://<IP camera>/` (IP có trong 
 Ảnh chụp màn hình các trang khác (tiếng Anh) ở [README.md](README.md#5-the-cameras-web-page). *Hình trong các ảnh chụp màn
 hình là hình vẽ tấm bẫy, không phải ảnh từ camera.* Mô tả từng trang: [docs/WEB_CONSOLE.md](docs/WEB_CONSOLE.md).
 
+**Xem trực tiếp trong FlyBot (khi không ở nhà).** Camera Freenove còn gửi hình trực tiếp lên trang camera của FlyBot qua
+Internet (Amazon Kinesis Video Streams WebRTC): 320x240 H.264, khoảng 5-8 hình mỗi giây trên board đã đo, mỗi lần một
+người xem. Cắm điện thì camera luôn sẵn sàng; chạy pin thì camera vào khi FlyBot yêu cầu (ở lần thức dậy kế tiếp). Khi
+có người đang xem từ FlyBot, trang web của camera báo "bận" thay cho hình trực tiếp, và lần chụp theo lịch rơi vào lúc
+đó được bỏ qua. FlyBot tự cấp khóa xem trực tiếp cho camera (flybot.agrhub.com đã bật); với firmware cũ, FlyBot đưa ra
+ảnh chụp và trang web của camera thay thế. Chi tiết: [docs/dev/LIVE_VIEW.md](docs/dev/LIVE_VIEW.md).
+
 ## 6. Ý nghĩa đèn LED
 
 | Đèn (trên board) | Ý nghĩa |
@@ -109,4 +117,4 @@ Xem phần "For developers" trong [README.md](README.md#8-for-developers) (tài 
 
 ## Giấy phép
 
-GNU Affero General Public License v3.0 only (AGPL-3.0-only), Copyright (C) 2026 AGRHUB: xem [LICENSE](LICENSE). Các thành phần của bên thứ ba trong firmware giữ giấy phép riêng: xem [NOTICE](NOTICE). Nếu bạn chạy bản đã sửa đổi để người khác dùng qua mạng, AGPL yêu cầu bạn cung cấp mã nguồn của bản đó.
+GNU Affero General Public License v3.0 only (AGPL-3.0-only), Copyright (C) 2026 AGRHUB: xem [LICENSE](LICENSE). Các thành phần của bên thứ ba trong firmware giữ giấy phép riêng: xem [NOTICE](NOTICE). Nếu bạn chạy bản đã sửa đổi để người khác dùng qua mạng, AGPL yêu cầu bạn cung cấp mã nguồn của bản đó. Việc liên kết các thư viện chỉ có dạng nhị phân của Espressif (Wi-Fi, PHY, esp_peer, esp_h264) được cho phép bởi một quyền bổ sung theo điều 7 của AGPL, ghi trong [NOTICE](NOTICE).
