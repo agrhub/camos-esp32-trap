@@ -515,6 +515,12 @@ static int cmd_reg(int argc, char **argv)
 	store_claim_url(url, sizeof(url));
 	printf("claim at %s (serial %s, verify code %s)\n", url, g_cfg.serial, g_cfg.verify_code);
 	if (argc > 1 && !strcmp(argv[1], "start")) {
+		if (!strcmp(g_reg_error, "serial_taken")) {
+			g_reg_error[0] = 0; /* ask now, not after the wait a refusal set */
+			store_set_str("reg_err", "");
+			store_set_flag("reg_retry", 0);
+			store_set_flag("reg_taken_s", 0); /* and a new refusal waits 1 h again */
+		}
 		register_start();
 	}
 	return 0;

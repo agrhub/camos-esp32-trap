@@ -477,11 +477,14 @@ static void on_connected(void)
 	}
 }
 
+static int refused; /* failed connection attempts since the last CONNECTED */
+
 static void mqtt_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
 	esp_mqtt_event_handle_t ev = data;
 	switch ((esp_mqtt_event_id_t)id) {
 	case MQTT_EVENT_CONNECTED:
+		refused = 0;
 		on_connected();
 		break;
 	case MQTT_EVENT_DISCONNECTED:
@@ -527,6 +530,11 @@ static void mqtt_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 		} else if (ev->error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
 			ESP_LOGE(TAG, "connection refused, code %d (policy or certificate not registered?)",
 					 ev->error_handle->connect_return_code);
+		}
+		/* IoT closes the connection of a deleted certificate / thing: after a few refusals in a row ask FlyBot
+		 * whether the camera is still registered (register.c decides; a network outage changes nothing) */
+		if (!connected && ++refused >= 3) {
+			register_check_identity("IoT keeps refusing the connection");
 		}
 		break;
 	default:

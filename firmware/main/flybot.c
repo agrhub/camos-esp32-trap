@@ -82,6 +82,10 @@ int flybot_request(const char *path, esp_http_client_method_t method, const char
 	int n = esp_http_client_read_response(h, resp, (int)respn - 1);
 	resp[n > 0 ? n : 0] = 0;
 	esp_http_client_cleanup(h);
+	if (status == 401 && strcmp(path, "/api/device/register") && strcmp(path, "/api/device/pair") &&
+		strcmp(path, "/api/device/ota")) {
+		register_check_identity("device API 401");
+	}
 	return status;
 }
 
@@ -165,6 +169,9 @@ static esp_err_t snapshot_attempt(const camera_fb_t *fb, const char *meta, uploa
 	body[n > 0 ? n : 0] = 0;
 	esp_http_client_cleanup(h);
 
+	if (status == 401) {
+		register_check_identity("snapshot upload 401");
+	}
 	if (status != 200 && status != 201) {
 		snprintf(out->error, sizeof(out->error), "http %d", status); /* 401 bad token, 413 too large */
 		return ESP_FAIL;

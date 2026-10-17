@@ -33,6 +33,7 @@ char g_wifi_error[33]; /* SSID the camera could not join after the portal (shown
 char g_reg_error[64];  /* registration error (409 serial_taken ...), "" none */
 char g_public_ip[48];  /* publicIp from /api/device/time */
 #define FCTRY_PART "fctry"
+static char cert_src; /* 'f' factory partition, 'n' runtime NVS, 0 none */
 
 /* ------------------------------------------------------------------ NVS primitives */
 
@@ -238,6 +239,7 @@ static void load_layer(nvs_handle_t h, char tag)
 	if (c) {
 		free(g_cfg.cert);
 		g_cfg.cert = c;
+		cert_src = tag;
 	}
 	if (k) {
 		free(g_cfg.key);
@@ -361,6 +363,28 @@ void store_erase_all(void)
 	free(keep_cert);
 	free(keep_key);
 	ESP_LOGW(TAG, "factory reset: settings back to the build defaults, identity kept");
+}
+
+bool store_drop_registration(void)
+{
+	if (cert_src == 'f') {
+		ESP_LOGE(TAG, "the certificate comes from the factory partition: provision the camera again (tools/factory.*)");
+		return false;
+	}
+	/* what registration gave the camera; the device key, serial and verify code stay (a new CSR reuses the key) */
+	static const char *const keys[] = { "cert", "token", "thing", "cred_host", "role_alias", "claim_url", "claimed",
+										"prov_token", "reg_err" };
+	nvs_handle_t h;
+	if (nvs_open(CAMOS_NS, NVS_READWRITE, &h) != ESP_OK) {
+		return false;
+	}
+	for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
+		nvs_erase_key(h, keys[i]);
+	}
+	nvs_commit(h);
+	nvs_close(h);
+	ESP_LOGW(TAG, "registration dropped (certificate, device token, thing): serial, verify code and key kept");
+	return true;
 }
 
 bool store_paired(void)

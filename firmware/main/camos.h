@@ -82,6 +82,7 @@ void store_set_blob(const char *name, const void *data, size_t len);
 bool store_set_pem(const char *cert, const char *key);  /* both PEM, validated (BEGIN/END lines) */
 void store_erase_all(void);                             /* factory reset: keeps serial and verify code */
 bool store_paired(void);                                /* token and IoT host present */
+bool store_drop_registration(void);                      /* removed in FlyBot: forget certificate, token, thing */
 /* Apply one portal / console key ("ssid", "password", "apn", "apiBase", ...). Returns false for an unknown key or a
  * bad value. Updates g_cfg and NVS. */
 bool store_apply_kv(const char *key, const char *value);
@@ -393,6 +394,7 @@ void qr_print(const char *text);                              /* to the serial c
 
 void register_start(void);              /* no certificate yet: key + CSR + POST /api/device/register, with back-off */
 bool register_pending(void);
+void register_check_identity(const char *why); /* a 401 or refused IoT logins: is the camera still known to FlyBot? */
 char *register_csr_pem(void);           /* the CSR it would send (console `csr`), caller frees */
 /* Parses a register response (201/200 JSON) into the configuration; pure apart from store_*; false + err on a bad one */
 bool register_apply_response(const char *json, char *err, size_t errn);
