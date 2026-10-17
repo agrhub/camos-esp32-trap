@@ -92,7 +92,7 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 		}
 		char ip[16];
 		wifi_ip(ip, sizeof(ip));
-		ESP_LOGI(TAG, "got IP %s (rssi %d)", ip, wifi_rssi());
+		ESP_LOGI(TAG, "got IP %s (rssi %d), console http://%s/ or http://%s.local/", ip, wifi_rssi(), ip, local_hostname());
 		if (up_cb) {
 			up_cb(); /* protocol 1: reconnect MQTT right away after a network change */
 		}
@@ -107,6 +107,8 @@ void wifi_start_sta(void)
 	started = true;
 	stopping = false;
 	esp_netif_t *sta = esp_netif_create_default_wifi_sta();
+	local_hostname_apply(sta); /* the router lists the camera as flybot-xxxxxx */
+	local_mdns_start();         /* answers flybot-xxxxxx.local once the station has an address */
 	if (g_cfg.ip_mode == 1 && g_cfg.static_ip[0] && g_cfg.static_gw[0]) {
 		/* static address from the console's TCP/IP page (GOT_IP still comes once the station associates) */
 		esp_netif_ip_info_t ip = { 0 };

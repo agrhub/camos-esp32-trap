@@ -326,7 +326,7 @@ void portal_run(void)
 	store_set_flag("portal", 0);
 
 	esp_netif_create_default_wifi_ap();
-	esp_netif_create_default_wifi_sta();
+	local_hostname_apply(esp_netif_create_default_wifi_sta());
 	wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
 	ESP_ERROR_CHECK(esp_wifi_init(&init));
 	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA)); /* AP for the phone + STA for scans and pairing */

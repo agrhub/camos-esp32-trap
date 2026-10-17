@@ -51,7 +51,7 @@ endif()
 idf_component_register(
     SRCS main.c battery.c power.c power_decide.c store.c wifi.c modem.c net.c portal.c web.c led.c qr.c register.c apn.c
          reg_parse.c cam.c flybot.c ota.c proto.c shadow.c sched.c util.c tz.c nmea.c gps.c live.c console.c
-         stream.c sd.c motion.c motion_core.c events.c
+         stream.c sd.c motion.c motion_core.c events.c hostname.c
     INCLUDE_DIRS "." "${CAMOS_GEN_DIR}"
     EMBED_TXTFILES certs/AmazonRootCA1.pem portal.html console.html
 )

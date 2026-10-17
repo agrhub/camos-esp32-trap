@@ -55,6 +55,7 @@ static int cmd_info(int argc, char **argv)
 	printf("paired %s  thing %s  iot %s\n", store_paired() ? "yes" : "no", g_cfg.thing_name, g_cfg.mqtt_host);
 	printf("net %s %s ip %s rssi %d  mqtt %s\n", net_type_name(), net_up() ? "up" : "down", ip, net_rssi(),
 		   proto_connected() ? "connected" : "down");
+	printf("local name %s.local  (web console http://%s.local/ on the same Wi-Fi)\n", local_hostname(), local_hostname());
 	printf("clock %s  uptime %lld s  free heap %u (min %u)  free PSRAM %u\n", ts, (long long)(esp_timer_get_time() / 1000000),
 		   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL), (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
 		   (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));

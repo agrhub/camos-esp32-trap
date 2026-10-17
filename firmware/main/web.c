@@ -584,6 +584,7 @@ static esp_err_t status_get(httpd_req_t *req)
 	char ip[16];
 	net_ip(ip, sizeof(ip));
 	cJSON_AddStringToObject(n, "ip", ip);
+	cJSON_AddStringToObject(n, "hostname", local_hostname()); /* <hostname>.local over mDNS on Wi-Fi */
 	cJSON_AddNumberToObject(n, "rssi", net_rssi());
 	if (net_type() == NET_WIFI) {
 		wifi_ap_record_t ap;

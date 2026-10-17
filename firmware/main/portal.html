@@ -45,7 +45,7 @@ details.card>summary::after{content:"▸";float:right;color:#8a949e}details.card
   <div id="errBox" class="err hidden"></div>
   <div id="claimBox" class="hidden" style="margin-bottom:16px">
    <div class="claim"><img id="claimQr" alt="QR"><div><p><b id="tUnclaimed"></b></p><p class="muted" id="tClaimText"></p>
-    <div class="kv"><span id="tSerial"></span> <b id="serial"></b><br><span id="tCode"></span> <b id="vcode"></b></div></div></div>
+    <div class="kv"><span id="tSerial"></span> <b id="serial"></b><br><span id="tCode"></span> <b id="vcode"></b><br><span id="tLocal"></span> <b id="localName"></b></div></div></div>
   </div>
   <label id="tNetwork"></label>
   <div class="nets" id="nets"></div>
@@ -54,7 +54,7 @@ details.card>summary::after{content:"▸";float:right;color:#8a949e}details.card
   <button id="connect"></button>
   <p style="margin:16px 0 0"><a id="rescan"></a> <span id="scanState" class="muted"></span></p>
  </div>
- <div id="connecting" class="hidden"><h1 id="tConnecting"></h1><p id="tConnectingText"></p></div>
+ <div id="connecting" class="hidden"><h1 id="tConnecting"></h1><p id="tConnectingText"></p><p id="localNext"></p></div>
 </div>
 
 <details class="card" id="adv"><summary id="tAdvanced"></summary>
@@ -107,7 +107,8 @@ const T = {
   connecting: 'Đang kết nối…', connectingText: 'Camera đang kết nối vào mạng đã chọn và sẽ tắt mạng cài đặt này. Nếu sai mật khẩu, mạng cài đặt sẽ bật lại sau khoảng một phút để nhập lại.',
   errChoose: 'Hãy chọn một mạng Wi-Fi.', errShort: 'Mật khẩu Wi-Fi có ít nhất 8 ký tự.', errJoin: 'Không kết nối được "{0}". Kiểm tra mật khẩu và thử lại.',
   errTaken: 'FlyBot từ chối đăng ký: số serial này đã được đăng ký với mã xác minh khác. Chủ camera cần đặt lại camera trên FlyBot.',
-  unclaimed: 'Chưa có chủ', claimText: 'Mở {0} hoặc quét mã QR trên nhãn trong ứng dụng FlyBot để nhận camera.', serial: 'Serial', code: 'Mã xác minh',
+  unclaimed: 'Chưa có chủ', claimText: 'Mở {0} hoặc quét mã QR trên nhãn trong ứng dụng FlyBot để nhận camera.', serial: 'Serial', code: 'Mã xác minh', local: 'Tên cục bộ',
+  localNext: 'Khi camera đã vào mạng, mở {0} trên điện thoại hoặc máy tính cùng mạng Wi-Fi để vào trang quản lý camera.',
   advanced: 'Cài đặt nâng cao', advNote: 'Đã có sẵn giá trị mặc định; chỉ đổi khi cần. Để trống một ô = dùng mặc định.', dflt: 'mặc định',
   g4: '4G (SIMCom A7680C)', cellOn: 'Dùng 4G khi có SIM', apn: 'APN', apnPh: 'tự động theo SIM', simPin: 'Mã PIN SIM (thường để trống)',
   schedule: 'Lịch chụp & nguồn điện', interval: 'Chu kỳ chụp (phút)', power: 'Chế độ nguồn',
@@ -128,7 +129,8 @@ const T = {
   connecting: 'Connecting…', connectingText: 'The camera is joining the chosen network and will close this setup network. If the password is wrong, setup comes back in about a minute.',
   errChoose: 'Choose a Wi-Fi network.', errShort: 'Wi-Fi passwords have at least 8 characters.', errJoin: 'Could not join "{0}". Check the password and try again.',
   errTaken: 'FlyBot refused the registration: this serial is registered with another verify code. The camera owner has to reset it in FlyBot.',
-  unclaimed: 'Unclaimed', claimText: 'Open {0} or scan the label QR in the FlyBot app to claim this camera.', serial: 'Serial', code: 'Verify code',
+  unclaimed: 'Unclaimed', claimText: 'Open {0} or scan the label QR in the FlyBot app to claim this camera.', serial: 'Serial', code: 'Verify code', local: 'Local name',
+  localNext: 'Once the camera is on your network, open {0} from a phone or computer on the same Wi-Fi to reach the camera console.',
   advanced: 'Advanced settings', advNote: 'Defaults are already set; change them only when needed. An empty field means the default.', dflt: 'default',
   g4: '4G (SIMCom A7680C)', cellOn: 'Use 4G when a SIM is inserted', apn: 'APN', apnPh: 'automatic from the SIM', simPin: 'SIM PIN (usually empty)',
   schedule: 'Schedule & power', interval: 'Capture interval (minutes)', power: 'Power mode',
@@ -161,7 +163,7 @@ function err(text) { $('errBox').textContent = text; $('errBox').classList.toggl
 function texts() {
   document.documentElement.lang = lang; document.title = t('title'); $('lang').textContent = t('lang');
   for (const [id, k] of [['tHeading', 'heading'], ['tNetwork', 'network'], ['tHidden', 'hidden'], ['tPassword', 'password'], ['connect', 'connect'], ['rescan', 'rescan'],
-    ['tConnecting', 'connecting'], ['tConnectingText', 'connectingText'], ['tUnclaimed', 'unclaimed'], ['tSerial', 'serial'], ['tCode', 'code'], ['tAdvanced', 'advanced'],
+    ['tConnecting', 'connecting'], ['tConnectingText', 'connectingText'], ['tUnclaimed', 'unclaimed'], ['tSerial', 'serial'], ['tCode', 'code'], ['tLocal', 'local'], ['tAdvanced', 'advanced'],
     ['tAdvNote', 'advNote'], ['t4g', 'g4'], ['tCellOn', 'cellOn'], ['tApn', 'apn'], ['tSimPin', 'simPin'], ['tSchedule', 'schedule'], ['tInterval', 'interval'],
     ['tPower', 'power'], ['tPowerNote', 'powerNote'], ['tTz', 'tz'], ['tDevice', 'device'], ['tLed', 'led'], ['tGps', 'gpsOn'], ['tBatt', 'batt'], ['tApi', 'api'], ['tProv', 'prov'],
     ['tProvNote', 'provNote'], ['tIot', 'iot'], ['tCert', 'cert'], ['tKey', 'key'], ['saveCert', 'saveCert'], ['tCertNote', 'certNote'], ['saveAdv', 'saveAdv']]) $(id).textContent = t(k);
@@ -177,7 +179,7 @@ function draw() {
   $('tIntro').textContent = (def ? t('introDefault', cfg.apSsid, cfg.ssid) : t('intro', cfg.apSsid)) + (cfg.hasModem && cfg.cellular ? t('introCell') : '');
   err(cfg.regError === 'serial_taken' ? t('errTaken') : cfg.wifiError ? t('errJoin', cfg.wifiError) : '');
   $('claimBox').classList.toggle('hidden', !!cfg.claimed && !!cfg.registered);
-  $('claimQr').src = '/api/qr.svg?what=claim'; $('serial').textContent = cfg.serial; $('vcode').textContent = cfg.verifyCode;
+  $('claimQr').src = '/api/qr.svg?what=claim'; $('serial').textContent = cfg.serial; $('vcode').textContent = cfg.verifyCode; $('localName').textContent = cfg.hostname ? cfg.hostname + '.local' : '';
   $('tClaimText').textContent = t('claimText', cfg.claimUrl);
   document.querySelectorAll('[data-d]').forEach((b) => b.classList.toggle('hidden', !dflt.has(b.dataset.d)));
   $('cellSect').classList.toggle('hidden', !cfg.hasModem); $('gpsRow').classList.toggle('hidden', !cfg.hasGps);
@@ -186,6 +188,7 @@ function draw() {
   $('tzBadge').textContent = t('manual'); $('tzBadge').className = 'badge warn' + (manualTz ? '' : ' hidden');
   $('provSet').textContent = cfg.provisionToken ? t('set') : ''; $('certSet').textContent = cfg.cert ? t('set') : t('notSet'); $('keySet').textContent = cfg.key ? t('set') : t('notSet');
   $('foot').textContent = t('foot', cfg.fw, cfg.model);
+  $('localNext').textContent = cfg.hostname ? t('localNext', `http://${cfg.hostname}.local/`) : '';
   drawNets();
 }
 

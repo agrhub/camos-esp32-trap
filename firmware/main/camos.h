@@ -129,6 +129,13 @@ void wifi_ip(char *out, size_t n);
 void wifi_set_up_cb(void (*cb)(void));
 void wifi_stop(void);
 
+/* hostname.c: flybot-<last 6 of the serial>, the DHCP host name and <name>.local over mDNS */
+const char *local_hostname(void);              /* "flybot-92877c" */
+void local_hostname_url(char *out, size_t n);  /* "http://flybot-92877c.local/" */
+struct esp_netif_obj;
+void local_hostname_apply(struct esp_netif_obj *sta); /* before DHCP starts */
+void local_mdns_start(void);                   /* once; answers <name>.local and announces the console */
+
 bool modem_available(void);        /* built with a modem, 4G on, the module not found missing before */
 typedef enum { MODEM_OK = 0, MODEM_NOT_FITTED, MODEM_NO_SIM, MODEM_NO_NETWORK, MODEM_NO_DATA } modem_fail_t;
 modem_fail_t modem_last_failure(void);

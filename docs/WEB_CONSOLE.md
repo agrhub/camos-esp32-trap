@@ -1,6 +1,8 @@
 # The camera's web page (web console, firmware 0.4.0)
 
-`http://<camera IP>/` on Wi-Fi (the IP is in the boot log, the serial `info` and the router). Served while the camera is
+`http://flybot-xxxxxx.local/` on the same Wi-Fi (mDNS; `xxxxxx` = the last 6 characters of the serial, lower case), or
+`http://<camera IP>/` (the IP is in the boot log, the serial `info` and the router, which lists the camera as
+`flybot-xxxxxx`). Android browsers often do not resolve `.local`: use the IP there. Served while the camera is
 awake: always in powered mode, during the awake window in battery mode (a signed-in visit keeps it awake 2 minutes).
 Not over 4G. English by default, Vietnamese from the language menu (remembered on the camera and in the browser).
 

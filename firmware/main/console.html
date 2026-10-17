@@ -148,7 +148,7 @@ const I18N = {
   snapOk: 'Đã gửi ảnh {0}×{1} ({2} KB) lên FlyBot.', snapFail: 'Chụp được ảnh {0}×{1} nhưng không gửi được: {2}',
   liveNote: 'Xem trực tiếp trong mạng LAN là luồng MJPEG (không có tiếng), mỗi lần một người xem; luồng dừng khi tab bị ẩn. Xem qua cloud dùng KVS WebRTC trên FlyBot.',
   model: 'Model', serial: 'Số serial', code: 'Mã xác minh', firmware: 'Firmware', built: 'Ngày build', uptime: 'Thời gian chạy', memory: 'Bộ nhớ trống', network: 'Mạng',
-  signal: 'Tín hiệu', channel: 'Kênh', ip: 'Địa chỉ IP', publicIp: 'IP công cộng', mac: 'Địa chỉ MAC', mask: 'Subnet mask', gateway: 'Gateway', cloud: 'Cloud',
+  signal: 'Tín hiệu', channel: 'Kênh', ip: 'Địa chỉ IP', hostname: 'Tên cục bộ', publicIp: 'IP công cộng', mac: 'Địa chỉ MAC', mask: 'Subnet mask', gateway: 'Gateway', cloud: 'Cloud',
   connected: 'Đã kết nối', disconnected: 'Mất kết nối', server: 'Máy chủ', certificate: 'Chứng chỉ thiết bị', certOk: 'Có (mTLS)', certNo: 'Chưa có',
   owner: 'Chủ sở hữu', claimed: 'Đã có chủ', unclaimed: 'Chưa có chủ', claimText: 'Mở {0} hoặc quét mã QR trên nhãn trong ứng dụng FlyBot để nhận camera.',
   camTime: 'Giờ camera', notSynced: 'Chưa đồng bộ', clockSrc: 'Nguồn giờ', tzSrc: 'Nguồn múi giờ', days: '{0} ngày ', hm: '{0} giờ {1} phút',
@@ -221,7 +221,7 @@ const I18N = {
   snapOk: 'Sent a {0}×{1} photo ({2} KB) to FlyBot.', snapFail: 'Captured {0}×{1} but could not upload: {2}',
   liveNote: 'Live view on the LAN is an MJPEG stream (no sound), one viewer at a time; it stops while this tab is hidden. Live view through the cloud uses KVS WebRTC in FlyBot.',
   model: 'Model', serial: 'Serial number', code: 'Verify code', firmware: 'Firmware', built: 'Build date', uptime: 'Uptime', memory: 'Free memory', network: 'Network',
-  signal: 'Signal', channel: 'Channel', ip: 'IP address', publicIp: 'Public IP', mac: 'MAC address', mask: 'Subnet mask', gateway: 'Gateway', cloud: 'Cloud',
+  signal: 'Signal', channel: 'Channel', ip: 'IP address', hostname: 'Local name', publicIp: 'Public IP', mac: 'MAC address', mask: 'Subnet mask', gateway: 'Gateway', cloud: 'Cloud',
   connected: 'Connected', disconnected: 'Disconnected', server: 'Server', certificate: 'Device certificate', certOk: 'Yes (mTLS)', certNo: 'Not yet',
   owner: 'Owner', claimed: 'Claimed', unclaimed: 'Unclaimed', claimText: 'Open {0} or scan the label QR in the FlyBot app to claim this camera.',
   camTime: 'Camera time', notSynced: 'Not synced', clockSrc: 'Clock source', tzSrc: 'Timezone source', days: '{0} d ', hm: '{0} h {1} min',
@@ -287,6 +287,8 @@ try { const l = localStorage.getItem('camosLang'); if (I18N[l]) { lang = l; lang
 const $ = (s) => document.querySelector(s);
 const t = (k, ...a) => String(I18N[lang][k] ?? I18N.en[k] ?? k).replace(/\{(\d)\}/g, (m, i) => a[i] ?? '');
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// <hostname>.local (mDNS): a link that opens this console by name on the same Wi-Fi
+const localLink = (h) => (h ? `<a href="http://${esc(h)}.local/">${esc(h)}.local</a>` : t('none'));
 const errText = (code, msg) => { const m = (I18N[lang].E || {})[code] || I18N.en.E[code]; return m ? m.replace('{0}', msg || '') : msg || code || '?'; };
 async function api(path, body) {
   const opt = body ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'camos' }, body: JSON.stringify(body) } : { cache: 'no-store' };
@@ -563,7 +565,7 @@ const PAGES = {
           [t('ledState'), esc(s.led.enabled ? s.led.state : t('off'))], [t('sensor'), esc(s.image.sensor || t('none')) + (s.image.w ? ` · ${s.image.w}×${s.image.h}` : '')],
           [t('sdCard'), s.sd && s.sd.present ? `${dot('ok')}${s.sd.freeMB} / ${s.sd.totalMB} MB ${t('free').toLowerCase()}` : dot('') + t(FEAT.sd ? 'noCardShort' : 'notBuiltShort')]]))
         + panel(t('network'), kv([[s.net.type === '4g' ? '4G' : 'Wi-Fi', `${dot(s.net.connected ? 'ok' : 'bad')}${esc(s.net.type === '4g' ? (s.net.cell && s.net.cell.operator) || '4G' : s.net.ssid || t('none'))}`],
-          [t('signal'), s.net.rssi ? s.net.rssi + ' dBm' : t('none')], [t('ip'), esc(s.net.ip || t('none'))], [t('publicIp'), esc(s.publicIp || t('none'))], [t('mac'), esc(s.net.mac || t('none'))]]))
+          [t('signal'), s.net.rssi ? s.net.rssi + ' dBm' : t('none')], [t('ip'), esc(s.net.ip || t('none'))], [t('hostname'), s.net.type === '4g' ? t('none') : localLink(s.net.hostname)], [t('publicIp'), esc(s.publicIp || t('none'))], [t('mac'), esc(s.net.mac || t('none'))]]))
         + panel(t('cloud'), kv([[t('status'), `${dot(s.cloud.connected ? 'ok' : 'bad')}${s.cloud.connected ? t('connected') : t('disconnected')}`], [t('server'), esc(s.cloud.host || t('none'))],
           [t('certificate'), s.cloud.certificate ? t('certOk') : t('certNo')], [t('owner'), cfg.claimed && cfg.registered ? dot('ok') + t('claimed') : dot('warn') + t('unclaimed')]].concat(cfg.regError ? [[t('regError'), `<span class="msg err">${esc(cfg.regError)}</span>`]] : [])))
         + panel(t('battery'), kv([[t('battery'), esc(fmtBatt(s.battery))], [t('solar'), s.battery && s.battery.solarMv !== undefined ? s.battery.solarMv + ' mV' : t('none')],
@@ -626,7 +628,7 @@ const PAGES = {
   async wifi(el, st) {
     const n = st.net, cfgW = await api('config');
     el.innerHTML = panel(t('current'), kv([['Wi-Fi', `${dot(n.connected && n.type === 'wifi' ? 'ok' : 'bad')}${esc(n.ssid || t('none'))}`], [t('signal'), n.rssi ? `${n.rssi} dBm (${t('channel')} ${n.channel ?? '?'})` : t('none')],
-        [t('ip'), `${esc(n.ip || t('none'))} ${t('dhcp')}`], [t('publicIp'), esc(st.publicIp || t('none'))], [t('mask'), esc(n.mask || t('none'))], [t('gateway'), esc(n.gateway || t('none'))], [t('mac'), esc(n.mac || t('none'))]]))
+        [t('ip'), `${esc(n.ip || t('none'))} ${t('dhcp')}`], [t('hostname'), localLink(n.hostname)], [t('publicIp'), esc(st.publicIp || t('none'))], [t('mask'), esc(n.mask || t('none'))], [t('gateway'), esc(n.gateway || t('none'))], [t('mac'), esc(n.mac || t('none'))]]))
       + panel(t('tcpip'), row(t('ipMode'), sel('ipMode', cfgW.ipMode ? 1 : 0, [[0, t('dhcpOpt')], [1, t('staticOpt')]])) + `<div id="ipBox">`
         + row(t('ip'), txt('sIp', cfgW.staticIp, n.ip || '')) + row(t('mask'), txt('sMask', cfgW.staticMask, '255.255.255.0')) + row(t('gateway'), txt('sGw', cfgW.staticGateway, n.gateway || ''))
         + row(t('dns'), txt('sDns', cfgW.staticDns, n.gateway || '')) + `</div><p class="note">${t('ipNote')}</p>`, saveBar('ipSave'))

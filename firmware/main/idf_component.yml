@@ -7,3 +7,5 @@ dependencies:
   espressif/led_strip: "^3.0.0"
   # Claim QR as SVG on the portal and console pages (Nayuki qrcodegen)
   espressif/qrcode: "^0.2.0"
+  # Local name flybot-<serial tail>.local for the web console (hostname.c)
+  espressif/mdns: "^1.4.0"

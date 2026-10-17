@@ -62,8 +62,11 @@ address. Every field already has a working default: change nothing unless you ne
 
 ## 5. The camera's web page
 
-When the camera is on your Wi-Fi, open `http://<camera IP>/` in a browser (the IP is in your router's list, or on the
-camera's Wi-Fi page). The first visit asks you to set the **admin password** (8-64 characters, letters and digits).
+When the camera is on your Wi-Fi, open **`http://flybot-xxxxxx.local/`** in a browser on the same Wi-Fi, where
+`xxxxxx` is the last 6 characters of the serial number in lower case (serial `ESP32S3-0A1B2C` gives
+`flybot-0a1b2c.local`). The setup page and the serial `info` command show the exact name. Windows, macOS, iPhone and
+Linux open it; many Android browsers do not resolve `.local` names, so there use `http://<camera IP>/` (the IP is in
+your router's list, where the camera appears as `flybot-xxxxxx`, or on the camera's Wi-Fi page). The first visit asks you to set the **admin password** (8-64 characters, letters and digits).
 
 | Live View | Playback | Image settings |
 |---|---|---|

@@ -500,6 +500,7 @@ void store_config_json(cJSON *o, bool secrets)
 	cJSON_AddStringToObject(o, "serial", g_cfg.serial);
 	cJSON_AddStringToObject(o, "model", CONFIG_CAMOS_MODEL);
 	cJSON_AddStringToObject(o, "fw", fw_version());
+	cJSON_AddStringToObject(o, "hostname", local_hostname()); /* read-only: <hostname>.local */
 	cJSON *dflt = cJSON_CreateArray(); /* keys whose value is the build default (the portal shows a badge) */
 	for (size_t i = 0; i < N_FIELDS; i++) {
 		const str_field_t *f = &fields[i];
