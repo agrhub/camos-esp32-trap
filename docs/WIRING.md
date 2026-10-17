@@ -14,7 +14,7 @@ descriptions; check the silkscreen of the boards you receive against the tables 
 ## 1. The Freenove ESP32-S3 CAM board (FNK0085)
 
 On the board, nothing to wire: OV5640 camera on the ribbon connector, microSD slot (SD_MMC: CLK 39, CMD 38, D0 40), RGB
-status LED (WS2812, GPIO48), BOOT button (GPIO0, the setup button: hold 3 s), USB-C with a CH340 serial chip (flashing
+status LED (WS2812, GPIO48), BOOT button (GPIO0, the setup button: hold 3 s for setup, 10 s for a factory reset), USB-C with a CH340 serial chip (flashing
 and the serial console).
 
 Free header pins used by the firmware:
@@ -87,7 +87,7 @@ trees.
 
 The two dividers draw about 21 uA (battery) and 49 uA (panel, in the sun). After wiring them, switch on
 "Battery / solar divider fitted" in the setup page or the web console (Power & Schedule): until then the camera ignores
-the readings and treats `auto` power mode as battery mode.
+the readings and treats `auto` power mode as powered (a USB / mains camera), so it never deep sleeps.
 
 ## 5. AI-Thinker ESP32-CAM
 

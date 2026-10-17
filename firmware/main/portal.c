@@ -324,6 +324,7 @@ void portal_run(void)
 	}
 	led_set(LED_PORTAL);
 	store_set_flag("portal", 0);
+	button_task_start(); /* 10 s = factory reset works in the portal too */
 
 	esp_netif_create_default_wifi_ap();
 	local_hostname_apply(esp_netif_create_default_wifi_sta());

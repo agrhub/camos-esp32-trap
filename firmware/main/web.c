@@ -442,6 +442,7 @@ static bool csrf_ok(httpd_req_t *req)
 
 static esp_err_t page_get(httpd_req_t *req)
 {
+	sched_keep_awake(120); /* battery mode: someone opened the console (also before signing in) */
 	httpd_resp_set_type(req, "text/html; charset=utf-8");
 	httpd_resp_set_hdr(req, "Cache-Control", "no-store");
 	return httpd_resp_send(req, console_html_start, console_html_end - console_html_start - 1);
@@ -449,6 +450,7 @@ static esp_err_t page_get(httpd_req_t *req)
 
 static esp_err_t session_get(httpd_req_t *req)
 {
+	sched_keep_awake(120); /* the page pings this every 30 s while it is open: stay awake for it */
 	cJSON *o = cJSON_CreateObject();
 	cJSON_AddBoolToObject(o, "activated", activated());
 	cJSON_AddBoolToObject(o, "signedIn", session_ok(req));

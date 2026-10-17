@@ -155,7 +155,7 @@ const I18N = {
   camTime: 'Giờ camera', notSynced: 'Chưa đồng bộ', clockSrc: 'Nguồn giờ', tzSrc: 'Nguồn múi giờ', days: '{0} ngày ', hm: '{0} giờ {1} phút',
   battery: 'Pin', solar: 'Tấm pin mặt trời', charging: 'Đang sạc', notCharging: 'Không sạc', noBattery: 'Chưa đo (chưa nối mạch đo pin)',
   powerMode: 'Chế độ nguồn', effective: 'Đang chạy', highMv: 'Chuyển sang luôn kết nối từ (mV)', lowMv: 'Về chế độ pin dưới (mV)',
-  powerNote: 'auto: pin đầy hoặc đang sạc thì luôn kết nối (xem trực tiếp, chụp ngay); pin yếu thì ngủ sâu giữa các lần chụp.',
+  powerNote: 'auto: chưa lắp mạch đo pin thì luôn kết nối (camera cắm điện); có mạch đo pin thì pin đầy hoặc đang sạc luôn kết nối (xem trực tiếp, chụp ngay), pin yếu thì ngủ sâu giữa các lần chụp.',
   interval: 'Chu kỳ chụp (phút)', nextCapture: 'Lần chụp tới', led: 'Đèn trạng thái', ledState: 'Trạng thái đèn', battMon: 'Đã lắp mạch đo pin / pin mặt trời',
   current: 'Kết nối hiện tại', dhcp: '(DHCP)', changeWifi: 'Đổi mạng Wi-Fi', scan: 'Quét mạng', scanning: 'Đang quét…', ssid: 'Tên mạng (SSID)',
   connect: 'Kết nối', pickNet: 'Chọn hoặc nhập tên mạng.', confirmJoin: 'Chuyển camera sang mạng "{0}"? Camera sẽ khởi động lại.',
@@ -228,7 +228,7 @@ const I18N = {
   camTime: 'Camera time', notSynced: 'Not synced', clockSrc: 'Clock source', tzSrc: 'Timezone source', days: '{0} d ', hm: '{0} h {1} min',
   battery: 'Battery', solar: 'Solar panel', charging: 'Charging', notCharging: 'Not charging', noBattery: 'Not measured (no battery divider wired)',
   powerMode: 'Power mode', effective: 'Running', highMv: 'Always connected from (mV)', lowMv: 'Back to battery mode below (mV)',
-  powerNote: 'auto: always connected (live view, snapshot on demand) with a full or charging battery; deep sleep between captures when it is low.',
+  powerNote: 'auto: without a battery divider always connected (a camera on USB / mains); with one, always connected (live view, snapshot on demand) on a full or charging battery and deep sleep between captures when it is low.',
   interval: 'Capture interval (minutes)', nextCapture: 'Next capture', led: 'Status LED', ledState: 'LED state', battMon: 'Battery / solar divider fitted',
   current: 'Current connection', dhcp: '(DHCP)', changeWifi: 'Change Wi-Fi network', scan: 'Scan', scanning: 'Scanning…', ssid: 'Network name (SSID)',
   connect: 'Connect', pickNet: 'Pick or type a network name.', confirmJoin: 'Move the camera to "{0}"? It will restart.',
@@ -341,6 +341,9 @@ async function boot() {
 /* ---------------------------------------------------------------- shell */
 let timers = [];
 function stopTimers() { timers.forEach((s) => s()); timers = []; }
+// A battery camera stays awake while this page is open (also on the sign-in form): /api/session every 30 s keeps it
+// awake 2 more minutes, so it sleeps 2 minutes after the page is closed.
+setInterval(() => { fetch('/api/session', { cache: 'no-store' }).catch(() => {}); }, 30000);
 function every(ms, fn) { let on = true, h; const loop = async () => { if (!on) return; try { await fn(); } catch (e) { /* next time */ } if (on) h = setTimeout(loop, ms); }; loop(); timers.push(() => { on = false; clearTimeout(h); }); }
 let FEAT = { modem: false, gps: false };
 const MENU = () => [

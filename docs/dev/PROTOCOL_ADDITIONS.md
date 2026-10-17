@@ -130,8 +130,9 @@ Effective `power.mode`:
 - `battery`: capture at the slot -> network -> upload -> awake window (30 s) for queued RPCs -> goodbye -> deep sleep
   (modem powered off through PWRKEY, Wi-Fi stopped, camera in PWDN). RPCs sent while asleep wait in the broker (QoS 1,
   clean session false) and run at the next wake.
-- `auto`: `powered` when the cell is at or above `highMv` (or the charger reports charging and the cell is above `lowMv`),
-  back to `battery` below `lowMv`. The state survives deep sleep.
+- `auto`: without a battery divider (`batteryMonitor` off) always `powered` (the USB / mains Wi-Fi camera). With one:
+  `powered` when the cell is at or above `highMv` (or the charger reports charging and the cell is above `lowMv`), back
+  to `battery` below `lowMv`; a divider that gives no reading counts as `battery`. The state survives deep sleep.
 
 ## 7. Pairing material (protocol 12)
 

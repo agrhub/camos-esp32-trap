@@ -258,34 +258,57 @@ void wifi_stop(void)
 
 /* ------------------------------------------------------------------ setup button (protocol 12.3: hold to start the portal) */
 
-bool button_held(int ms)
+/* At start: how long the BOOT button stays pressed, up to max_ms (0 when it is not pressed). The LED turns blue at
+ * 3 s (setup portal) so the user knows when to let go. */
+int button_hold_ms(int max_ms)
 {
 	if (CONFIG_CAMOS_BUTTON_GPIO < 0) {
-		return false;
+		return 0;
 	}
 	gpio_config_t io = { .pin_bit_mask = 1ULL << CONFIG_CAMOS_BUTTON_GPIO, .mode = GPIO_MODE_INPUT, .pull_up_en = GPIO_PULLUP_ENABLE };
 	gpio_config(&io);
-	for (int t = 0; t < ms; t += 50) {
-		if (gpio_get_level(CONFIG_CAMOS_BUTTON_GPIO)) {
-			return false;
-		}
+	int t = 0;
+	while (t < max_ms && !gpio_get_level(CONFIG_CAMOS_BUTTON_GPIO)) {
 		vTaskDelay(pdMS_TO_TICKS(50));
+		t += 50;
+		if (t == BUTTON_PORTAL_MS) {
+			led_set(LED_PORTAL);
+		}
 	}
-	return true;
+	return t;
 }
 
+/* The BOOT button (IO0), read every 100 ms while the camera runs:
+ *  - released after 3-10 s: restart into the setup portal; every setting, the admin password and the identity stay;
+ *  - held 10 s: factory reset (settings and the admin password back to the build defaults, identity kept), then the
+ *    setup portal.
+ * The LED shows when each threshold is reached: blue (portal) at 3 s, red (factory reset) at 10 s. */
 static void button_task(void *arg)
 {
 	int held = 0;
 	for (;;) {
 		vTaskDelay(pdMS_TO_TICKS(100));
-		held = gpio_get_level(CONFIG_CAMOS_BUTTON_GPIO) ? 0 : held + 100;
-		if (held >= 3000) {
-			ESP_LOGW(TAG, "button held: admin password cleared, restart into the setup portal");
-			store_clear_admin(); /* someone with the camera in hand: the next console visit sets a new password */
+		if (!gpio_get_level(CONFIG_CAMOS_BUTTON_GPIO)) {
+			held += 100;
+			if (held == BUTTON_PORTAL_MS) {
+				ESP_LOGW(TAG, "button held 3 s: release now for the setup portal, keep holding to 10 s for a factory reset");
+				led_set(LED_PORTAL);
+			} else if (held >= BUTTON_FACTORY_MS) {
+				ESP_LOGW(TAG, "button held 10 s: factory reset (identity kept), then the setup portal");
+				led_set(LED_ERROR);
+				vTaskDelay(pdMS_TO_TICKS(1500));
+				store_erase_all();
+				store_set_flag("portal", 1);
+				esp_restart();
+			}
+			continue;
+		}
+		if (held >= BUTTON_PORTAL_MS) {
+			ESP_LOGW(TAG, "button released after %d s: restart into the setup portal, settings kept", held / 1000);
 			store_set_flag("portal", 1);
 			esp_restart();
 		}
+		held = 0;
 	}
 }
 

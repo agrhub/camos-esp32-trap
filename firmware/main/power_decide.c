@@ -1,13 +1,16 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 #include "power_decide.h"
 
-power_mode_t power_decide(power_mode_t configured, power_mode_t previous, int mv, int high_mv, int low_mv)
+power_mode_t power_decide(power_mode_t configured, power_mode_t previous, int monitor, int mv, int high_mv, int low_mv)
 {
 	if (configured != POWER_AUTO) {
 		return configured;
 	}
+	if (!monitor) {
+		return POWER_POWERED; /* no battery monitor fitted: powered from USB / mains (the Wi-Fi build) */
+	}
 	if (mv < 0) {
-		return POWER_BATTERY; /* no battery monitor: the safe choice is to sleep */
+		return POWER_BATTERY; /* a fitted monitor that gives no reading: the safe choice is to sleep */
 	}
 	if (low_mv >= high_mv) {
 		low_mv = high_mv - 100;

@@ -151,7 +151,10 @@ void modem_ip(char *out, size_t n);
 /* ------------------------------------------------------------------ portal (portal.c) */
 
 void portal_run(void) __attribute__((noreturn)); /* SoftAP CAM-xxxx + captive portal, restarts when done */
-bool button_held(int ms);
+/* BOOT button: released after 3-10 s = setup portal (settings kept), held 10 s = factory reset (identity kept) */
+#define BUTTON_PORTAL_MS 3000
+#define BUTTON_FACTORY_MS 10000
+int button_hold_ms(int max_ms);  /* at start: how long the button stays pressed, up to max_ms */
 void button_task_start(void);
 
 /* ------------------------------------------------------------------ settings from the shadow (shadow.c) */

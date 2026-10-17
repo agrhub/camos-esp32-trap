@@ -104,9 +104,12 @@ Details: [docs/LED.md](docs/LED.md).
 - **The picture is black.** At night that is normal: the camera has no infrared light. Set a capture window for the
   daylight hours (Capture Schedule). In daylight, check that nothing covers the lens and that the ribbon cable of the
   camera is pushed in fully.
-- **I forgot the web page password.** While the camera is running, **hold the BOOT button for 3 seconds**. The password
-  is cleared and the camera opens setup mode (`CAM-xxxx`); join your Wi-Fi again, and the next visit to the web page asks
-  for a new password. Your FlyBot registration stays.
+- **The BOOT button.** While the camera runs, **hold it 3 seconds and release when the LED turns blue**: the camera
+  opens setup mode (`CAM-xxxx`) and keeps every setting and the web page password. **Hold it 10 seconds, until the LED
+  turns red**, for a factory reset: settings and the web page password go back to the defaults, then setup mode opens.
+  Your FlyBot registration stays either way.
+- **I forgot the web page password.** Do the 10-second factory reset above, join your Wi-Fi again, and the next visit
+  to the web page asks for a new password.
 - **I want to start over.** Web page > Maintenance & Upgrade > Factory reset (keeps the registration), or flash the
   **Install** image again (erases everything; the camera then needs to be reset in FlyBot before it can register again).
 - **The camera is "Unclaimed" in FlyBot.** Claim it (section 4). Until then it sends at most one photo an hour.

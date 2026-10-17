@@ -3,15 +3,17 @@
 `http://flybot-xxxxxx.local/` on the same Wi-Fi (mDNS; `xxxxxx` = the last 6 characters of the serial, lower case), or
 `http://<camera IP>/` (the IP is in the boot log, the serial `info` and the router, which lists the camera as
 `flybot-xxxxxx`). Android browsers often do not resolve `.local`: use the IP there. Served while the camera is
-awake: always in powered mode, during the awake window in battery mode (a signed-in visit keeps it awake 2 minutes).
+awake: always in powered mode; in battery mode during the awake window, and for as long as the page is open (it pings
+the camera every 30 s, also on the sign-in form; the camera sleeps 2 minutes after the page is closed).
 Not over 4G. English by default, Vietnamese from the language menu (remembered on the camera and in the browser).
 
 ## Sign-in
 
 The first visit **activates** the camera: it asks for the admin password (8-64 characters, letters and digits) and keeps
 a salted, iterated SHA-256 of it in NVS. Later visits sign in with it. 5 wrong passwords lock sign-in for 5 minutes.
-Forgot it: while the camera runs, hold the BOOT button 3 s. That clears the password and opens the setup page; the next
-visit sets a new password. The registration with FlyBot stays.
+Forgot it: while the camera runs, hold the BOOT button 10 s (until the LED turns red). That is a factory reset: the
+settings and the password go back to the defaults and the setup page opens; the next visit sets a new password. The
+registration with FlyBot stays. Holding it 3 s and releasing (LED blue) only opens the setup page, password kept.
 
 ![activation](img/console-activate.png)
 
@@ -109,8 +111,8 @@ when the upload fails. Below 5 % free the oldest day is deleted. The card's API:
 
 ## Motion detection
 
-Runs while it is enabled **and** the effective power mode is powered (a battery camera deep sleeps; on a bench board
-without a battery divider `auto` means battery, so set the power mode to powered). About twice a second it decodes the
+Runs while it is enabled **and** the effective power mode is powered (a battery camera deep sleeps; a board without a battery divider
+is powered in `auto`). About twice a second it decodes the
 preview picture at 1/4 or 1/8 scale (80..200 pixels across), turns it grey and compares it with a running average of
 the scene inside the detection area: a pixel counts as changed above 12..51 grey levels, motion is 1..30 per mille of
 the area changed (both from the sensitivity, 100 = most sensitive). A change of 70 % of the whole picture at once

@@ -94,8 +94,11 @@ hình là hình vẽ tấm bẫy, không phải ảnh từ camera.* Mô tả t�
   và mức sóng.
 - **Hình bị đen.** Ban đêm là bình thường: camera không có đèn hồng ngoại. Đặt khung giờ chụp ban ngày (Lịch chụp). Ban
   ngày mà vẫn đen: kiểm tra ống kính có bị che không và cáp camera đã cắm hết vào chưa.
-- **Quên mật khẩu trang web.** Khi camera đang chạy, **giữ nút BOOT 3 giây**. Mật khẩu bị xóa và camera vào chế độ cài
-  đặt (`CAM-xxxx`); kết nối lại Wi-Fi nhà bạn, lần sau mở trang web sẽ đặt mật khẩu mới. Đăng ký FlyBot vẫn giữ nguyên.
+- **Nút BOOT.** Khi camera đang chạy, **giữ 3 giây rồi thả khi đèn chuyển xanh dương**: camera vào chế độ cài đặt
+  (`CAM-xxxx`), mọi cài đặt và mật khẩu trang web giữ nguyên. **Giữ 10 giây đến khi đèn chuyển đỏ** để khôi phục cài
+  đặt gốc: cài đặt và mật khẩu trang web về mặc định, rồi camera vào chế độ cài đặt. Đăng ký FlyBot luôn giữ nguyên.
+- **Quên mật khẩu trang web.** Giữ nút BOOT 10 giây như trên, kết nối lại Wi-Fi nhà bạn, lần sau mở trang web sẽ đặt
+  mật khẩu mới.
 - **Muốn làm lại từ đầu.** Trang web > Bảo trì & nâng cấp > Khôi phục cài đặt gốc (giữ đăng ký), hoặc nạp lại bản
   **Install** (xóa hết; khi đó cần reset camera trên FlyBot thì camera mới đăng ký lại được).
 - **FlyBot báo camera "Chưa có chủ".** Nhận camera (mục 4). Trước đó camera gửi tối đa một ảnh mỗi giờ.

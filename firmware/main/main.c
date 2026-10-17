@@ -85,10 +85,16 @@ void app_main(void)
 
 	/* a default / saved Wi-Fi or 4G (on by default, APN auto) is enough to start: the portal opens when neither works */
 	bool configured = g_cfg.wifi_ssid[0] || modem_available();
-	bool held = button_held(3000);
-	if (held) {
-		store_clear_admin(); /* the button held 3 s: forgot the console password */
+	int hold_ms = button_hold_ms(BUTTON_FACTORY_MS);
+	if (hold_ms >= BUTTON_FACTORY_MS) {
+		ESP_LOGW(TAG, "button held 10 s: factory reset (identity kept), then the setup portal");
+		led_set(LED_ERROR);
+		vTaskDelay(pdMS_TO_TICKS(1500));
+		store_erase_all();
+		store_set_flag("portal", 1);
+		esp_restart();
 	}
+	bool held = hold_ms >= BUTTON_PORTAL_MS; /* the setup portal, every setting kept */
 	if (!configured || store_get_flag("portal") || held) {
 		portal_run(); /* does not return: restarts after /api/restart or after 10 minutes */
 	}

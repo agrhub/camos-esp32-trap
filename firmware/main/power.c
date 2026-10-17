@@ -62,7 +62,7 @@ power_mode_t power_effective(void)
 	if (battery_charging() && mv >= low) {
 		mv = high;
 	}
-	power_mode_t m = power_decide(shadow_power_mode(), (power_mode_t)eff_prev, mv, high, low);
+	power_mode_t m = power_decide(shadow_power_mode(), (power_mode_t)eff_prev, g_cfg.batt_mon, mv, high, low);
 	if (m != eff_prev) {
 		ESP_LOGI(TAG, "effective mode %s -> %s (%d mV, high %d, low %d)", power_mode_name(eff_prev), power_mode_name(m),
 				 battery_mv(), high, low);
