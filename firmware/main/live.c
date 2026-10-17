@@ -78,6 +78,8 @@ void live_init(void) {}
 bool live_supported(void) { return false; }
 bool live_active(void) { return false; }
 bool live_streaming(void) { return false; }
+int live_pause(int timeout_ms) { return 0; }
+void live_resume(void) {}
 int live_remaining_s(void) { return 0; }
 
 esp_err_t live_start(int minutes, char *err, size_t errn)

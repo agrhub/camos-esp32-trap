@@ -62,16 +62,22 @@ time_t sched_next_capture(void)
  * Order: JPEG first, then the network. In battery mode the network is off until here; the JPEG waits in PSRAM while
  * the network comes up. The battery is read before Wi-Fi starts (ESP32 ADC2 cannot be read with Wi-Fi on).
  * A JPEG over the 2 MB limit of the snapshot API is retaken at a lower quality (OV5640 at QSXGA can exceed it).
+ * During a cloud live session the stream pauses for the photo (live_pause): the camera gives the encoder back as soon
+ * as the JPEG is copied to PSRAM, and the upload runs while the stream goes on in the mode it had.
  */
 esp_err_t capture_now(const char *trigger, upload_t *out)
 {
 	memset(out, 0, sizeof(*out));
-	if (live_streaming()) {
-		strlcpy(out->error, "live view running", sizeof(out->error));
+	int paused = live_pause(10000);
+	if (paused < 0) {
+		strlcpy(out->error, "live view did not give the camera up", sizeof(out->error));
 		return ESP_ERR_INVALID_STATE;
 	}
 	sched_init_lock();
 	xSemaphoreTake(cam_mutex, portMAX_DELAY);
+	bool locked = true;
+	camera_fb_t copy_fb = { 0 };
+	uint8_t *copy = NULL;
 	stop_preview_locked(); /* a web preview gives way to a real capture */
 	led_flash(LED_FLASH_CAPTURE);
 	settings_t s;
@@ -100,6 +106,17 @@ esp_err_t capture_now(const char *trigger, upload_t *out)
 		out->bytes = fb->len;
 		ESP_LOGI(TAG, "JPEG %dx%d, %u bytes, free heap %u, free PSRAM %u", out->w, out->h, (unsigned)fb->len,
 				 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL), (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+		if (paused > 0 && (copy = heap_caps_malloc(fb->len, MALLOC_CAP_SPIRAM))) {
+			/* the live view gets the camera back now; the upload works on the copy */
+			memcpy(copy, fb->buf, fb->len);
+			copy_fb = *fb;
+			copy_fb.buf = copy;
+			cam_release(fb);
+			fb = &copy_fb;
+			xSemaphoreGive(cam_mutex);
+			locked = false;
+			live_resume();
+		}
 		if (g_cfg.sd_save && sd_present()) {
 			sd_save_jpeg(fb->buf, fb->len, trigger, out->sd_file, sizeof(out->sd_file)); /* kept even when the upload fails */
 		}
@@ -121,13 +138,22 @@ esp_err_t capture_now(const char *trigger, upload_t *out)
 				wake_hint = out->next_wake_at;
 			}
 		}
-		cam_release(fb);
+		if (copy) {
+			free(copy);
+		} else {
+			cam_release(fb);
+		}
 	}
 	if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
 		led_flash(LED_FLASH_ERROR); /* camera or upload failed */
 	}
 	last_activity_s = esp_timer_get_time() / 1000000;
-	xSemaphoreGive(cam_mutex);
+	if (locked) {
+		xSemaphoreGive(cam_mutex);
+	}
+	if (paused > 0) {
+		live_resume(); /* no-op when it ran already */
+	}
 	sched_changed();
 	return err;
 }

@@ -104,6 +104,8 @@ static struct {
 	char viewer[72];
 	int64_t offer_at;
 	volatile bool viewer_up, close_req;
+	volatile bool pause_req, paused; /* a capture borrows the camera (live_pause) */
+	int pause_ms;                     /* the last pause, request to the stream running again */
 	TaskHandle_t venc;
 	volatile bool venc_run, venc_done;
 	/* data channel "camos" (live_dc.h): JPEG frames instead of H.264 when the viewer asks */
@@ -824,6 +826,40 @@ static bool pipe_start(pipe_t *p, const live_quality_t *q)
 
 static const live_quality_t default_quality = { LIVE_MODE_H264, LIVE_W, LIVE_H, 12, LIVE_FPS };
 
+/* A capture wants the camera: stop the pipeline, give the camera lock to the scheduler, wait until the capture is
+ * done with the sensor, then start again in the same mode. False when the camera does not come back. */
+static bool pause_cycle(pipe_t *p, live_quality_t *cur, bool *cam_held)
+{
+	int64_t t0 = esp_timer_get_time();
+	pipe_stop(p);
+	if (*cam_held) {
+		camera_give();
+		*cam_held = false;
+	}
+	k.paused = true;
+	ESP_LOGI(TAG, "live stream paused for a capture");
+	while (k.pause_req && k.venc_run) {
+		vTaskDelay(pdMS_TO_TICKS(10));
+	}
+	k.paused = false;
+	if (!k.venc_run || !camera_take(30000)) {
+		return false;
+	}
+	*cam_held = true;
+	if (!pipe_start(p, cur)) {
+		*cur = default_quality;
+		if (!pipe_start(p, cur)) {
+			return false;
+		}
+		k.cur = *cur;
+		dc_send_json(quality_json("mode", cur));
+	}
+	live_dc_flow_reset(&k.flow);
+	k.pause_ms = (int)((esp_timer_get_time() - t0) / 1000);
+	ESP_LOGI(TAG, "live stream back after %d ms", k.pause_ms);
+	return true;
+}
+
 static void venc_task(void *arg)
 {
 	pipe_t p = { 0 };
@@ -845,6 +881,9 @@ static void venc_task(void *arg)
 	/* Started with the offer: the camera's DMA buffer and the encoder are allocated before the DTLS session takes its
 	 * share of internal RAM, and the exposure settles while ICE runs */
 	while (k.venc_run && !k.viewer_up) {
+		if (k.pause_req && !pause_cycle(&p, &cur, &cam_held)) {
+			goto done;
+		}
 		camera_fb_t *f = esp_camera_fb_get();
 		if (f) {
 			esp_camera_fb_return(f);
@@ -867,6 +906,14 @@ static void venc_task(void *arg)
 		if (k.dc_err_pending) {
 			k.dc_err_pending = false;
 			dc_send_error(k.dc_err);
+		}
+		if (k.pause_req) {
+			if (!pause_cycle(&p, &cur, &cam_held)) {
+				set_err("camera not back after a capture");
+				break;
+			}
+			next = win = esp_timer_get_time(), win_frames = 0, win_bytes = 0, win_enc_us = 0, win_cap_us = 0;
+			continue;
 		}
 		live_quality_t want = cur;
 		bool asked = false;
@@ -1297,6 +1344,28 @@ esp_err_t live_kvs_start(void)
 	return ESP_OK;
 }
 
+int live_pause(int timeout_ms)
+{
+	if (!k.venc || k.venc_done) {
+		return 0;
+	}
+	k.pause_req = true;
+	for (int t = 0; t < timeout_ms; t += 10) {
+		if (k.paused || k.venc_done) {
+			return 1;
+		}
+		vTaskDelay(pdMS_TO_TICKS(10));
+	}
+	k.pause_req = false;
+	ESP_LOGW(TAG, "the encoder did not give the camera up within %d ms", timeout_ms);
+	return -1;
+}
+
+void live_resume(void)
+{
+	k.pause_req = false;
+}
+
 void live_kvs_stop(void)
 {
 	k.close_req = true; /* the viewer is dropped; the channel is left unless powered standby keeps it */
@@ -1323,6 +1392,9 @@ void live_status_json(cJSON *o)
 		cJSON_AddNumberToObject(o, "cameraMs", (int)(k.cap_ms * 10) / 10.0);
 		cJSON_AddNumberToObject(o, "frames", k.frames);
 		cJSON_AddNumberToObject(o, "setupMs", k.setup_ms);
+		if (k.pause_ms) {
+			cJSON_AddNumberToObject(o, "lastPauseMs", k.pause_ms);
+		}
 	}
 	if (k.err[0]) {
 		cJSON_AddStringToObject(o, "error", k.err);

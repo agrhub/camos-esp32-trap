@@ -341,6 +341,8 @@ esp_err_t live_start(int minutes, char *err, size_t errn);
 void live_stop(void);
 bool live_active(void);                         /* a live.start / live.requested window is open */
 bool live_streaming(void);                      /* a VIEWER is connected: the camera belongs to the encoder */
+int live_pause(int timeout_ms);                 /* a capture needs the camera: 1 paused, 0 no live stream, -1 timeout */
+void live_resume(void);                         /* after live_pause: the stream starts again in its mode */
 int live_remaining_s(void);
 void live_status_json(cJSON *o);                /* console / web console: state, viewer, fps, bitrate, errors */
 
