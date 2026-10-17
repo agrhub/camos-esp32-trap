@@ -1,4 +1,4 @@
-# The camera's web page (web console, firmware 0.4.2)
+# The camera's web page (web console, firmware 0.5.0)
 
 `http://flybot-xxxxxx.local/` on the same Wi-Fi (mDNS; `xxxxxx` = the last 6 characters of the serial, lower case), or
 `http://<camera IP>/` (the IP is in the boot log, the serial `info` and the router, which lists the camera as
