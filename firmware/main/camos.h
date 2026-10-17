@@ -225,6 +225,7 @@ const char *cam_sensor_name(void);              /* "OV5640" ..., "" before the f
 /* Live view: the sensor at a small size, streaming JPEG frames (ESP32-S3). Returns ESP_OK and keeps the sensor up. */
 esp_err_t cam_stream_start(int width, int height, int quality);
 esp_err_t cam_stream_start_yuv(int width, int height); /* YUV422 frames for the live view encoder */
+esp_err_t cam_stream_start_live_jpeg(int width, int height, int quality); /* JPEG for the live view data channel */
 void cam_stream_stop(void);
 
 /* ------------------------------------------------------------------ FlyBot device API (flybot.c, CONTRACTS section 2) */

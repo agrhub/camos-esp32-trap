@@ -4,7 +4,7 @@
  * OV3660, QSXGA 2560x1920 on OV5640). The sensor is powered up for each capture and powered down afterwards (PWDN),
  * which is what lets the board sleep between captures; auto exposure restarts each time, hence the warm-up frames.
  * The web console preview keeps the sensor up at a small size (JPEG); the cloud live view (live_kvs.c) keeps it up in
- * YUV422 for the H.264 encoder.
+ * YUV422 for the H.264 encoder, or in JPEG for its data channel.
  */
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -17,10 +17,11 @@
 
 static const char *TAG = "cam";
 #if CONFIG_CAMOS_LIVE
-#define CAMOS_RAW_XCLK_MHZ CONFIG_CAMOS_LIVE_XCLK_MHZ /* raw frames for the live view encoder */
+#define CAMOS_LIVE_XCLK_MHZ CONFIG_CAMOS_LIVE_XCLK_MHZ /* the cloud live view's frames (YUV422 or JPEG) */
 #else
-#define CAMOS_RAW_XCLK_MHZ CONFIG_CAMOS_XCLK_MHZ
+#define CAMOS_LIVE_XCLK_MHZ CONFIG_CAMOS_XCLK_MHZ
 #endif
+static int up_xclk_mhz = CONFIG_CAMOS_XCLK_MHZ; /* XCLK of the next cam_up */
 static RTC_DATA_ATTR framesize_t max_fs; /* known after the first power-up; kept through deep sleep */
 static bool streaming;
 
@@ -136,7 +137,7 @@ static esp_err_t cam_up(framesize_t fs, int quality, int fb_count, pixformat_t f
 		.pin_vsync = CONFIG_CAMOS_PIN_VSYNC,
 		.pin_href = CONFIG_CAMOS_PIN_HREF,
 		.pin_pclk = CONFIG_CAMOS_PIN_PCLK,
-		.xclk_freq_hz = (fmt == PIXFORMAT_JPEG ? CONFIG_CAMOS_XCLK_MHZ : CAMOS_RAW_XCLK_MHZ) * 1000000,
+		.xclk_freq_hz = up_xclk_mhz * 1000000,
 		.ledc_timer = LEDC_TIMER_0,
 		.ledc_channel = LEDC_CHANNEL_0,
 		.pixel_format = fmt,
@@ -286,6 +287,7 @@ esp_err_t cam_capture(const settings_t *s, camera_fb_t **out)
 #endif
 	gpio_deep_sleep_hold_dis();
 	cam_power(true);
+	up_xclk_mhz = CONFIG_CAMOS_XCLK_MHZ;
 	esp_err_t err = detect_and_up(FRAMESIZE_INVALID, q, 2, PIXFORMAT_JPEG);
 	if (err != ESP_OK) {
 		cam_off();
@@ -331,11 +333,12 @@ static framesize_t framesize_for(int width, int height)
 	return FRAMESIZE_QVGA;
 }
 
-static esp_err_t stream_start(int width, int height, int quality, pixformat_t fmt)
+static esp_err_t stream_start(int width, int height, int quality, pixformat_t fmt, int xclk_mhz)
 {
 	if (streaming) {
 		return ESP_OK;
 	}
+	up_xclk_mhz = xclk_mhz;
 	cam_power(true);
 	esp_err_t err = detect_and_up(framesize_for(width, height), clampi(quality, 4, 63), 2, fmt);
 	if (err != ESP_OK) {
@@ -351,13 +354,19 @@ static esp_err_t stream_start(int width, int height, int quality, pixformat_t fm
 
 esp_err_t cam_stream_start(int width, int height, int quality)
 {
-	return stream_start(width, height, quality, PIXFORMAT_JPEG);
+	return stream_start(width, height, quality, PIXFORMAT_JPEG, CONFIG_CAMOS_XCLK_MHZ);
+}
+
+/* JPEG frames for the live view's data channel (the live view XCLK) */
+esp_err_t cam_stream_start_live_jpeg(int width, int height, int quality)
+{
+	return stream_start(width, height, quality, PIXFORMAT_JPEG, CAMOS_LIVE_XCLK_MHZ);
 }
 
 /* Raw YUV422 (Y U Y V per pixel pair, 2 bytes per pixel) for the H.264 encoder; stop with cam_stream_stop */
 esp_err_t cam_stream_start_yuv(int width, int height)
 {
-	return stream_start(width, height, 12, PIXFORMAT_YUV422);
+	return stream_start(width, height, 12, PIXFORMAT_YUV422, CAMOS_LIVE_XCLK_MHZ);
 }
 
 void cam_stream_stop(void)

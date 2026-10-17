@@ -460,9 +460,10 @@ menu "CamOS trap camera"
         default n
         help
             The camera joins its KVS signaling channel (kvs.channelName) as MASTER and sends H.264 (esp_h264
-            software encoder) through esp_peer (ICE, DTLS-SRTP) to one VIEWER at a time. Credentials come from the
-            AWS IoT credential provider (credHost + roleAlias from pairing). The Freenove preset turns it on; RPC
-            live.start answers NOT_SUPPORTED when off. See docs/dev/LIVE_VIEW.md.
+            software encoder) through esp_peer (ICE, DTLS-SRTP) to one VIEWER at a time, or the sensor's JPEG
+            over the viewer's "camos" data channel when it asks. Credentials come from the AWS IoT credential
+            provider (credHost + roleAlias from pairing). The Freenove preset turns it on; RPC live.start answers
+            NOT_SUPPORTED when off. See docs/dev/LIVE_VIEW.md.
 
     config CAMOS_LIVE_WIDTH
         int "Live view width"
@@ -486,8 +487,8 @@ menu "CamOS trap camera"
         range 6 24
         default 20
         help
-            The live view reads raw YUV422 frames (2 bytes per pixel): the sensor's frame rate follows XCLK.
-            JPEG captures keep CAMOS_XCLK_MHZ.
+            The live view reads raw YUV422 frames (2 bytes per pixel) for H.264, or JPEG for its data channel: the
+            sensor's frame rate follows XCLK. Snapshots keep CAMOS_XCLK_MHZ.
     config CAMOS_LIVE_KBPS
         int "Live view target bitrate (kbit/s)"
         depends on CAMOS_LIVE

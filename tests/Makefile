@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# Host unit tests (no ESP-IDF build needed): make -C tests (NMEA, power, registration, motion, SigV4)
-# test_reg needs cJSON: ESP-IDF's copy when IDF_PATH (or C:/dev/esp-idf) has it, else the system library (libcjson-dev).
+# Host unit tests (no ESP-IDF build needed): make -C tests (NMEA, power, registration, motion, SigV4, live data channel)
+# test_reg and test_live_dc need cJSON: ESP-IDF's copy when IDF_PATH (or C:/dev/esp-idf) has it, else the system library (libcjson-dev).
 CC ?= gcc
 CFLAGS ?= -std=c99 -Wall -Wextra -O1
 M = ../firmware/main
@@ -16,12 +16,13 @@ CJSON_SRC =
 CJSON_LIBS = -lcjson
 endif
 
-all: test_nmea test_power test_reg test_motion test_sigv4
+all: test_nmea test_power test_reg test_motion test_sigv4 test_live_dc
 	./test_nmea
 	./test_power
 	./test_reg
 	./test_motion
 	./test_sigv4
+	./test_live_dc
 
 test_nmea: test_nmea.c $(M)/nmea.c $(M)/nmea.h
 	$(CC) $(CFLAGS) -o $@ test_nmea.c $(M)/nmea.c -lm
@@ -38,7 +39,10 @@ test_motion: test_motion.c $(M)/motion_core.c $(M)/motion_core.h
 test_sigv4: test_sigv4.c $(M)/sigv4.c $(M)/sigv4.h
 	$(CC) $(CFLAGS) -o $@ test_sigv4.c $(M)/sigv4.c
 
+test_live_dc: test_live_dc.c $(M)/live_dc.c $(M)/live_dc.h
+	$(CC) $(CFLAGS) $(CJSON_CFLAGS) -o $@ test_live_dc.c $(M)/live_dc.c $(CJSON_SRC) $(CJSON_LIBS) -lm
+
 clean:
-	rm -f test_nmea test_power test_reg test_motion test_sigv4 *.exe
+	rm -f test_nmea test_power test_reg test_motion test_sigv4 test_live_dc *.exe
 
 .PHONY: all clean

@@ -12,7 +12,8 @@
  *                 (GetIceServerConfig), closed when the viewer leaves; one viewer at a time, the newest one wins
  * The encoder task ("venc") starts with a viewer's offer and ends with its session: it takes the camera from the
  * scheduler (camera_take), keeps the sensor up in YUV422 and, once the viewer is connected, sends software H.264
- * (esp_h264, openh264 baseline).
+ * (esp_h264, openh264 baseline) on the video track. When the viewer opens the "camos" data channel and asks for JPEG
+ * (live_dc.h), it sends the sensor's own JPEG frames over that channel instead, in chunks with an ack window.
  *
  * The task joins the channel while a live.start / live.requested window is open, and all the time in powered mode
  * (CAMOS_LIVE_STANDBY: a viewer finds the camera at once); it leaves when neither holds.
@@ -42,6 +43,7 @@
 #include "esp_h264_alloc.h"
 #include "camos.h"
 #include "sigv4.h"
+#include "live_dc.h"
 
 static const char *TAG = "kvs";
 
@@ -66,6 +68,7 @@ void esp_log(uint32_t config, const char *tag, const char *format, ...)
 #define MAX_TURN 1          /* esp_peer gathers from one server: a KVS TURN server also answers STUN */
 #define ICE_TTL_S 240      /* TURN credentials last 300 s */
 #define ANSWER_WAIT_S 30   /* an offer that does not end connected within this is dropped */
+#define LIVE_MIN_INTERNAL (16 * 1024) /* JPEG frames wait while less internal RAM is free */
 
 /* ------------------------------------------------------------------ state */
 
@@ -100,9 +103,18 @@ static struct {
 	esp_peer_handle_t peer;
 	char viewer[72];
 	int64_t offer_at;
-	volatile bool viewer_up, close_req, want_idr;
+	volatile bool viewer_up, close_req;
 	TaskHandle_t venc;
 	volatile bool venc_run, venc_done;
+	/* data channel "camos" (live_dc.h): JPEG frames instead of H.264 when the viewer asks */
+	volatile bool dc_open, dc_hello, dc_err_pending, req_pending;
+	uint16_t dc_stream;
+	char dc_err[64];
+	live_quality_t req, cur;
+	live_dc_flow_t flow;
+	uint8_t *dc_buf;           /* one chunk: header + payload */
+	int32_t push_ms;           /* time to hand the last JPEG frame to the channel */
+	uint32_t dc_drops, dc_waits, frame_bytes;
 	/* status */
 	char state[16], err[96];
 	int64_t retry_at;
@@ -589,66 +601,246 @@ static bool ws_open(void)
 	return true;
 }
 
-static void ws_send(const char *action, const char *recipient, cJSON *payload)
+static bool ws_send(const char *action, const char *recipient, cJSON *payload)
 {
 	char *json = cJSON_PrintUnformatted(payload);
 	if (!json || !k.ws || !k.ws_up) {
 		free(json);
-		return;
+		return false;
 	}
 	size_t jl = strlen(json), b64 = 4 * ((jl + 2) / 3) + 1, cap = b64 + 160 + strlen(recipient), olen = 0;
 	char *msg = heap_caps_malloc(cap, MALLOC_CAP_SPIRAM);
+	int sent = -1;
 	if (msg) {
 		int n = snprintf(msg, cap, "{\"action\":\"%s\",\"recipientClientId\":\"%s\",\"messagePayload\":\"", action, recipient);
 		mbedtls_base64_encode((unsigned char *)msg + n, cap - n, &olen, (const unsigned char *)json, jl);
 		strlcpy(msg + n + olen, "\"}", cap - n - olen);
-		if (esp_websocket_client_send_text(k.ws, msg, strlen(msg), pdMS_TO_TICKS(5000)) < 0) {
+		/* the client's lock can be held a while by its own task on a poor link: try three times */
+		for (int i = 0; i < 3 && sent < 0 && k.ws_up; i++) {
+			sent = esp_websocket_client_send_text(k.ws, msg, strlen(msg), pdMS_TO_TICKS(3000));
+		}
+		if (sent < 0) {
 			ESP_LOGW(TAG, "%s to the viewer not sent", action);
 		}
 		free(msg);
 	}
 	free(json);
+	return sent >= 0;
+}
+
+/* ------------------------------------------------------------------ data channel (live_dc.h) */
+
+static int64_t clock_ms(void) { return esp_timer_get_time() / 1000; }
+
+/* Data channel messages go out from the encoder task only, like the video frames (esp_peer's main loop runs in the
+ * kvs task meanwhile, as in Espressif's esp_webrtc); a send waits while the channel's cache is full */
+static int dc_send(esp_peer_data_channel_type_t type, const void *data, int size)
+{
+	if (!k.peer || !k.dc_open) {
+		return ESP_PEER_ERR_WRONG_STATE;
+	}
+	esp_peer_data_frame_t f = { .type = type, .stream_id = k.dc_stream, .data = (uint8_t *)data, .size = size };
+	return esp_peer_send_data(k.peer, &f);
+}
+
+static void dc_send_json(cJSON *o)
+{
+	char *s = cJSON_PrintUnformatted(o);
+	cJSON_Delete(o);
+	if (s) {
+		dc_send(ESP_PEER_DATA_CHANNEL_STRING, s, (int)strlen(s));
+		free(s);
+	}
+}
+
+/* One JPEG in chunks of LIVE_DC_CHUNK bytes behind a 20-byte header; false when the channel refused a chunk (the
+ * viewer drops the incomplete frame when the next one starts) */
+static bool dc_send_jpeg(const uint8_t *jpg, uint32_t len, uint32_t seq, uint32_t ts_ms)
+{
+	if (!k.dc_buf) {
+		k.dc_buf = heap_caps_malloc(LIVE_DC_HDR_LEN + LIVE_DC_CHUNK, MALLOC_CAP_SPIRAM);
+		if (!k.dc_buf) {
+			return false;
+		}
+	}
+	for (uint32_t off = 0; off < len; off += LIVE_DC_CHUNK) {
+		uint32_t n = len - off > LIVE_DC_CHUNK ? LIVE_DC_CHUNK : len - off;
+		live_dc_header(k.dc_buf, seq, len, off, ts_ms);
+		memcpy(k.dc_buf + LIVE_DC_HDR_LEN, jpg + off, n);
+		if (dc_send(ESP_PEER_DATA_CHANNEL_DATA, k.dc_buf, (int)(LIVE_DC_HDR_LEN + n)) != ESP_PEER_ERR_NONE) {
+			return false;
+		}
+	}
+	return true;
+}
+
+static const char *mode_name(live_mode_t m) { return m == LIVE_MODE_JPEG ? "jpeg" : "h264"; }
+
+static cJSON *quality_json(const char *t, const live_quality_t *q)
+{
+	cJSON *o = cJSON_CreateObject();
+	cJSON_AddStringToObject(o, "t", t);
+	cJSON_AddStringToObject(o, "mode", mode_name(q->mode));
+	cJSON_AddNumberToObject(o, "w", q->w);
+	cJSON_AddNumberToObject(o, "h", q->h);
+	cJSON_AddNumberToObject(o, "q", q->q);
+	cJSON_AddNumberToObject(o, "fps", q->fps);
+	return o;
+}
+
+static void dc_send_hello(const live_quality_t *cur)
+{
+	cJSON *o = quality_json("hello", cur);
+	cJSON_AddNumberToObject(o, "v", LIVE_DC_VERSION);
+	cJSON *m = cJSON_AddArrayToObject(o, "modes");
+	cJSON_AddItemToArray(m, cJSON_CreateString("h264"));
+	cJSON_AddItemToArray(m, cJSON_CreateString("jpeg"));
+	cJSON *sz = cJSON_AddArrayToObject(o, "sizes");
+	static const int sizes[][2] = { { 320, 240 }, { 640, 480 }, { 800, 600 }, { 1024, 768 }, { 1280, 720 } };
+	for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
+		cJSON *p = cJSON_CreateArray();
+		cJSON_AddItemToArray(p, cJSON_CreateNumber(sizes[i][0]));
+		cJSON_AddItemToArray(p, cJSON_CreateNumber(sizes[i][1]));
+		cJSON_AddItemToArray(sz, p);
+	}
+	cJSON_AddNumberToObject(o, "chunk", LIVE_DC_CHUNK);
+	dc_send_json(o);
+}
+
+static void dc_send_error(const char *msg)
+{
+	cJSON *o = cJSON_CreateObject();
+	cJSON_AddStringToObject(o, "t", "error");
+	cJSON_AddStringToObject(o, "msg", msg);
+	dc_send_json(o);
+}
+
+static int on_dc_open(esp_peer_data_channel_info_t *ch, void *ctx)
+{
+	ESP_LOGI(TAG, "data channel \"%s\" (stream %u) open", ch->label ? ch->label : "", (unsigned)ch->stream_id);
+	if (ch->label && !strcmp(ch->label, LIVE_DC_LABEL)) {
+		k.dc_stream = ch->stream_id;
+		k.dc_open = true;
+		k.dc_hello = true;
+	}
+	return 0;
+}
+
+static int on_dc_close(esp_peer_data_channel_info_t *ch, void *ctx)
+{
+	if (k.dc_open && ch->stream_id == k.dc_stream) {
+		ESP_LOGI(TAG, "data channel closed: back to H.264");
+		k.dc_open = false;
+	}
+	return 0;
+}
+
+/* Control messages from the viewer (main loop of the kvs task): applied by the encoder task */
+static int on_dc_data(esp_peer_data_frame_t *f, void *ctx)
+{
+	if (f->type != ESP_PEER_DATA_CHANNEL_STRING || f->stream_id != k.dc_stream || f->size <= 0 || f->size > 512) {
+		return 0;
+	}
+	live_dc_msg_t m;
+	switch (live_dc_parse((const char *)f->data, (size_t)f->size, (const live_quality_t *)&k.cur, LIVE_W, LIVE_H, &m)) {
+	case LIVE_DC_QUALITY:
+		k.req = m.quality;
+		k.req_pending = true;
+		break;
+	case LIVE_DC_ACK:
+		live_dc_on_ack(&k.flow, m.seq, clock_ms());
+		break;
+	case LIVE_DC_BAD:
+		strlcpy(k.dc_err, m.error, sizeof(k.dc_err));
+		k.dc_err_pending = true;
+		break;
+	default:
+		break;
+	}
+	return 0;
 }
 
 /* ------------------------------------------------------------------ encoder task */
 
+typedef struct {
+	esp_h264_enc_handle_t enc;
+	uint8_t *out;
+	uint32_t out_cap;
+	bool cam_on;
+} pipe_t;
+
+static void pipe_stop(pipe_t *p)
+{
+	if (p->enc) {
+		esp_h264_enc_close(p->enc);
+		esp_h264_enc_del(p->enc);
+	}
+	if (p->out) {
+		esp_h264_free(p->out);
+	}
+	if (p->cam_on) {
+		cam_stream_stop();
+	}
+	memset(p, 0, sizeof(*p));
+}
+
+/* H.264: raw YUV422 + the software encoder; JPEG: the sensor's own encoder at the asked size and quality */
+static bool pipe_start(pipe_t *p, const live_quality_t *q)
+{
+	memset(p, 0, sizeof(*p));
+	if (q->mode == LIVE_MODE_JPEG) {
+		if (cam_stream_start_live_jpeg(q->w, q->h, q->q) != ESP_OK) {
+			set_err("camera start (JPEG %dx%d) failed", q->w, q->h);
+			return false;
+		}
+		p->cam_on = true;
+		return true;
+	}
+	if (cam_stream_start_yuv(LIVE_W, LIVE_H) != ESP_OK) {
+		set_err("camera start (YUV422) failed");
+		return false;
+	}
+	p->cam_on = true;
+	esp_h264_enc_cfg_sw_t cfg = {
+		.pic_type = ESP_H264_RAW_FMT_YUYV,
+		.gop = (uint8_t)(q->fps * 2),
+		.fps = (uint8_t)q->fps,
+		.res = { .width = LIVE_W, .height = LIVE_H },
+		.rc = { .bitrate = CONFIG_CAMOS_LIVE_KBPS * 1000, .qp_min = 22, .qp_max = 40 },
+	};
+	if (esp_h264_enc_sw_new(&cfg, &p->enc) != ESP_H264_ERR_OK || esp_h264_enc_open(p->enc) != ESP_H264_ERR_OK) {
+		set_err("H.264 encoder init failed");
+		pipe_stop(p);
+		return false;
+	}
+	p->out = esp_h264_aligned_calloc(16, 1, LIVE_W * LIVE_H * 3 / 2, &p->out_cap, ESP_H264_MEM_SPIRAM);
+	if (!p->out) {
+		set_err("no memory for the H.264 output");
+		pipe_stop(p);
+		return false;
+	}
+	return true;
+}
+
+static const live_quality_t default_quality = { LIVE_MODE_H264, LIVE_W, LIVE_H, 12, LIVE_FPS };
+
 static void venc_task(void *arg)
 {
-	esp_h264_enc_handle_t enc = NULL;
-	esp_h264_enc_param_sw_handle_t param = NULL;
-	uint8_t *out = NULL;
-	uint32_t out_cap = 0;
-	bool cam_held = false, cam_on = false, wifi = net_type() == NET_WIFI;
+	pipe_t p = { 0 };
+	bool cam_held = false, wifi = net_type() == NET_WIFI;
+	live_quality_t cur = default_quality;
+	k.cur = cur;
 	stream_stop(); /* a LAN MJPEG viewer gives way */
 	if (!camera_take(15000)) {
 		set_err("camera busy (capture in progress)");
 		goto done;
 	}
 	cam_held = true;
-	if (cam_stream_start_yuv(LIVE_W, LIVE_H) != ESP_OK) {
-		set_err("camera start (YUV422) failed");
+	if (!pipe_start(&p, &cur)) {
 		goto done;
 	}
-	cam_on = true;
 	if (wifi) {
 		esp_wifi_set_ps(WIFI_PS_NONE); /* modem sleep between beacons costs frames */
-	}
-	esp_h264_enc_cfg_sw_t cfg = {
-		.pic_type = ESP_H264_RAW_FMT_YUYV,
-		.gop = LIVE_FPS * 2,
-		.fps = LIVE_FPS,
-		.res = { .width = LIVE_W, .height = LIVE_H },
-		.rc = { .bitrate = CONFIG_CAMOS_LIVE_KBPS * 1000, .qp_min = 22, .qp_max = 40 },
-	};
-	if (esp_h264_enc_sw_new(&cfg, &enc) != ESP_H264_ERR_OK || esp_h264_enc_open(enc) != ESP_H264_ERR_OK) {
-		set_err("H.264 encoder init failed");
-		goto done;
-	}
-	esp_h264_enc_sw_get_param_hd(enc, &param);
-	out = esp_h264_aligned_calloc(16, 1, LIVE_W * LIVE_H * 3 / 2, &out_cap, ESP_H264_MEM_SPIRAM);
-	if (!out) {
-		set_err("no memory for the H.264 output");
-		goto done;
 	}
 	/* Started with the offer: the camera's DMA buffer and the encoder are allocated before the DTLS session takes its
 	 * share of internal RAM, and the exposure settles while ICE runs */
@@ -658,62 +850,144 @@ static void venc_task(void *arg)
 			esp_camera_fb_return(f);
 		}
 	}
-	ESP_LOGI(TAG, "encoding %dx%d at %d fps, %d kbit/s; free internal %u, PSRAM %u", LIVE_W, LIVE_H, LIVE_FPS,
+	ESP_LOGI(TAG, "streaming H.264 %dx%d at %d fps, %d kbit/s; free internal %u, PSRAM %u", LIVE_W, LIVE_H, cur.fps,
 			 CONFIG_CAMOS_LIVE_KBPS, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
 			 (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-	const int64_t period = 1000000 / LIVE_FPS;
-	int64_t t0 = esp_timer_get_time(), next = t0, win = t0, last_log = t0;
-	uint32_t win_frames = 0;
-	uint64_t win_bytes = 0, win_enc_us = 0;
-	k.frames = k.idr = 0;
-	uint64_t win_cap_us = 0;
+	int64_t t0 = esp_timer_get_time(), next = t0, win = t0, last_log = t0, last_stats = t0;
+	uint32_t win_frames = 0, seq = 0;
+	bool waiting = false;
+	uint64_t win_bytes = 0, win_enc_us = 0, win_cap_us = 0;
+	k.frames = k.idr = k.dc_drops = k.dc_waits = 0;
+	live_dc_flow_reset(&k.flow);
 	while (k.venc_run) {
+		if (k.dc_hello) {
+			k.dc_hello = false;
+			dc_send_hello(&cur);
+		}
+		if (k.dc_err_pending) {
+			k.dc_err_pending = false;
+			dc_send_error(k.dc_err);
+		}
+		live_quality_t want = cur;
+		bool asked = false;
+		if (k.req_pending) {
+			k.req_pending = false;
+			want = k.req;
+			asked = true;
+		}
+		if (want.mode == LIVE_MODE_JPEG && !k.dc_open) {
+			want = default_quality; /* the data channel is gone: H.264 on the video track */
+		}
+		if (memcmp(&want, &cur, sizeof(want))) {
+			pipe_stop(&p);
+			if (!pipe_start(&p, &want)) {
+				dc_send_error(k.err); /* stay with what ran, else the default */
+				want = cur;
+				if (!pipe_start(&p, &want)) {
+					want = default_quality;
+					if (!pipe_start(&p, &want)) {
+						break;
+					}
+				}
+			}
+			cur = want;
+			k.cur = cur;
+			live_dc_flow_reset(&k.flow);
+			win = next = esp_timer_get_time(), win_frames = 0, win_bytes = 0, win_enc_us = 0, win_cap_us = 0;
+			ESP_LOGI(TAG, "live view now %s %dx%d q%d at %d fps", mode_name(cur.mode), cur.w, cur.h, cur.q, cur.fps);
+			dc_send_json(quality_json("mode", &cur));
+		} else if (asked) {
+			dc_send_json(quality_json("mode", &cur)); /* already running: confirm it */
+		}
 		int64_t c0 = esp_timer_get_time();
 		camera_fb_t *fb = esp_camera_fb_get();
 		win_cap_us += (uint64_t)(esp_timer_get_time() - c0);
 		if (!fb) {
 			continue;
 		}
-		if (fb->format != PIXFORMAT_YUV422 || fb->len < (size_t)LIVE_W * LIVE_H * 2) {
-			esp_camera_fb_return(fb);
-			set_err("unexpected camera frame");
-			break;
-		}
-		if (k.want_idr && param) {
-			k.want_idr = false;
-			esp_h264_enc_force_idr(param);
-		}
 		int64_t e0 = esp_timer_get_time();
-		uint32_t pts = (uint32_t)((e0 - t0) / 1000);
-		esp_h264_enc_in_frame_t in = { .raw_data = { .buffer = fb->buf, .len = fb->len }, .pts = pts };
-		esp_h264_enc_out_frame_t of = { .raw_data = { .buffer = out, .len = out_cap } };
-		esp_h264_err_t r = esp_h264_enc_process(enc, &in, &of);
-		esp_camera_fb_return(fb);
+		uint32_t pts = (uint32_t)((e0 - t0) / 1000), bytes = 0;
+		if (cur.mode == LIVE_MODE_H264) {
+			if (fb->format != PIXFORMAT_YUV422 || fb->len < (size_t)LIVE_W * LIVE_H * 2) {
+				esp_camera_fb_return(fb);
+				set_err("unexpected camera frame");
+				break;
+			}
+			esp_h264_enc_in_frame_t in = { .raw_data = { .buffer = fb->buf, .len = fb->len }, .pts = pts };
+			esp_h264_enc_out_frame_t of = { .raw_data = { .buffer = p.out, .len = p.out_cap } };
+			esp_h264_err_t r = esp_h264_enc_process(p.enc, &in, &of);
+			esp_camera_fb_return(fb);
+			if (r != ESP_H264_ERR_OK) {
+				ESP_LOGW(TAG, "encode error %d", r);
+				continue;
+			}
+			esp_peer_video_frame_t vf = { .pts = pts, .data = p.out, .size = (int)of.length };
+			if (k.peer) {
+				esp_peer_send_video(k.peer, &vf);
+			}
+			k.idr += of.frame_type == ESP_H264_FRAME_TYPE_IDR;
+			bytes = of.length;
+		} else {
+			/* flow control: no frame while LIVE_DC_WINDOW frames wait for their ack (the newest frame is taken next) */
+			/* ... and none while internal RAM runs low: Wi-Fi needs it to carry what is already queued */
+			if (!live_dc_may_send(&k.flow, clock_ms()) || heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < LIVE_MIN_INTERNAL) {
+				esp_camera_fb_return(fb);
+				if (!waiting) {
+					k.dc_waits++; /* frames the channel could not take in time */
+					waiting = true;
+				}
+				vTaskDelay(pdMS_TO_TICKS(5));
+				continue;
+			}
+			waiting = false;
+			int64_t s0 = esp_timer_get_time();
+			bool ok = fb->format == PIXFORMAT_JPEG && dc_send_jpeg(fb->buf, fb->len, seq + 1, pts);
+			bytes = fb->len;
+			esp_camera_fb_return(fb);
+			k.push_ms = (int32_t)((esp_timer_get_time() - s0) / 1000);
+			if (!ok) {
+				k.dc_drops++;
+				vTaskDelay(pdMS_TO_TICKS(20)); /* the channel refused a chunk: let it drain */
+				continue;
+			}
+			live_dc_on_sent(&k.flow, ++seq, clock_ms());
+		}
 		int64_t e1 = esp_timer_get_time();
-		if (r != ESP_H264_ERR_OK) {
-			ESP_LOGW(TAG, "encode error %d", r);
-			continue;
-		}
-		esp_peer_video_frame_t vf = { .pts = pts, .data = out, .size = (int)of.length };
-		if (k.peer) {
-			esp_peer_send_video(k.peer, &vf);
-		}
 		k.frames++;
-		k.idr += of.frame_type == ESP_H264_FRAME_TYPE_IDR;
-		win_frames++, win_bytes += of.length, win_enc_us += (uint64_t)(e1 - e0);
+		win_frames++, win_bytes += bytes, win_enc_us += (uint64_t)(e1 - e0);
 		if (e1 - win >= 2000000) {
 			k.fps = win_frames * 1e6f / (float)(e1 - win);
 			k.kbps = win_bytes * 8 / 1000.0f / ((e1 - win) / 1e6f);
 			k.enc_ms = win_enc_us / 1000.0f / win_frames;
 			k.cap_ms = win_cap_us / 1000.0f / win_frames;
+			k.frame_bytes = (uint32_t)(win_bytes / win_frames);
 			win = e1, win_frames = 0, win_bytes = 0, win_enc_us = 0, win_cap_us = 0;
 		}
+		if (e1 - last_stats >= 2000000 && k.dc_open) {
+			cJSON *o = quality_json("stats", &cur);
+			cJSON_AddNumberToObject(o, "rate", (int)(k.fps * 10) / 10.0);
+			cJSON_AddNumberToObject(o, "kbps", (int)k.kbps);
+			cJSON_AddNumberToObject(o, "bytes", k.frame_bytes);
+			cJSON_AddNumberToObject(o, "drops", k.dc_drops);
+			cJSON_AddNumberToObject(o, "waits", k.dc_waits);
+			if (cur.mode == LIVE_MODE_JPEG) {
+				cJSON_AddNumberToObject(o, "ackMs", k.flow.last_rtt_ms);
+				cJSON_AddNumberToObject(o, "pushMs", k.push_ms);
+			}
+			dc_send_json(o);
+			last_stats = e1;
+		}
 		if (e1 - last_log >= 10000000) {
-			ESP_LOGI(TAG, "%dx%d: %.1f fps, %.0f kbit/s, camera wait %.1f ms, encode %.1f ms, free internal %u, PSRAM %u",
-					 LIVE_W, LIVE_H, k.fps, k.kbps, k.cap_ms, k.enc_ms, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+			ESP_LOGI(TAG, "%s %dx%d: %.1f fps, %.0f kbit/s, %u bytes/frame, camera wait %.1f ms, %s %.1f ms, ack %d ms, push %d ms, "
+					 "drops %u, waits %u, free internal %u (largest %u), PSRAM %u",
+					 mode_name(cur.mode), cur.w, cur.h, k.fps, k.kbps, (unsigned)k.frame_bytes, k.cap_ms,
+					 cur.mode == LIVE_MODE_JPEG ? "send" : "encode", k.enc_ms, (int)k.flow.last_rtt_ms, (int)k.push_ms,
+					 (unsigned)k.dc_drops, (unsigned)k.dc_waits, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+					 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
 					 (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 			last_log = e1;
 		}
+		const int64_t period = 1000000 / cur.fps;
 		next += period;
 		int64_t now = esp_timer_get_time();
 		if (next > now) {
@@ -724,16 +998,7 @@ static void venc_task(void *arg)
 		}
 	}
 done:
-	if (enc) {
-		esp_h264_enc_close(enc);
-		esp_h264_enc_del(enc);
-	}
-	if (out) {
-		esp_h264_free(out);
-	}
-	if (cam_on) {
-		cam_stream_stop();
-	}
+	pipe_stop(&p);
 	if (cam_held) {
 		camera_give();
 	}
@@ -759,8 +1024,6 @@ static int on_peer_state(esp_peer_state_t st, void *ctx)
 	} else if (st == ESP_PEER_STATE_CONNECT_FAILED && k.viewer_up) {
 		k.close_req = true; /* before the first connection the viewer's later candidates (and its checks, which
 							 * give peer-reflexive ones) still can make it: ANSWER_WAIT_S decides */
-	} else if (st == ESP_PEER_STATE_VIDEO_PLI_RECEIVED) {
-		k.want_idr = true;
 	}
 	return 0;
 }
@@ -773,9 +1036,10 @@ static int on_peer_msg(esp_peer_msg_t *m, void *ctx)
 	cJSON *p = cJSON_CreateObject();
 	cJSON_AddStringToObject(p, "type", "answer");
 	cJSON_AddStringToObject(p, "sdp", (const char *)m->data);
-	ws_send("SDP_ANSWER", k.viewer, p);
+	if (ws_send("SDP_ANSWER", k.viewer, p)) {
+		ESP_LOGI(TAG, "answer sent to %s", k.viewer);
+	}
 	cJSON_Delete(p);
-	ESP_LOGI(TAG, "answer sent to %s", k.viewer);
 	return 0;
 }
 
@@ -800,6 +1064,8 @@ static void peer_close(void)
 		esp_peer_close(k.peer);
 		k.peer = NULL;
 	}
+	free(k.dc_buf); /* the encoder task has stopped */
+	k.dc_buf = NULL;
 	k.close_req = false;
 	if (was || k.viewer[0]) {
 		ESP_LOGI(TAG, "viewer %s gone", k.viewer);
@@ -814,6 +1080,8 @@ static bool peer_open(void)
 		.keep_role = true,          /* the master always answers */
 		.alive_binding_retries = 3, /* a viewer that vanished is noticed after about 20 s (default 5: 30 s) */
 		.rtp_cfg = { .send_pool_size = 256 * 1024, .send_queue_num = 256 },
+		/* a few JPEG frames of the largest size in flight (PSRAM) */
+		.data_ch_cfg = { .cache_timeout = 2000, .send_cache_size = 512 * 1024, .recv_cache_size = 16 * 1024 },
 	};
 	esp_peer_cfg_t cfg = {
 		.server_lists = k.ice,
@@ -825,6 +1093,12 @@ static bool peer_open(void)
 		.audio_dir = ESP_PEER_MEDIA_DIR_SEND_ONLY,
 		.video_info = { .codec = ESP_PEER_VIDEO_CODEC_H264, .width = LIVE_W, .height = LIVE_H, .fps = LIVE_FPS },
 		.video_dir = ESP_PEER_MEDIA_DIR_SEND_ONLY,
+		/* the viewer opens "camos"; an offer without an application line gets an answer without one */
+		.enable_data_channel = true,
+		.manual_ch_create = true,
+		.on_channel_open = on_dc_open,
+		.on_channel_close = on_dc_close,
+		.on_data = on_dc_data,
 		.on_state = on_peer_state,
 		.on_msg = on_peer_msg,
 		.extra_cfg = &d,
@@ -844,6 +1118,7 @@ static void handle_offer(ev_t *e)
 	peer_close(); /* one viewer at a time: the newest one wins */
 	strlcpy(k.viewer, e->sender, sizeof(k.viewer));
 	k.offer_at = esp_timer_get_time();
+	k.dc_open = k.dc_hello = k.dc_err_pending = k.req_pending = false;
 	ESP_LOGI(TAG, "offer from viewer %s (%u bytes)", k.viewer, (unsigned)strlen(e->data));
 	k.venc_run = true, k.venc_done = false;
 	if (xTaskCreatePinnedToCore(venc_task, "venc", 16384, NULL, 4, &k.venc, 1) != pdPASS) {
@@ -903,7 +1178,8 @@ static void kvs_task(void *arg)
 	int fails = 0;
 	for (;;) {
 		ev_t e;
-		int wait_ms = k.peer ? 10 : (k.ws ? 500 : 2000);
+		/* JPEG over the data channel: the main loop moves the SCTP data, so it runs more often */
+		int wait_ms = k.peer ? (k.dc_open && k.cur.mode == LIVE_MODE_JPEG ? 2 : 10) : (k.ws ? 500 : 2000);
 		bool got = xQueueReceive(k.q, &e, pdMS_TO_TICKS(wait_ms)) == pdTRUE;
 		if (got) {
 			if (e.kind == EV_OFFER && k.ws_up) {
@@ -1034,8 +1310,13 @@ void live_status_json(cJSON *o)
 	cJSON_AddBoolToObject(o, "viewer", k.viewer_up);
 	cJSON_AddNumberToObject(o, "sessions", k.sessions);
 	if (k.viewer_up) {
-		cJSON_AddNumberToObject(o, "width", LIVE_W);
-		cJSON_AddNumberToObject(o, "height", LIVE_H);
+		cJSON_AddStringToObject(o, "mode", mode_name(k.cur.mode));
+		cJSON_AddBoolToObject(o, "dataChannel", k.dc_open);
+		cJSON_AddNumberToObject(o, "width", k.cur.w);
+		cJSON_AddNumberToObject(o, "height", k.cur.h);
+		cJSON_AddNumberToObject(o, "frameBytes", k.frame_bytes);
+		cJSON_AddNumberToObject(o, "drops", k.dc_drops);
+		cJSON_AddNumberToObject(o, "waits", k.dc_waits);
 		cJSON_AddNumberToObject(o, "fps", (int)(k.fps * 10) / 10.0);
 		cJSON_AddNumberToObject(o, "kbps", (int)k.kbps);
 		cJSON_AddNumberToObject(o, "encodeMs", (int)(k.enc_ms * 10) / 10.0);
