@@ -62,7 +62,7 @@ function qrSvg(text) {
 
 /* ------------------------------------------------------------------ fake device */
 const config = () => ({
-  serial: SERIAL, model: MODEL, fw: '0.4.0', ssid: 'Orchard-AP', password: true, apn: '', simPin: false, apiBase: 'https://flybot.agrhub.com',
+  serial: SERIAL, model: MODEL, fw: '0.4.0', hostname: 'flybot-000001', ssid: 'Orchard-AP', password: true, apn: '', simPin: false, apiBase: 'https://flybot.agrhub.com',
   token: !flags.unclaimed, provisionToken: false, iotHost: 'example-ats.iot.ap-southeast-2.amazonaws.com', thingName: 'cam-' + SERIAL, kvsChannel: 'cam-' + SERIAL,
   kvsRegion: 'ap-southeast-2', roleAlias: '', credHost: '', claimUrl: `https://flybot.agrhub.com/claim?sn=${SERIAL}`, timezone: 'Asia/Ho_Chi_Minh', apPassword: false,
   verifyCode: CODE, uiLang: 'en', motionRoi: '20,15,60,70', staticIp: '', staticMask: '255.255.255.0', staticGateway: '', staticDns: '',
@@ -75,7 +75,7 @@ const config = () => ({
 const status = () => ({
   model: MODEL, serial: SERIAL, verifyCode: CODE, fw: '0.4.0', built: 'Oct 17 2026 09:00:00', uptimeS: 3 * 86400 + 5 * 3600 + 17 * 60, heapFreeKB: 124, psramFreeKB: 7931,
   time: { synced: true, local: local(), utc: utcNow().toISOString().slice(0, 19) + 'Z', timezone: 'Asia/Ho_Chi_Minh' },
-  net: { type: 'wifi', connected: true, ip: '192.168.1.50', rssi: -58, ssid: 'Orchard-AP', channel: 6, mask: '255.255.255.0', gateway: '192.168.1.1', mac: '02:00:00:00:00:01', apn: '' },
+  net: { type: 'wifi', connected: true, ip: '192.168.1.50', hostname: 'flybot-000001', rssi: -58, ssid: 'Orchard-AP', channel: 6, mask: '255.255.255.0', gateway: '192.168.1.1', mac: '02:00:00:00:00:01', apn: '' },
   cloud: { connected: !flags.unclaimed, host: 'example-ats.iot.ap-southeast-2.amazonaws.com', port: 8883, certificate: true, paired: !flags.unclaimed, thing: 'cam-' + SERIAL, apiBase: 'https://flybot.agrhub.com', kvsChannel: 'cam-' + SERIAL },
   image: { brightness: 0, contrast: 50, saturation: 50, jpegQuality: 85, shadowVersion: 12, w: 2560, h: 1920, sensor: 'OV5640' },
   battery: { voltage: 4.02, percent: 86, mv: 4020, pct: 86, charging: true, solarMv: 5650 }, power: { mode: 'auto', effective: 'powered', highMv: 4050, lowMv: 3850 },
