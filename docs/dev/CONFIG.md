@@ -34,7 +34,7 @@ header `X-Requested-With: camos`. Details at the top of `firmware/main/web.c`.
 |---|---|
 | `GET /api/session` | `{activated, signedIn, model, serial, fw, uiLang}` (no sign-in needed) |
 | `POST /api/activate {password}`, `/api/login {password}`, `/api/logout`, `/api/password {current, new}`, `/api/lang {uiLang}` | admin password and session |
-| `GET /api/status` | device, time, network, cloud, image, stream (fps, frame size), motion, SD card, power, battery, location, LED |
+| `GET /api/status` | device, time, network, cloud, live (cloud live view: supported, window, state, viewer, fps, kbit/s), image, stream (fps, frame size), motion, SD card, power, battery, location, LED |
 | `GET|POST /api/config`, `POST /api/cert`, `GET /api/wifi/scan` | as in the portal |
 | `GET /api/image`, `POST /api/image {image: {...}, jpegQuality, save}` | image settings (shadow `video.image` keys); `save: false` previews only; `{restore: true}` |
 | `GET /api/stream?w=&h=&q=` | MJPEG live picture, one viewer at a time (409 `BUSY` for the next) |
@@ -69,7 +69,8 @@ Available in normal operation and inside the portal; English. `help` lists the c
 | `batt`, `mode auto\|battery\|powered` | battery / solar, power decision; power mode |
 | `gps [timeout]`, `at <AT command>` | GPS fix; talk to the modem |
 | `led [state]` | show an LED state (`portal`, `connecting`, `online`, `error`, `ota`, `off`, `capture`, `uploaderr`, `lowbatt`) |
-| `live start [min]`, `live stop`, `ota`, `awake [s]`, `sleep [s]`, `portal`, `factory`, `restart` | |
+| `live`, `live start [min]`, `live stop` | cloud live view (ESP32-S3, `CAMOS_LIVE`): status JSON (state, viewer, fps, kbit/s, encode / camera ms, last error); open a window; drop the viewer and end the window. With `CAMOS_LIVE_BENCH_CREDS`: `live key id\|secret\|token <value>` / `live key clear` (bench keys in RAM, see [LIVE_VIEW.md](LIVE_VIEW.md)) |
+| `ota`, `awake [s]`, `sleep [s]`, `portal`, `factory`, `restart` | |
 
 The commands run in the console task, so `snap` or `pair` block the prompt until they finish. With automatic light
 sleep on (station mode), the first byte typed after a quiet period wakes the chip and may be lost; after a command the

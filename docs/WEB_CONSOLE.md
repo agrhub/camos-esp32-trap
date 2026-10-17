@@ -75,7 +75,10 @@ HTTP request), so the console keeps answering while it plays, and Wi-Fi power sa
   stream over as soon as it is free.
 - The page closes the stream while its tab is hidden and opens it again when the tab comes back.
 - A scheduled or on-demand capture takes the camera for a few seconds (full-size JPEG); the stream carries on after.
-- A stream ends after 30 minutes, when the viewer goes away, or when cloud live view (KVS) starts.
+- A stream ends after 30 minutes, when the viewer goes away, or when a FlyBot viewer connects over the cloud (KVS
+  WebRTC, [dev/LIVE_VIEW.md](dev/LIVE_VIEW.md)): the camera then belongs to the H.264 encoder, and `/api/stream`
+  answers `409 BUSY` ("live view over KVS is running") until that viewer leaves and while a `live.start` window is open.
+  `/api/status` has the cloud live view's state under `live` (`joined`, `viewer`, frame rate).
 
 Measured on the Freenove ESP32-S3 CAM (OV5640, XCLK 10 MHz), Wi-Fi at -47 dBm, laptop on the same access point, 16 Oct 2026
 (firmware 0.4.0, `/api/stream` read for 10-12 s by a script, quality 12):
@@ -132,8 +135,9 @@ the next restart. Measured on 16 Oct 2026: a 1.43 MB image uploaded and installe
 
 ## What this camera cannot do (hardware)
 
-- **H.264 / RTSP / ONVIF / RTMP video and continuous video recording**: the ESP32-S3 has no video encoder; the camera
-  streams and stores JPEG pictures. Cloud live view uses KVS WebRTC ([dev/LIVE_VIEW.md](dev/LIVE_VIEW.md)).
+- **RTSP / ONVIF / RTMP video, continuous video recording, H.264 at large sizes**: the ESP32-S3 has no video encoder;
+  the camera streams and stores JPEG pictures. The cloud live view in FlyBot uses a small software H.264 stream
+  (320x240, 5-8 fps measured) over KVS WebRTC ([dev/LIVE_VIEW.md](dev/LIVE_VIEW.md)).
 - **Audio**: no microphone or speaker on the board.
 - **On-screen text burned into the photos and privacy masks**: would need a decode and re-encode of every 5 MP JPEG;
   the clock and name are drawn by the browser over the live picture only.

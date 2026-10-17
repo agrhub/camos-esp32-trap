@@ -47,6 +47,7 @@ The token is only ever sent to `apiBase` (protocol 11.4).
 | `power.highMv`, `power.lowMv` | 3000..4400 | auto-mode hysteresis thresholds (defaults from Kconfig: 4050 / 3850). |
 | `live.requested` | bool | `true`: the camera starts a live session (5 min) at the next wake / shadow delivery, then clears it. |
 | `kvs.channelName`, `kvs.region` | string | stored in NVS (normally set by pairing). |
+| `kvs.credentialsEndpoint`, `kvs.roleAlias` | string | the AWS IoT credential provider host and role alias of the live view credentials, stored in NVS (for cameras that registered or paired without them; see LIVE_VIEW.md). |
 
 Priority for the interval and the power mode: shadow > portal > Kconfig default.
 
@@ -85,13 +86,18 @@ same keys locally; a later shadow wins):
 CONTRACTS fields. `state` also has `thingName`, `net.cell {imei, iccid, operator, csq, registered}` on 4G (protocol 4 shape)
 and `gps {lat, lon, fix, ts}` (protocol 4) when the build has GPS.
 
+`live.supported` is true when the build has the cloud live view (`CAMOS_LIVE`), the camera is paired (KVS channel and
+region) and it has a way to get KVS credentials (credential provider host and role alias); `live.active` is true while
+a `live.start` / `live.requested` window is open or a viewer is connected. A powered camera stays on its signaling
+channel without a window (LIVE_VIEW.md).
+
 ## 4. RPC (protocol 9) additions
 
 | Method | `params` | `result` / error |
 |---|---|---|
 | `snapshot.now` | — | `{"snapshotId","image":{"key","w","h","bytes"},"bytes"}` (`image.key` = `snapshotId`, so the protocol 9 `capture` shape still holds). Errors `UPLOAD_FAILED`, `INTERNAL`, `BUSY` (live view running). `capture` is an alias. |
-| `live.start` | `{"minutes": 1..60}` (default 5) | `{"channelName","seconds"}`; `NOT_SUPPORTED` when the build has no live view (ESP32-CAM, or CAMOS_LIVE off: see LIVE_VIEW.md), `BAD_PARAMS`, `BUSY`. Repeating it extends the session. |
-| `live.stop` | — | — |
+| `live.start` | `{"minutes": 1..60}` (default 5) | `{"channelName","seconds"}`; `NOT_SUPPORTED` when the build has no live view (ESP32-CAM, or CAMOS_LIVE off) or the camera has no KVS channel or credential provider settings (see LIVE_VIEW.md), `BAD_PARAMS`, `BUSY`. Repeating it extends the session. The camera joins the channel within a few seconds of the answer (credentials, endpoints, WebSocket); a viewer offer sent before that is lost and the viewer offers again. |
+| `live.stop` | — | — (drops the viewer and ends the window; a powered camera stays on the channel) |
 | `gps.fix` | `{"timeoutS"?}` (default 120) | `{"location":{lat,lng,fixAt},"sats"}`; `TIMEOUT` when no fix, `NOT_SUPPORTED` without GPS. Blocks the RPC queue for up to `timeoutS`. |
 | `ota.apply` | — | `{"version"}` at once, then the event `ota_result` (`stage: "installed"` + restart, or `ok:false` with `DOWNLOAD_FAILED` / `SIGNATURE_INVALID` for a SHA-256 mismatch). `NOT_FOUND` when `GET /api/device/ota` gives 204, `OLD_VERSION` when it offers the running version. |
 | `reboot` | — | as before |
@@ -151,7 +157,8 @@ A camera without a certificate (the public build, after flashing) registers itse
    `{"v":1,"serial":"ESP000000000001","verifyCode":"ABC123","model":"AIC-FREENOVE-S3CAM","fw":"0.3.0","csr":"-----BEGIN CERTIFICATE REQUEST-----..."}`.
    The CSR has subject `CN=<serial>` and is signed with ECDSA-SHA256 (checked with `openssl req -verify` on a board).
 3. `200` / `201` with `ok`, `certificatePem`, `deviceToken`, `iot.endpoint`: stored (plus `iot.thingName`,
-   `kvs.region`, `kvs.channelName`, `claimUrl`, `claimed`); the MQTT client starts without a restart.
+   `kvs.region`, `kvs.channelName`, `claimUrl`, `claimed`, and `iot.credentialsEndpoint` + `iot.roleAlias` for the live
+   view when both are present); the MQTT client starts without a restart.
 4. `429`, `5xx`, no answer: retried after 30 s, doubling to 1 h, ±20 %. `409 serial_taken`: no more retries, the LED
    goes red, the portal and web console show "registration refused" until the camera is reset in FlyBot and the
    camera is factory-reset.

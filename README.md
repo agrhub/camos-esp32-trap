@@ -12,6 +12,7 @@ will follow in `docs/img/trap-assembled.jpg`.)*
 - Solar panel + battery: sleeps between photos, wakes on time.
 - GPS: FlyBot puts the trap on the map by itself.
 - A web page on the camera for live view, settings and the photos on its memory card.
+- Live view in FlyBot from anywhere (Freenove board): a small H.264 picture over WebRTC, see section 5.
 
 ## 1. What you need
 
@@ -78,6 +79,14 @@ your router's list, where the camera appears as `flybot-xxxxxx`, or on the camer
 
 *The pictures in these screenshots are drawings of a sticky card, not camera photos.* Every page:
 [docs/WEB_CONSOLE.md](docs/WEB_CONSOLE.md).
+
+**Live view in FlyBot (away from home).** The Freenove camera can also send its live picture to FlyBot's camera page
+over the Internet (Amazon Kinesis Video Streams WebRTC): 320x240 H.264, about 5-8 frames a second on the board we
+measured, one viewer at a time. On mains power it is ready all the time; on battery it joins when FlyBot asks (at its
+next wake-up). While someone watches from FlyBot, the camera's own web page shows "busy" instead of its live picture,
+and a scheduled photo due in that time is skipped. It needs FlyBot's side to hand the camera its live view
+credentials, which is not switched on yet: until then FlyBot offers a photo and the camera's web page instead.
+Details: [docs/dev/LIVE_VIEW.md](docs/dev/LIVE_VIEW.md).
 
 ## 6. What the LED says
 

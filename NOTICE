@@ -33,6 +33,10 @@ the first build). Versions are those of firmware/dependencies.lock and the relea
 | espressif/esp_modem | 1.4.3 | Apache-2.0 | |
 | espressif/led_strip | 3.1.0 | Apache-2.0 | |
 | espressif/qrcode | 0.2.0 | Apache-2.0 | includes the QR Code generator library (Project Nayuki, MIT) |
+| espressif/esp_h264 | 1.4.1 | Apache-2.0 | ESP32-S3 live view only (`CAMOS_LIVE`); software encoder from openh264 (Cisco, BSD-2-Clause), shipped as a binary library |
+| espressif/esp_peer | 1.5.7 | Espressif Modified MIT (use with Espressif chips only), **core binary only** | ESP32-S3 live view only (`CAMOS_LIVE`): ICE, DTLS-SRTP, RTP in `libpeer_default.a`, derived from libpeer (MIT); see the note below |
+| espressif/esp_libsrtp | 1.0.0 | BSD-3-Clause (libsrtp, Cisco) | ESP32-S3 live view only |
+| espressif/esp_websocket_client | 1.7.0 | Apache-2.0 | ESP32-S3 live view only (KVS signaling) |
 | Amazon Root CA 1 (firmware/main/certs/AmazonRootCA1.pem) | | public CA certificate (Amazon Trust Services) | |
 
 Not in the firmware image: the browser flasher page (docs/flash/) loads ESP Web Tools (Apache-2.0) from unpkg.com.
@@ -44,3 +48,8 @@ Espressif publishes its Wi-Fi, PHY and coexistence libraries under Apache-2.0 bu
 compatible with the AGPL-3.0, but the AGPL asks for the "Corresponding Source" of a conveyed binary, and these libraries
 have none. This is the same question every GPL-family firmware for the ESP32 has; an explicit additional permission
 under AGPL section 7 for linking these libraries would settle it. No such permission is granted in this file yet.
+
+The ESP32-S3 live view (`CAMOS_LIVE`, docs/dev/LIVE_VIEW.md) adds `esp_peer`, whose core is a binary library
+licensed for use with Espressif chips only. That use restriction, and the missing source, raise the same AGPL question
+in a stronger form: an image built with `CAMOS_LIVE` on should only be conveyed once the copyright holder grants an
+additional permission (AGPL section 7) covering these Espressif components.

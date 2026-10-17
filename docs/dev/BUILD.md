@@ -11,12 +11,14 @@ Most users flash a release from the browser (README). Build from source to chang
 | `esp32s3cam` | generic ESP32-S3 N16R8 CAM (ESP32-S3-EYE pin map) | esp32s3 | 16 MB / 8 MB octal | OV2640 / OV3660 / OV5640 | no: check the pins first ([PINPROBE.md](PINPROBE.md)) |
 
 The ESP32-CAM build has no modem, GPS, SD card or live view (`CAMOS_MODEM=n`, `CAMOS_GPS=n`): Wi-Fi + snapshot + deep
-sleep.
+sleep. The cloud live view (`CAMOS_LIVE`, [LIVE_VIEW.md](LIVE_VIEW.md)) is on in the `freenove` preset only; the
+`esp32s3cam` preset builds the same components with it off (untested board).
 
 ## Build and flash
 
 ESP-IDF v5.3 or newer (releases are built with v5.4.4). The component manager fetches `esp32-camera`, `esp_modem`,
-`led_strip` and `qrcode` on the first build (internet needed once).
+`led_strip`, `qrcode` and `mdns` on the first build (internet needed once), and for the ESP32-S3 also `esp_peer`,
+`esp_h264` and `esp_websocket_client` (live view; about 100 MB in `firmware/managed_components`).
 
 Linux / macOS (`. ~/esp/esp-idf/export.sh` first), from `firmware/`:
 
@@ -60,12 +62,13 @@ the defaults; a factory reset returns to them. Settings layers, the local APIs, 
 `CAMOS_GPS_POWER_GPIO`, `CAMOS_BATT_ADC_GPIO`, ...), plus the camera pins, XCLK, flips, warm-up frames, deep sleep and
 awake window, the auto power-mode thresholds (`CAMOS_POWER_HIGH_MV` 4050 / `CAMOS_POWER_LOW_MV` 3850), battery low and
 critical levels, the LED type and brightness, the microSD card (`CAMOS_SD`), the web console and `CAMOS_WEB_BENCH_IP`
-(bench tests only, see [CONFIG.md](CONFIG.md)), and `CAMOS_LIVE` (cloud live view, off: [LIVE_VIEW.md](LIVE_VIEW.md)).
+(bench tests only, see [CONFIG.md](CONFIG.md)), and `CAMOS_LIVE` (cloud live view, on in the `freenove` preset: size,
+frame rate, bitrate, the live view XCLK, powered-mode standby, bench keys: [LIVE_VIEW.md](LIVE_VIEW.md)).
 
 ## Tests
 
 ```bash
-make -C tests          # NMEA, power hysteresis, registration response, APN table, motion detection
+make -C tests          # NMEA, power hysteresis, registration response, APN table, motion detection, SigV4
 ```
 
 Needs gcc and cJSON (ESP-IDF's copy when `IDF_PATH` is set, else `libcjson-dev`). CI runs them and builds the
