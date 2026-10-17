@@ -3,19 +3,27 @@
  * Shadow (protocol 8): the cloud keeps `desired`, the camera applies what it can and publishes `reported` with the same
  * `version` and an `errors` list for the rest. What this firmware supports:
  *
- *   timezone                     IANA name -> POSIX TZ (tz.c); schedules run in local time
+ *   timezone                     IANA name -> POSIX TZ (tz.c); schedules run in local time; null = automatic
  *   detections[] of type "app"   trigger {everyMin, from, to} -> capture schedule (no on-device detection)
  *   capture.jpegQuality 1..100   -> esp32-camera quality 63..4 (see cam.c)
- *   capture.resolution           "main" and "max" are the same here: always the full sensor size
+ *   capture.resolution           "main" / "max" = the full sensor size; v1 addition: a photo size "WxH"
  *   capture.intervalMin          v1 addition: an all-day capture interval (used when no detections[] schedule is set)
- *   video.image.brightness       -64..64 -> -2..2 in steps of 32
- *   video.image.contrast         0..100  -> -2..2 in steps of 25 around 50
- *   video.image.saturation       0..100  -> -2..2 in steps of 25 around 50
+ *   capture.window               v1 addition: {from, to} "HH:MM" local window of that interval; null = all day
+ *   video.image.*                brightness, contrast, saturation, sharpness, orientation and the ESP32 additions
+ *                                (apply_image: white balance, effect, AE level, exposure, gain, gain ceiling, denoise)
  *   power.mode                   v1 addition: "auto" | "battery" | "powered"; power.highMv / power.lowMv thresholds
+ *   motion.*                     v1 addition: enabled, sensitivity, cooldownS, upload, saveSd, area (motion.c)
+ *   storage.sdSave               v1 addition: every photo also on the microSD card
+ *   led.enabled                  v1 addition: the status LED
+ *   gps.enabled                  v1 addition: daily GPS fixes when the module is fitted
+ *   console.language             v1 addition: "en" | "vi", the camera's own web pages
  *   live.requested               v1 addition: FlyBot asks for a live session at the next wake
  *   kvs.channelName              v1 addition: the KVS signaling channel (stored in NVS)
  *   kvs.credentialsEndpoint      v1 addition: IoT credential provider host and role alias of the live view
  *   kvs.roleAlias                (stored in NVS, like pairing's iot.credentialsEndpoint / iot.roleAlias)
+ *
+ * capture.resolution / window, motion, storage, led, gps and console are the web console's settings (NVS, store.c):
+ * a desired value overwrites what was set on the camera, and both show in `reported`. Key list: docs/dev/CONFIG.md.
  *
  * Everything else is reported as NOT_SUPPORTED, a value out of range as BAD_VALUE (the old value stays).
  * Fields absent from `desired` keep their current value. The applied settings are kept in NVS and used at boot.
@@ -300,8 +308,23 @@ static void apply_capture(const cJSON *item, settings_t *s, cJSON *errors)
 			}
 		} else if (!strcmp(c->string, "resolution")) {
 			const char *r = cJSON_GetStringValue(c);
-			if (!r || (strcmp(r, "main") && strcmp(r, "max"))) {
+			if (r && !strcmp(r, "main")) {
+				r = "max"; /* protocol 8: the main stream size is the sensor's full size here */
+			}
+			if (!r || !store_apply_kv("captureSize", r)) {
 				add_error(errors, "capture.resolution", "BAD_VALUE");
+			}
+		} else if (!strcmp(c->string, "window")) {
+			int from = 0, to = 1439;
+			if (!cJSON_IsNull(c) && (!cJSON_IsObject(c) || (from = parse_hhmm(cJSON_GetObjectItem(c, "from"))) < 0 ||
+									 (to = parse_hhmm(cJSON_GetObjectItem(c, "to"))) < 0)) {
+				add_error(errors, "capture.window", "BAD_VALUE");
+			} else {
+				char a[8], b[8];
+				snprintf(a, sizeof(a), "%d", from);
+				snprintf(b, sizeof(b), "%d", to);
+				store_apply_kv("schedFrom", a);
+				store_apply_kv("schedTo", b);
 			}
 		} else if (!strcmp(c->string, "intervalMin")) {
 			if (cJSON_IsNull(c)) {
@@ -343,6 +366,85 @@ static void apply_power(const cJSON *item, settings_t *s, cJSON *errors)
 			char path[48];
 			snprintf(path, sizeof(path), "power.%s", c->string);
 			add_error(errors, path, "NOT_SUPPORTED");
+		}
+	}
+}
+
+/* The web console's settings that FlyBot may set too: desired path -> store.c key */
+typedef enum { R_BOOL, R_INT, R_ENUM, R_AREA } remote_kind_t;
+static const struct {
+	const char *obj, *field, *key;
+	remote_kind_t kind;
+	int lo, hi;
+	const char *const *names;
+} remote[] = {
+	{ "motion", "enabled", "motion", R_BOOL, 0, 0, NULL },
+	{ "motion", "sensitivity", "motionSens", R_INT, 1, 100, NULL },
+	{ "motion", "cooldownS", "motionCooldown", R_INT, 5, 3600, NULL },
+	{ "motion", "upload", "motionUpload", R_BOOL, 0, 0, NULL },
+	{ "motion", "saveSd", "motionSd", R_BOOL, 0, 0, NULL },
+	{ "motion", "area", "motionRoi", R_AREA, 0, 0, NULL },
+	{ "storage", "sdSave", "sdSave", R_BOOL, 0, 0, NULL },
+	{ "led", "enabled", "ledEnabled", R_BOOL, 0, 0, NULL },
+	{ "gps", "enabled", "gps", R_BOOL, 0, 0, NULL },
+	{ "console", "language", "uiLang", R_ENUM, 0, 0, (const char *const[]){ "en", "vi", NULL } },
+};
+#define N_REMOTE (sizeof(remote) / sizeof(remote[0]))
+
+static bool remote_obj(const char *k)
+{
+	for (size_t i = 0; i < N_REMOTE; i++) {
+		if (!strcmp(remote[i].obj, k)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static void apply_remote(const char *obj, const cJSON *item, cJSON *errors)
+{
+	const cJSON *c;
+	cJSON_ArrayForEach(c, item)
+	{
+		char path[48], v[32];
+		snprintf(path, sizeof(path), "%s.%s", obj, c->string);
+		size_t i = 0;
+		while (i < N_REMOTE && (strcmp(remote[i].obj, obj) || strcmp(remote[i].field, c->string))) {
+			i++;
+		}
+		if (i == N_REMOTE) {
+			add_error(errors, path, "NOT_SUPPORTED");
+			continue;
+		}
+		bool ok = false;
+		int n = 0;
+		switch (remote[i].kind) {
+		case R_BOOL:
+			ok = cJSON_IsBool(c);
+			strlcpy(v, cJSON_IsTrue(c) ? "1" : "0", sizeof(v));
+			break;
+		case R_INT:
+			ok = get_int(c, remote[i].lo, remote[i].hi, &n);
+			snprintf(v, sizeof(v), "%d", n);
+			break;
+		case R_ENUM:
+			for (int e = 0; cJSON_IsString(c) && remote[i].names[e]; e++) {
+				ok = ok || !strcmp(remote[i].names[e], c->valuestring);
+			}
+			strlcpy(v, ok ? c->valuestring : "", sizeof(v));
+			break;
+		case R_AREA: { /* [x, y, w, h] percent of the picture */
+			int a[4];
+			ok = cJSON_IsArray(c) && cJSON_GetArraySize(c) == 4;
+			for (int e = 0; ok && e < 4; e++) {
+				ok = get_int(cJSON_GetArrayItem(c, e), 0, 100, &a[e]);
+			}
+			snprintf(v, sizeof(v), "%d,%d,%d,%d", ok ? a[0] : 0, ok ? a[1] : 0, ok ? a[2] : 0, ok ? a[3] : 0);
+			break;
+		}
+		}
+		if (!ok || !store_apply_kv(remote[i].key, v)) {
+			add_error(errors, path, "BAD_VALUE");
 		}
 	}
 }
@@ -418,6 +520,8 @@ char *shadow_apply(const char *json, int len, bool persist)
 			if (alias && !store_apply_kv("roleAlias", alias)) {
 				add_error(errors, "kvs.roleAlias", "BAD_VALUE");
 			}
+		} else if (remote_obj(k) && cJSON_IsObject(item)) {
+			apply_remote(k, item, errors);
 		} else if (!strcmp(k, "video") && cJSON_IsObject(item)) {
 			const cJSON *v;
 			cJSON_ArrayForEach(v, item)
@@ -474,10 +578,16 @@ void shadow_image_json(cJSON *parent)
 	}
 	cJSON *cap = cJSON_AddObjectToObject(parent, "capture");
 	int w, h;
-	cam_max_size(&w, &h);
-	cJSON_AddStringToObject(cap, "resolution", "max");
+	cam_photo_size(&w, &h);
+	cJSON_AddStringToObject(cap, "resolution", g_cfg.capture_size);
 	cJSON_AddNumberToObject(cap, "jpegQuality", s.jpeg_quality);
 	cJSON_AddNumberToObject(cap, "intervalMin", shadow_interval_min());
+	char hm[16];
+	cJSON *win = cJSON_AddObjectToObject(cap, "window");
+	snprintf(hm, sizeof(hm), "%02d:%02d", g_cfg.sched_from / 60, g_cfg.sched_from % 60);
+	cJSON_AddStringToObject(win, "from", hm);
+	snprintf(hm, sizeof(hm), "%02d:%02d", g_cfg.sched_to / 60, g_cfg.sched_to % 60);
+	cJSON_AddStringToObject(win, "to", hm);
 	if (w) {
 		cJSON_AddNumberToObject(cap, "w", w);
 		cJSON_AddNumberToObject(cap, "h", h);
@@ -496,6 +606,19 @@ void shadow_additions_json(cJSON *parent)
 	cJSON_AddBoolToObject(live, "requested", s.live_requested);
 	cJSON_AddBoolToObject(live, "supported", live_supported());
 	cJSON_AddBoolToObject(live, "active", live_active() || live_streaming());
+	cJSON *mo = cJSON_AddObjectToObject(parent, "motion");
+	cJSON_AddBoolToObject(mo, "enabled", g_cfg.motion);
+	cJSON_AddNumberToObject(mo, "sensitivity", g_cfg.motion_sens);
+	cJSON_AddNumberToObject(mo, "cooldownS", g_cfg.motion_cool);
+	cJSON_AddBoolToObject(mo, "upload", g_cfg.motion_upload);
+	cJSON_AddBoolToObject(mo, "saveSd", g_cfg.motion_sd);
+	int roi[4];
+	if (roi_parse(g_cfg.motion_roi, roi)) {
+		cJSON_AddItemToObject(mo, "area", cJSON_CreateIntArray(roi, 4));
+	}
+	cJSON_AddBoolToObject(cJSON_AddObjectToObject(parent, "storage"), "sdSave", g_cfg.sd_save);
+	cJSON_AddBoolToObject(cJSON_AddObjectToObject(parent, "led"), "enabled", g_cfg.led);
+	cJSON_AddStringToObject(cJSON_AddObjectToObject(parent, "console"), "language", g_cfg.ui_lang);
 	cJSON *kvs = cJSON_AddObjectToObject(parent, "kvs");
 	cJSON_AddStringToObject(kvs, "channelName", g_cfg.kvs_channel);
 	cJSON_AddStringToObject(kvs, "region", g_cfg.kvs_region);
@@ -531,6 +654,8 @@ char *shadow_reported_json(void)
 	}
 	shadow_image_json(o);
 	shadow_additions_json(o);
+	/* not in shadow_additions_json: the state message has its own protocol 4 gps {lat, lon, fix, ts} */
+	cJSON_AddBoolToObject(cJSON_AddObjectToObject(o, "gps"), "enabled", g_cfg.gps);
 	char *s = cJSON_PrintUnformatted(o);
 	cJSON_Delete(o);
 	return s;

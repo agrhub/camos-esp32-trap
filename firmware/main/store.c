@@ -181,6 +181,7 @@ static const str_field_t fields[] = {
 	{ "verifyCode", "vcode", g_cfg.verify_code, sizeof(g_cfg.verify_code), false, "", true },
 	{ "uiLang", "ui_lang", g_cfg.ui_lang, sizeof(g_cfg.ui_lang), false, "en", false },
 	{ "motionRoi", "mo_roi", g_cfg.motion_roi, sizeof(g_cfg.motion_roi), false, "0,0,100,100", false },
+	{ "captureSize", "cap_size", g_cfg.capture_size, sizeof(g_cfg.capture_size), false, "max", false },
 	{ "staticIp", "st_ip", g_cfg.static_ip, sizeof(g_cfg.static_ip), false, "", false },
 	{ "staticMask", "st_mask", g_cfg.static_mask, sizeof(g_cfg.static_mask), false, "255.255.255.0", false },
 	{ "staticGateway", "st_gw", g_cfg.static_gw, sizeof(g_cfg.static_gw), false, "", false },
@@ -394,6 +395,33 @@ bool store_paired(void)
 
 /* ------------------------------------------------------------------ portal / console keys */
 
+/* Photo sizes FlyBot and the console may choose (each a camera frame size); larger than the sensor = its maximum */
+bool capture_size_parse(const char *s, int *w, int *h)
+{
+	static const int sizes[][2] = { { 640, 480 },   { 800, 600 },   { 1024, 768 },  { 1280, 720 },  { 1280, 1024 },
+									{ 1600, 1200 }, { 1920, 1080 }, { 2048, 1536 }, { 2560, 1920 } };
+	if (!s || !strcmp(s, "max")) {
+		if (w) {
+			*w = *h = 0;
+		}
+		return s != NULL;
+	}
+	int a, b;
+	char tail;
+	if (sscanf(s, "%dx%d%c", &a, &b, &tail) != 2) {
+		return false;
+	}
+	for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
+		if (sizes[i][0] == a && sizes[i][1] == b) {
+			if (w) {
+				*w = a, *h = b;
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
 /* "x,y,w,h" in percent, inside 0..100, w and h at least 5 */
 bool roi_parse(const char *s, int out[4])
 {
@@ -445,6 +473,9 @@ bool store_apply_kv(const char *key, const char *value)
 			return false;
 		}
 		if (!strcmp(key, "motionRoi") && value[0] && !roi_parse(value, NULL)) {
+			return false;
+		}
+		if (!strcmp(key, "captureSize") && value[0] && !capture_size_parse(value, NULL, NULL)) {
 			return false;
 		}
 		if (!strncmp(key, "static", 6) && value[0] && !ip4_ok(value)) {

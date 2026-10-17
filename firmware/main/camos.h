@@ -56,6 +56,7 @@ typedef struct {
 	int motion_upload;    /* 1 = a motion trigger also captures and uploads a full photo to FlyBot */
 	int motion_sd;        /* 1 = a motion trigger saves the picture to the microSD card */
 	char motion_roi[24];  /* "x,y,w,h" in percent of the picture */
+	char capture_size[12]; /* photo size: "max" (the sensor's largest) or "WxH" (CAPTURE_SIZES) */
 	int ip_mode;          /* 0 DHCP, 1 static (Wi-Fi) */
 	char static_ip[16], static_mask[16], static_gw[16], static_dns[16];
 	char ap_pass[65];
@@ -221,6 +222,7 @@ esp_err_t cam_capture(const settings_t *s, camera_fb_t **fb);
 void cam_release(camera_fb_t *fb);              /* returns the frame and powers the sensor down */
 void cam_sleep_prepare(void);                   /* hold PWDN / camera power off through deep sleep */
 void cam_max_size(int *w, int *h);              /* maximum JPEG size of the detected sensor, 0 before the first capture */
+void cam_photo_size(int *w, int *h);            /* what a capture gives: captureSize within that maximum */
 void cam_apply_settings(const settings_t *s);   /* the image settings to a running sensor (call with the camera lock) */
 const char *cam_sensor_name(void);              /* "OV5640" ..., "" before the first power-up */
 /* Live view: the sensor at a small size, streaming JPEG frames (ESP32-S3). Returns ESP_OK and keeps the sensor up. */
@@ -262,6 +264,7 @@ const char *clock_source(void);                 /* "sntp" | "modem" | "gps" | "f
 void clock_set_source(const char *src);
 bool store_overridden(const char *key);         /* set in the runtime NVS (not a default) */
 bool roi_parse(const char *s, int out[4]);      /* "x,y,w,h" percent (motionRoi) */
+bool capture_size_parse(const char *s, int *w, int *h); /* "max" (0x0) or one of the photo sizes */
 void nvs_tz_read(char *iana, size_t in, char *posix, size_t pn, char *src, size_t sn); /* store.c */
 void nvs_tz_write(const char *iana, const char *posix, const char *src);
 bool shadow_tz(char *iana, size_t in, char *posix, size_t pn); /* the shadow set `timezone` (shadow.c) */

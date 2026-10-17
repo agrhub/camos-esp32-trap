@@ -118,6 +118,8 @@ static int jpeg_q(int proto)
 	return clampi((100 - proto) * 63 / 100, 4, 63);
 }
 
+static framesize_t framesize_for(int width, int height);
+
 static esp_err_t cam_up(framesize_t fs, int quality, int fb_count, pixformat_t fmt)
 {
 	camera_config_t c = {
@@ -162,6 +164,15 @@ static framesize_t max_framesize(int pid)
 		return FRAMESIZE_QSXGA;
 	default:
 		return FRAMESIZE_UXGA; /* OV2640 and anything we do not know */
+	}
+}
+
+void cam_photo_size(int *w, int *h)
+{
+	cam_max_size(w, h);
+	int pw, ph;
+	if (*w && capture_size_parse(g_cfg.capture_size, &pw, &ph) && pw && pw <= *w) {
+		*w = pw, *h = ph;
 	}
 }
 
@@ -269,6 +280,9 @@ static esp_err_t detect_and_up(framesize_t want, int q, int fb_count, pixformat_
 		}
 		esp_camera_deinit(); /* switch to the real size; the supply stays on */
 	}
+	if (want != FRAMESIZE_INVALID && resolution[want].width > resolution[max_fs].width) {
+		want = max_fs; /* captureSize larger than this sensor: its maximum */
+	}
 	err = cam_up(want == FRAMESIZE_INVALID ? max_fs : want, q, fb_count, fmt);
 	if (err != ESP_OK) {
 		ESP_LOGE(TAG, "camera init failed 0x%x", err);
@@ -288,7 +302,12 @@ esp_err_t cam_capture(const settings_t *s, camera_fb_t **out)
 	gpio_deep_sleep_hold_dis();
 	cam_power(true);
 	up_xclk_mhz = CONFIG_CAMOS_XCLK_MHZ;
-	esp_err_t err = detect_and_up(FRAMESIZE_INVALID, q, 2, PIXFORMAT_JPEG);
+	int pw, ph;
+	framesize_t want = FRAMESIZE_INVALID; /* captureSize "max": the sensor's largest */
+	if (capture_size_parse(g_cfg.capture_size, &pw, &ph) && pw) {
+		want = framesize_for(pw, ph);
+	}
+	esp_err_t err = detect_and_up(want, q, 2, PIXFORMAT_JPEG);
 	if (err != ESP_OK) {
 		cam_off();
 		return err;
