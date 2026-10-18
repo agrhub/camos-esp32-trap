@@ -34,8 +34,13 @@ typedef struct {
 	char error[64];         /* LIVE_DC_BAD */
 } live_dc_msg_t;
 
-/* JPEG sizes a viewer may ask for */
+/* JPEG sizes a viewer may ask for: live_dc_set_sizes (the sensor's live sizes), by default 320x240 .. 1280x720 */
+#define LIVE_DC_MAX_SIZES 16
+void live_dc_set_sizes(const int sizes[][2], int n);
+int live_dc_sizes(const int (**sizes)[2]);
 bool live_dc_size_ok(int w, int h);
+#define LIVE_DC_Q_MIN 8  /* JPEG quality range, esp32-camera scale (lower = better), the web console's stream too */
+#define LIVE_DC_Q_MAX 40
 
 /*
  * One control message from the viewer:

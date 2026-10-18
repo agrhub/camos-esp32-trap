@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * Camera: JPEG at the maximum size of the sensor (protocol 9 `capture`: UXGA 1600x1200 on OV2640, QXGA 2048x1536 on
- * OV3660, QSXGA 2560x1920 on OV5640). The sensor is powered up for each capture and powered down afterwards (PWDN),
+ * OV3660, QSXGA 2560x1920 on OV5640), or the captureSize chosen from the sensor's photo sizes. The sizes follow the
+ * detected module (esp32-camera's sensor table); its PID is kept in NVS ("cam_pid") so they are known at boot. The sensor is powered up for each capture and powered down afterwards (PWDN),
  * which is what lets the board sleep between captures; auto exposure restarts each time, hence the warm-up frames.
  * The web console preview keeps the sensor up at a small size (JPEG); the cloud live view (live_kvs.c) keeps it up in
  * YUV422 for the H.264 encoder, or in JPEG for its data channel.
@@ -23,6 +24,8 @@ static const char *TAG = "cam";
 #endif
 static int up_xclk_mhz = CONFIG_CAMOS_XCLK_MHZ; /* XCLK of the next cam_up */
 static RTC_DATA_ATTR framesize_t max_fs; /* known after the first power-up; kept through deep sleep */
+static RTC_DATA_ATTR uint16_t sensor_pid; /* the detected sensor (camera_pid_t) */
+static framesize_t known_fs;              /* from NVS cam_pid before this boot's first power-up: sizes only */
 static bool streaming;
 
 /* The sensor needs a steady XCLK and SCCB clock: with automatic light sleep and frequency scaling on (station mode,
@@ -155,31 +158,121 @@ static esp_err_t cam_up(framesize_t fs, int quality, int fb_count, pixformat_t f
 	return esp_camera_init(&c);
 }
 
+static const camera_sensor_info_t *sensor_info(uint16_t pid)
+{
+	for (int i = 0; i < CAMERA_MODEL_MAX; i++) {
+		if (camera_sensor[i].pid == pid) {
+			return &camera_sensor[i];
+		}
+	}
+	return NULL;
+}
+
+/* The largest JPEG of a sensor (esp32-camera's table: OV2640 UXGA, OV3660 QXGA, OV5640 QSXGA ...) */
 static framesize_t max_framesize(int pid)
 {
-	switch (pid) {
-	case OV3660_PID:
-		return FRAMESIZE_QXGA;
-	case OV5640_PID:
-		return FRAMESIZE_QSXGA;
-	default:
-		return FRAMESIZE_UXGA; /* OV2640 and anything we do not know */
+	const camera_sensor_info_t *in = sensor_info(pid);
+	return in && in->support_jpeg && in->max_size > FRAMESIZE_QVGA ? in->max_size : FRAMESIZE_UXGA;
+}
+
+/* A sensor answered: remember it (NVS when it changed, and the sizes in `reported` follow) */
+static void sensor_detected(int pid)
+{
+	max_fs = max_framesize(pid);
+	if (sensor_pid != pid) {
+		sensor_pid = (uint16_t)pid;
+		if (store_get_flag_default("cam_pid", 0) != pid) {
+			store_set_flag("cam_pid", pid);
+			ESP_LOGI(TAG, "camera module %s: photo sizes up to %dx%d", cam_sensor_name(), resolution[max_fs].width,
+					 resolution[max_fs].height);
+			proto_publish_reported_now();
+		}
 	}
+}
+
+static framesize_t size_limit(void)
+{
+	if (max_fs) {
+		return max_fs;
+	}
+	if (!known_fs) {
+		int pid = store_get_flag_default("cam_pid", 0);
+		known_fs = pid ? max_framesize(pid) : FRAMESIZE_INVALID;
+	}
+	return known_fs == FRAMESIZE_INVALID ? 0 : known_fs;
+}
+
+/* The sizes offered, landscape, in this order; each must be a camera frame size */
+static const uint16_t SIZES[][2] = { { 320, 240 },   { 640, 480 },   { 800, 600 },   { 1024, 768 },  { 1280, 720 },
+									 { 1280, 1024 }, { 1600, 1200 }, { 1920, 1080 }, { 2048, 1536 }, { 2560, 1440 },
+									 { 2560, 1600 }, { 2560, 1920 }, { 2592, 1944 } };
+#define N_SIZES (sizeof(SIZES) / sizeof(SIZES[0]))
+#define LIVE_MAX_W 1600 /* the live JPEG stream (LAN and data channel): up to UXGA */
+
+static bool size_fits(size_t i, bool live, framesize_t lim)
+{
+	int w = SIZES[i][0], h = SIZES[i][1];
+	if (live ? w > LIVE_MAX_W : w < 640) {
+		return false; /* photos start at VGA */
+	}
+	return !lim || (w <= resolution[lim].width && h <= resolution[lim].height);
+}
+
+int cam_sizes(bool live, int out[][2], int max)
+{
+	framesize_t lim = size_limit();
+	int n = 0;
+	for (size_t i = 0; i < N_SIZES && n < max; i++) {
+		if (size_fits(i, live, lim)) {
+			out[n][0] = SIZES[i][0], out[n][1] = SIZES[i][1];
+			n++;
+		}
+	}
+	return n;
+}
+
+bool cam_size_ok(bool live, int w, int h)
+{
+	framesize_t lim = size_limit();
+	for (size_t i = 0; i < N_SIZES; i++) {
+		if (SIZES[i][0] == w && SIZES[i][1] == h) {
+			return size_fits(i, live, lim);
+		}
+	}
+	return false;
 }
 
 void cam_photo_size(int *w, int *h)
 {
 	cam_max_size(w, h);
 	int pw, ph;
-	if (*w && capture_size_parse(g_cfg.capture_size, &pw, &ph) && pw && pw <= *w) {
+	if (*w && capture_size_parse(g_cfg.capture_size, &pw, &ph) && pw && pw <= *w && ph <= *h) {
 		*w = pw, *h = ph;
 	}
 }
 
 void cam_max_size(int *w, int *h)
 {
-	*w = max_fs ? resolution[max_fs].width : 0;
-	*h = max_fs ? resolution[max_fs].height : 0;
+	framesize_t lim = size_limit();
+	*w = lim ? resolution[lim].width : 0;
+	*h = lim ? resolution[lim].height : 0;
+}
+
+void cam_info_json(cJSON *o)
+{
+	int w, h;
+	cam_max_size(&w, &h);
+	cJSON_AddStringToObject(o, "sensor", cam_sensor_name());
+	cJSON_AddNumberToObject(o, "maxW", w);
+	cJSON_AddNumberToObject(o, "maxH", h);
+	int sz[N_SIZES][2];
+	for (int live = 0; live < 2; live++) {
+		cJSON *a = cJSON_AddArrayToObject(o, live ? "liveSizes" : "photoSizes");
+		int n = cam_sizes(live, sz, N_SIZES);
+		for (int i = 0; i < n; i++) {
+			cJSON_AddItemToArray(a, cJSON_CreateIntArray(sz[i], 2));
+		}
+	}
 }
 
 /* Protocol scale -> the sensor's levels, rounded: v in [lo, hi] mapped onto [-n, n] around mid */
@@ -236,19 +329,12 @@ void cam_apply_settings(const settings_t *s)
 const char *cam_sensor_name(void)
 {
 	sensor_t *sn = esp_camera_sensor_get();
-	if (!sn) {
-		return max_fs == FRAMESIZE_QSXGA ? "OV5640" : max_fs == FRAMESIZE_QXGA ? "OV3660" : max_fs ? "OV2640" : "";
+	int pid = sn ? sn->id.PID : sensor_pid ? sensor_pid : store_get_flag_default("cam_pid", 0);
+	if (!pid) {
+		return "";
 	}
-	switch (sn->id.PID) {
-	case OV5640_PID:
-		return "OV5640";
-	case OV3660_PID:
-		return "OV3660";
-	case OV2640_PID:
-		return "OV2640";
-	default:
-		return "unknown";
-	}
+	const camera_sensor_info_t *in = sensor_info(pid);
+	return in ? in->name : "unknown";
 }
 
 /* First power-up: UXGA JPEG works on every sensor; the detected one decides the real size */
@@ -260,7 +346,7 @@ static esp_err_t detect_and_up(framesize_t want, int q, int fb_count, pixformat_
 		 * has little of); the detected sensor still gives the JPEG maximum for later captures */
 		err = cam_up(want, q, fb_count, fmt);
 		if (err == ESP_OK) {
-			max_fs = max_framesize(esp_camera_sensor_get()->id.PID);
+			sensor_detected(esp_camera_sensor_get()->id.PID);
 		} else {
 			ESP_LOGE(TAG, "camera init failed 0x%x", err);
 		}
@@ -273,7 +359,7 @@ static esp_err_t detect_and_up(framesize_t want, int q, int fb_count, pixformat_
 			return err;
 		}
 		sensor_t *sn = esp_camera_sensor_get();
-		max_fs = max_framesize(sn->id.PID);
+		sensor_detected(sn->id.PID);
 		ESP_LOGI(TAG, "sensor PID 0x%x, maximum %dx%d", sn->id.PID, resolution[max_fs].width, resolution[max_fs].height);
 		if (fmt == PIXFORMAT_JPEG && (want == FRAMESIZE_UXGA || (want == FRAMESIZE_INVALID && max_fs == FRAMESIZE_UXGA))) {
 			return ESP_OK;

@@ -6,11 +6,12 @@
  *   timezone                     IANA name -> POSIX TZ (tz.c); schedules run in local time; null = automatic
  *   detections[] of type "app"   trigger {everyMin, from, to} -> capture schedule (no on-device detection)
  *   capture.jpegQuality 1..100   -> esp32-camera quality 63..4 (see cam.c)
- *   capture.resolution           "main" / "max" = the full sensor size; v1 addition: a photo size "WxH"
+ *   capture.resolution           "main" / "max" = the full sensor size; v1 addition: "WxH" from camera.photoSizes
  *   capture.intervalMin          v1 addition: an all-day capture interval (used when no detections[] schedule is set)
  *   capture.window               v1 addition: {from, to} "HH:MM" local window of that interval; null = all day
  *   video.image.*                brightness, contrast, saturation, sharpness, orientation and the ESP32 additions
- *                                (apply_image: white balance, effect, AE level, exposure, gain, gain ceiling, denoise)
+ *                                (apply_image: vflip, hmirror, white balance, effect, AE level, exposure, gain, gain
+ *                                ceiling, denoise); vflip / hmirror are orientation's bits 2 and 1
  *   power.mode                   v1 addition: "auto" | "battery" | "powered"; power.highMv / power.lowMv thresholds
  *   motion.*                     v1 addition: enabled, sensitivity, cooldownS, upload, saveSd, area (motion.c)
  *   storage.sdSave               v1 addition: every photo also on the microSD card
@@ -240,17 +241,21 @@ typedef struct {
 	int lo, hi;
 	const char *const *names; /* string enum instead of a number */
 	bool boolean;
+	int bit; /* a boolean view of one bit of the field (vflip, hmirror in orientation) */
 } img_field_t;
-#define F(k, m, lo, hi) { k, offsetof(settings_t, m), lo, hi, NULL, false }
+#define F(k, m, lo, hi) { k, offsetof(settings_t, m), lo, hi, NULL, false, 0 }
 static const img_field_t img_fields[] = {
 	F("brightness", brightness, -64, 64), F("contrast", contrast, 0, 100), F("saturation", saturation, 0, 100),
 	F("sharpness", sharpness, 0, 100), F("orientation", orientation, 0, 3),
-	{ "whiteBalance", offsetof(settings_t, wb_mode), 0, 4, wb_names, false },
-	{ "effect", offsetof(settings_t, effect), 0, 6, fx_names, false },
+	/* relative to the board's upright picture (Kconfig CAMOS_CAM_VFLIP / HMIRROR): false, false = as mounted */
+	{ "vflip", offsetof(settings_t, orientation), 0, 1, NULL, true, 2 },
+	{ "hmirror", offsetof(settings_t, orientation), 0, 1, NULL, true, 1 },
+	{ "whiteBalance", offsetof(settings_t, wb_mode), 0, 4, wb_names, false, 0 },
+	{ "effect", offsetof(settings_t, effect), 0, 6, fx_names, false, 0 },
 	F("aeLevel", ae_level, -5, 5),
-	{ "exposureAuto", offsetof(settings_t, exposure_auto), 0, 1, NULL, true },
+	{ "exposureAuto", offsetof(settings_t, exposure_auto), 0, 1, NULL, true, 0 },
 	F("exposure", exposure, 0, 1200),
-	{ "gainAuto", offsetof(settings_t, gain_auto), 0, 1, NULL, true },
+	{ "gainAuto", offsetof(settings_t, gain_auto), 0, 1, NULL, true, 0 },
 	F("gain", gain, 0, 30), F("gainCeiling", gain_ceiling, 0, 6), F("denoise", denoise, 0, 8),
 };
 #undef F
@@ -278,7 +283,11 @@ static void apply_image(const cJSON *img, settings_t *s, cJSON *errors)
 				add_error(errors, path, "BAD_VALUE");
 				continue;
 			}
-			*dst = cJSON_IsTrue(f);
+			if (fd->bit) {
+				*dst = cJSON_IsTrue(f) ? (*dst | fd->bit) : (*dst & ~fd->bit);
+			} else {
+				*dst = cJSON_IsTrue(f);
+			}
 		} else if (fd->names && cJSON_IsString(f)) {
 			int k = 0;
 			while (fd->names[k] && strcmp(fd->names[k], f->valuestring)) {
@@ -569,13 +578,14 @@ void shadow_image_json(cJSON *parent)
 		const img_field_t *fd = &img_fields[i];
 		int v = *(const int *)((const char *)&s + fd->off);
 		if (fd->boolean) {
-			cJSON_AddBoolToObject(img, fd->key, v != 0);
+			cJSON_AddBoolToObject(img, fd->key, fd->bit ? (v & fd->bit) != 0 : v != 0);
 		} else if (fd->names) {
 			cJSON_AddStringToObject(img, fd->key, fd->names[v]);
 		} else {
 			cJSON_AddNumberToObject(img, fd->key, v);
 		}
 	}
+	cam_info_json(cJSON_AddObjectToObject(parent, "camera")); /* sensor and its sizes: FlyBot's menus */
 	cJSON *cap = cJSON_AddObjectToObject(parent, "capture");
 	int w, h;
 	cam_photo_size(&w, &h);

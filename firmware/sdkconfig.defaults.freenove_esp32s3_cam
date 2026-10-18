@@ -14,6 +14,9 @@ CONFIG_SPIRAM_SPEED_80M=y
 CONFIG_OV2640_SUPPORT=y
 CONFIG_OV3660_SUPPORT=y
 CONFIG_OV5640_SUPPORT=y
+# The board's OV5640 gives an upside-down picture as the board is mounted: the sensor flips it back (Freenove's own
+# camera example does the same); video.image.vflip / hmirror are relative to this upright picture
+CONFIG_CAMOS_CAM_VFLIP=y
 # The native USB port also carries the log (the CH340 port is UART0: console and flashing)
 CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y
 # Cloud live view (docs/dev/LIVE_VIEW.md): KVS WebRTC MASTER with software H.264 (esp_peer, esp_h264)

@@ -29,16 +29,10 @@ void stream_get_stats(stream_stats_t *out) { *out = stats; }
 void stream_stop(void) { stop_req = true; }
 bool stream_active(void) { return busy; }
 
-/* The frame sizes the page offers; anything else falls back to VGA */
+/* The frame sizes the page offers: the sensor's live sizes (cam.c); anything else falls back to VGA */
 bool frame_size_ok(int w, int h)
 {
-	static const int sizes[][2] = { { 320, 240 }, { 640, 480 }, { 800, 600 }, { 1024, 768 }, { 1280, 720 }, { 1280, 1024 }, { 1600, 1200 } };
-	for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
-		if (sizes[i][0] == w && sizes[i][1] == h) {
-			return true;
-		}
-	}
-	return false;
+	return cam_size_ok(true, w, h);
 }
 
 typedef struct {

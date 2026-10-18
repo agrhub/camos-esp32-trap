@@ -395,11 +395,9 @@ bool store_paired(void)
 
 /* ------------------------------------------------------------------ portal / console keys */
 
-/* Photo sizes FlyBot and the console may choose (each a camera frame size); larger than the sensor = its maximum */
+/* Photo sizes FlyBot and the console may choose: "max" or one of the sensor's photo sizes (cam.c) */
 bool capture_size_parse(const char *s, int *w, int *h)
 {
-	static const int sizes[][2] = { { 640, 480 },   { 800, 600 },   { 1024, 768 },  { 1280, 720 },  { 1280, 1024 },
-									{ 1600, 1200 }, { 1920, 1080 }, { 2048, 1536 }, { 2560, 1920 } };
 	if (!s || !strcmp(s, "max")) {
 		if (w) {
 			*w = *h = 0;
@@ -411,15 +409,13 @@ bool capture_size_parse(const char *s, int *w, int *h)
 	if (sscanf(s, "%dx%d%c", &a, &b, &tail) != 2) {
 		return false;
 	}
-	for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
-		if (sizes[i][0] == a && sizes[i][1] == b) {
-			if (w) {
-				*w = a, *h = b;
-			}
-			return true;
-		}
+	if (!cam_size_ok(false, a, b)) {
+		return false;
 	}
-	return false;
+	if (w) {
+		*w = a, *h = b;
+	}
+	return true;
 }
 
 /* "x,y,w,h" in percent, inside 0..100, w and h at least 5 */

@@ -225,6 +225,9 @@ void cam_release(camera_fb_t *fb);              /* returns the frame and powers 
 void cam_sleep_prepare(void);                   /* hold PWDN / camera power off through deep sleep */
 void cam_max_size(int *w, int *h);              /* maximum JPEG size of the detected sensor, 0 before the first capture */
 void cam_photo_size(int *w, int *h);            /* what a capture gives: captureSize within that maximum */
+int cam_sizes(bool live, int out[][2], int max); /* photo sizes (live false) or live JPEG sizes of this sensor */
+bool cam_size_ok(bool live, int w, int h);      /* one of them (any known size while the sensor is unknown) */
+void cam_info_json(cJSON *o);                   /* reported `camera`: sensor, maxW, maxH, photoSizes, liveSizes */
 void cam_apply_settings(const settings_t *s);   /* the image settings to a running sensor (call with the camera lock) */
 const char *cam_sensor_name(void);              /* "OV5640" ..., "" before the first power-up */
 /* Live view: the sensor at a small size, streaming JPEG frames (ESP32-S3). Returns ESP_OK and keeps the sensor up. */
@@ -266,7 +269,7 @@ const char *clock_source(void);                 /* "sntp" | "modem" | "gps" | "f
 void clock_set_source(const char *src);
 bool store_overridden(const char *key);         /* set in the runtime NVS (not a default) */
 bool roi_parse(const char *s, int out[4]);      /* "x,y,w,h" percent (motionRoi) */
-bool capture_size_parse(const char *s, int *w, int *h); /* "max" (0x0) or one of the photo sizes */
+bool capture_size_parse(const char *s, int *w, int *h); /* "max" (0x0) or "WxH" of a photo size (cam_size_ok) */
 void nvs_tz_read(char *iana, size_t in, char *posix, size_t pn, char *src, size_t sn); /* store.c */
 void nvs_tz_write(const char *iana, const char *posix, const char *src);
 bool shadow_tz(char *iana, size_t in, char *posix, size_t pn); /* the shadow set `timezone` (shadow.c) */

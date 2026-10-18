@@ -166,7 +166,7 @@ const I18N = {
   camosLink: 'Kết nối FlyBot', status: 'Trạng thái', apiBase: 'Địa chỉ FlyBot', iotHost: 'Endpoint IoT Core', thing: 'Thing', kvs: 'Kênh KVS', cloudLive: 'Xem trực tiếp qua FlyBot', liveOff: 'tắt', liveReady: 'sẵn sàng (đang chờ người xem)', liveJoining: 'đang kết nối kênh', liveViewer: 'đang có người xem · {0} ảnh/giây', liveNotBuilt: 'không có trong bản firmware này', liveNoCreds: 'chưa có quyền truy cập KVS',
   cloudNote: 'Thường không cần đổi: camera tự đăng ký với FlyBot. Chỉ đổi khi được hướng dẫn.', regError: 'Lỗi đăng ký',
   brightness: 'Độ sáng', contrast: 'Độ tương phản', saturation: 'Độ bão hòa', jpegQuality: 'Chất lượng JPEG', imageNote: 'Thay đổi hiện ngay trên hình trực tiếp; bấm Lưu để giữ cho mọi lần chụp. Cài đặt từ cloud (FlyBot) sẽ ghi đè cài đặt ở đây.',
-  resolution: 'Độ phân giải chụp', bySensor: 'theo cảm biến',
+  resolution: 'Độ phân giải chụp', bySensor: 'theo cảm biến', resMax: 'Lớn nhất ({0})',
   gpsFix: 'Lấy vị trí ngay', gpsFixing: 'Đang tìm vệ tinh (tối đa 2 phút)…', location: 'Vị trí', fixAt: 'Lúc', noFix: 'Chưa có', gpsNote: 'Camera lấy vị trí mỗi ngày một lần; module GPS tắt nguồn giữa các lần.',
   fwUpdate: 'Nâng cấp firmware', running: 'Đang chạy', checkUpdate: 'Kiểm tra & nâng cấp', updateStarted: 'Đang hỏi FlyBot; nếu có bản mới camera sẽ tải, kiểm tra SHA-256 rồi khởi động lại. Xem Nhật ký.',
   maintenance: 'Bảo trì', reboot: 'Khởi động lại', factory: 'Khôi phục cài đặt gốc', confirmReboot: 'Khởi động lại camera?',
@@ -239,7 +239,7 @@ const I18N = {
   camosLink: 'FlyBot connection', status: 'Status', apiBase: 'FlyBot address', iotHost: 'IoT Core endpoint', thing: 'Thing', kvs: 'KVS channel', cloudLive: 'Live view in FlyBot', liveOff: 'off', liveReady: 'ready (waiting for a viewer)', liveJoining: 'joining the channel', liveViewer: 'a viewer is watching · {0} fps', liveNotBuilt: 'not in this firmware', liveNoCreds: 'no KVS credentials yet',
   cloudNote: 'Usually nothing to change: the camera registers itself with FlyBot. Change only when told to.', regError: 'Registration error',
   brightness: 'Brightness', contrast: 'Contrast', saturation: 'Saturation', jpegQuality: 'JPEG quality', imageNote: 'Changes show on the live picture at once; Save keeps them for every capture. Settings from the cloud (FlyBot) override these.',
-  resolution: 'Capture resolution', bySensor: 'by sensor',
+  resolution: 'Capture resolution', bySensor: 'by sensor', resMax: 'Largest ({0})',
   gpsFix: 'Get position now', gpsFixing: 'Looking for satellites (up to 2 minutes)…', location: 'Position', fixAt: 'At', noFix: 'None yet', gpsNote: 'The camera takes one position a day; the GPS module is powered off in between.',
   fwUpdate: 'Firmware upgrade', running: 'Running', checkUpdate: 'Check & upgrade', updateStarted: 'Asking FlyBot; when a newer build exists the camera downloads it, checks its SHA-256 and restarts. See the Log.',
   maintenance: 'Maintenance', reboot: 'Restart', factory: 'Factory reset', confirmReboot: 'Restart the camera?',
@@ -419,7 +419,10 @@ function claimPanel(st, cfg) {
 }
 
 /* ---------------------------------------------------------------- live picture (MJPEG /api/stream, stills as the fallback) */
-const SIZES = [['320x240', 'QVGA 320×240'], ['640x480', 'VGA 640×480'], ['800x600', 'SVGA 800×600'], ['1024x768', 'XGA 1024×768'], ['1280x720', 'HD 1280×720'], ['1600x1200', 'UXGA 1600×1200']];
+const SIZE_NAMES = { '320x240': 'QVGA', '640x480': 'VGA', '800x600': 'SVGA', '1024x768': 'XGA', '1280x720': 'HD', '1280x1024': 'SXGA', '1600x1200': 'UXGA', '1920x1080': 'FHD', '2048x1536': 'QXGA', '2560x1440': 'QHD', '2560x1600': 'WQXGA', '2560x1920': 'QSXGA', '2592x1944': '5MP' };
+const sizeOpt = ([w, h]) => [`${w}x${h}`, `${SIZE_NAMES[w + 'x' + h] || ''} ${w}×${h}`.trim()];
+/* The stream sizes of this camera's sensor (/api/status camera.liveSizes), VGA when it is not known yet */
+const SIZES = (st) => ((st && st.camera && st.camera.liveSizes && st.camera.liveSizes.length) ? st.camera.liveSizes : [[320, 240], [640, 480]]).map(sizeOpt);
 const QUALS = () => [['10', t('qHigh')], ['12', t('qStd')], ['20', t('qLow')]];
 const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAAC';
 let camClockOff = 0; /* camera local time minus browser time (ms), from /api/status */
@@ -484,10 +487,10 @@ async function savePicture(img, w, h) {
 async function LIVE(view, st) {
   const cfg = await api('config');
   camClock(st);
-  const size = prefs.size || '640x480', q = prefs.q || '12';
+  const sizes = SIZES(st), size = sizes.some(([v]) => v === prefs.size) ? prefs.size : '640x480', q = prefs.q || '12';
   view.innerHTML = `<div class="live"><div class="player" id="player"><div class="screen" id="screen"></div>
     <div class="tools"><button id="play"></button><button id="savePic">${t('savePic')}</button><button id="snap">${t('sendFlybot')}</button><span class="sp"></span>
-    ${sel('size', size, SIZES)}${sel('qual', q, QUALS())}<button id="fs">${t('fullscreen')}</button></div></div>
+    ${sel('size', size, sizes)}${sel('qual', q, QUALS())}<button id="fs">${t('fullscreen')}</button></div></div>
     <div class="side">${claimPanel(st, cfg)}${panel(t('status'), '<div id="sideKv"></div>')}<div class="panel"><div class="body"><span class="msg" id="snapMsg"></span><p class="note">${t('liveNote')}</p></div></div></div></div>`;
   const [w, h] = size.split('x').map(Number);
   const pic = livePicture($('#screen'), { w, h, q: +q, name: st.model });
@@ -687,25 +690,27 @@ const PAGES = {
   async image(el, st) {
     const d = await api('image');
     let v = Object.assign({}, d.video.image), q = d.capture.jpegQuality, dirty = false, pending = null;
-    const DEF = { brightness: 0, contrast: 50, saturation: 50, sharpness: 50, orientation: 0, whiteBalance: 'auto', effect: 'none', aeLevel: 0, exposureAuto: true, exposure: 300, gainAuto: true, gain: 0, gainCeiling: 2, denoise: 0 };
+    delete v.orientation; /* vflip / hmirror are its two bits */
+    const cam = d.camera || {}, photo = [['max', t('resMax', cam.maxW ? cam.maxW + '×' + cam.maxH : '?')]].concat((cam.photoSizes || []).map(sizeOpt));
+    const DEF = { brightness: 0, contrast: 50, saturation: 50, sharpness: 50, vflip: false, hmirror: false, whiteBalance: 'auto', effect: 'none', aeLevel: 0, exposureAuto: true, exposure: 300, gainAuto: true, gain: 0, gainCeiling: 2, denoise: 0 };
     const rng = (id, min, max) => `<input type="range" id="i_${id}" min="${min}" max="${max}"><span id="i_${id}V" style="min-width:36px"></span>`;
     const ae = d.sensor === 'OV5640' ? 5 : 2;
     el.innerHTML = `<div class="split"><div class="pvw"><div class="player"><div class="screen" id="iScreen"></div></div><p class="note">${esc(d.sensor || '')}${d.capture.w ? ` · ${t('resolution')} ${d.capture.w}×${d.capture.h}` : ''}</p></div><div class="cfg">`
       + panel(t('grpPicture'), row(t('brightness'), rng('brightness', -64, 64)) + row(t('contrast'), rng('contrast', 0, 100)) + row(t('saturation'), rng('saturation', 0, 100)) + row(t('sharpness'), rng('sharpness', 0, 100))
-        + row(t('orientation'), sel('i_orientation', 0, [[0, t('oNormal')], [1, t('oMirror')], [2, t('oFlip')], [3, t('oBoth')]]))
+        + row(t('orientation'), chk('i_vflip', false, t('oFlip')) + ' ' + chk('i_hmirror', false, t('oMirror')))
         + row(t('whiteBalance'), sel('i_whiteBalance', 'auto', [['auto', t('wbAuto')], ['sunny', t('wbSunny')], ['cloudy', t('wbCloudy')], ['office', t('wbOffice')], ['home', t('wbHome')]]))
         + row(t('effect'), sel('i_effect', 'none', [['none', t('fxNone')], ['negative', t('fxNegative')], ['grayscale', t('fxGrayscale')], ['red', t('fxRed')], ['green', t('fxGreen')], ['blue', t('fxBlue')], ['sepia', t('fxSepia')]]))
         + row(t('denoise'), rng('denoise', 0, 8)))
       + panel(t('grpExposure'), row(t('exposure'), chk('i_exposureAuto', true, t('autoW'))) + `<div id="expMan">${row(t('manualVal'), rng('exposure', 0, 1200))}</div>` + row(t('aeLevel'), rng('aeLevel', -ae, ae))
         + row(t('gain'), chk('i_gainAuto', true, t('autoW'))) + `<div id="gainMan">${row(t('manualVal'), rng('gain', 0, 30))}</div>`
         + row(t('gainCeiling'), sel('i_gainCeiling', 2, ['2×', '4×', '8×', '16×', '32×', '64×', '128×'].map((x, i) => [i, x]))))
-      + panel(t('grpCapture'), row(t('jpegQuality'), '<input type="range" id="i_q" min="1" max="100"><span id="i_qV"></span>') + row(t('resolution'), `<b>${d.capture.w ? d.capture.w + '×' + d.capture.h : '?'}</b>`, t('bySensor')) + `<p class="note">${t('imageNote')}</p>`,
+      + panel(t('grpCapture'), row(t('jpegQuality'), '<input type="range" id="i_q" min="1" max="100"><span id="i_qV"></span>') + row(t('resolution'), sel('i_res', d.capture.resolution || 'max', photo), esc(d.sensor || t('bySensor'))) + `<p class="note">${t('imageNote')}</p>`,
         `<button class="btn primary" id="iSave">${t('save')}</button><button class="btn" id="iRestore">${t('restore')}</button><button class="btn" id="iDef">${t('defaultsBtn')}</button><span class="msg" id="iSaveMsg"></span>`)
       + '</div></div>';
     const pic = livePicture($('#iScreen'), { w: 640, h: 480, q: 12, name: st.model });
     pic.start();
     every(1000, async () => pic.osd(null));
-    const ranges = ['brightness', 'contrast', 'saturation', 'sharpness', 'denoise', 'exposure', 'aeLevel', 'gain'], sels = ['orientation', 'whiteBalance', 'effect', 'gainCeiling'], bools = ['exposureAuto', 'gainAuto'];
+    const ranges = ['brightness', 'contrast', 'saturation', 'sharpness', 'denoise', 'exposure', 'aeLevel', 'gain'], sels = ['whiteBalance', 'effect', 'gainCeiling'], bools = ['exposureAuto', 'gainAuto', 'vflip', 'hmirror'];
     const fill = () => {
       ranges.forEach((k) => { $('#i_' + k).value = v[k]; $('#i_' + k + 'V').textContent = v[k]; });
       sels.forEach((k) => { $('#i_' + k).value = v[k]; }); bools.forEach((k) => { $('#i_' + k).checked = !!v[k]; });
@@ -714,14 +719,15 @@ const PAGES = {
     };
     const read = () => {
       ranges.forEach((k) => { v[k] = +$('#i_' + k).value; }); bools.forEach((k) => { v[k] = $('#i_' + k).checked; });
-      sels.forEach((k) => { const x = $('#i_' + k).value; v[k] = k === 'orientation' || k === 'gainCeiling' ? +x : x; }); q = +$('#i_q').value;
+      sels.forEach((k) => { const x = $('#i_' + k).value; v[k] = k === 'gainCeiling' ? +x : x; }); q = +$('#i_q').value;
     };
     const msg = $('#iSaveMsg');
     const preview = () => { read(); fill(); dirty = true; say(msg, t('unsaved')); msg.className = 'msg'; clearTimeout(pending);
       pending = setTimeout(async () => { try { await api('image', { image: v, save: false }); } catch (err) { say(msg, err.message); } }, 250); };
-    el.querySelectorAll('.cfg input, .cfg select').forEach((x) => { if (x.id !== 'i_q') { x.oninput = preview; x.onchange = preview; } });
+    el.querySelectorAll('.cfg input, .cfg select').forEach((x) => { if (x.id !== 'i_q' && x.id !== 'i_res') { x.oninput = preview; x.onchange = preview; } });
+    $('#i_res').onchange = () => { dirty = true; say(msg, t('unsaved')); msg.className = 'msg'; };
     $('#i_q').oninput = () => { $('#i_qV').textContent = $('#i_q').value; dirty = true; say(msg, t('unsaved')); msg.className = 'msg'; };
-    $('#iSave').onclick = async () => { read(); clearTimeout(pending); try { await api('image', { image: v, jpegQuality: q, save: true }); dirty = false; say(msg, t('saved'), true); } catch (err) { say(msg, err.message); } };
+    $('#iSave').onclick = async () => { read(); clearTimeout(pending); try { await api('image', { image: v, jpegQuality: q, save: true }); await api('config', { captureSize: $('#i_res').value }); dirty = false; say(msg, t('saved'), true); } catch (err) { say(msg, err.message); } };
     $('#iRestore').onclick = async () => { clearTimeout(pending); try { const r = await api('image', { restore: true }); v = Object.assign({}, r.video.image); q = r.capture.jpegQuality; fill(); dirty = false; say(msg, t('restored'), true); } catch (err) { say(msg, err.message); } };
     $('#iDef').onclick = () => { v = Object.assign({}, DEF); fill(); preview(); };
     fill();

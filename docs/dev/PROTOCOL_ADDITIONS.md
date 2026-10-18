@@ -40,7 +40,8 @@ The token is only ever sent to `apiBase` (protocol 11.4).
 
 `desired` keys the firmware applies (anything else: `NOT_SUPPORTED` in `reported.errors`, as before). The complete
 list, with the web console settings FlyBot can set (`capture.window`, `capture.resolution` sizes, `motion.*`,
-`storage.sdSave`, `led.enabled`, `gps.enabled`, `console.language`), is in CONFIG.md section 6.
+`storage.sdSave`, `led.enabled`, `gps.enabled`, `console.language`, `video.image.vflip` / `hmirror`) and the
+`reported.camera` block (sensor, maximum, photo and live sizes), is in CONFIG.md section 6.
 
 | Key | Values | Effect |
 |---|---|---|

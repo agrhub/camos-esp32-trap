@@ -105,6 +105,8 @@ static struct {
 	int64_t offer_at;
 	volatile bool viewer_up, close_req;
 	volatile bool pause_req, paused; /* a capture borrows the camera (live_pause) */
+	volatile int64_t last_ack_ms;     /* JPEG: the viewer's last ack (the weak-link fallback) */
+	bool viewer_chose;                /* the viewer asked for a mode: no automatic JPEG start */
 	int pause_ms;                     /* the last pause, request to the stream running again */
 	TaskHandle_t venc;
 	volatile bool venc_run, venc_done;
@@ -697,14 +699,15 @@ static void dc_send_hello(const live_quality_t *cur)
 	cJSON *m = cJSON_AddArrayToObject(o, "modes");
 	cJSON_AddItemToArray(m, cJSON_CreateString("h264"));
 	cJSON_AddItemToArray(m, cJSON_CreateString("jpeg"));
-	cJSON *sz = cJSON_AddArrayToObject(o, "sizes");
-	static const int sizes[][2] = { { 320, 240 }, { 640, 480 }, { 800, 600 }, { 1024, 768 }, { 1280, 720 } };
-	for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
-		cJSON *p = cJSON_CreateArray();
-		cJSON_AddItemToArray(p, cJSON_CreateNumber(sizes[i][0]));
-		cJSON_AddItemToArray(p, cJSON_CreateNumber(sizes[i][1]));
-		cJSON_AddItemToArray(sz, p);
+	cJSON *sz = cJSON_AddArrayToObject(o, "sizes"); /* the sensor's live sizes (cam.c) */
+	const int(*sizes)[2];
+	int n = live_dc_sizes(&sizes);
+	for (int i = 0; i < n; i++) {
+		cJSON_AddItemToArray(sz, cJSON_CreateIntArray(sizes[i], 2));
 	}
+	cJSON *qr = cJSON_AddArrayToObject(o, "qRange"); /* "q" is the running quality, as in every message */
+	cJSON_AddItemToArray(qr, cJSON_CreateNumber(LIVE_DC_Q_MIN));
+	cJSON_AddItemToArray(qr, cJSON_CreateNumber(LIVE_DC_Q_MAX));
 	cJSON_AddNumberToObject(o, "chunk", LIVE_DC_CHUNK);
 	dc_send_json(o);
 }
@@ -748,9 +751,11 @@ static int on_dc_data(esp_peer_data_frame_t *f, void *ctx)
 	case LIVE_DC_QUALITY:
 		k.req = m.quality;
 		k.req_pending = true;
+		k.viewer_chose = true;
 		break;
 	case LIVE_DC_ACK:
 		live_dc_on_ack(&k.flow, m.seq, clock_ms());
+		k.last_ack_ms = clock_ms();
 		break;
 	case LIVE_DC_BAD:
 		strlcpy(k.dc_err, m.error, sizeof(k.dc_err));
@@ -825,6 +830,9 @@ static bool pipe_start(pipe_t *p, const live_quality_t *q)
 }
 
 static const live_quality_t default_quality = { LIVE_MODE_H264, LIVE_W, LIVE_H, 12, LIVE_FPS };
+/* The normal mode once the viewer's data channel is open: JPEG at VGA, the web console stream's standard quality */
+static const live_quality_t jpeg_quality = { LIVE_MODE_JPEG, 640, 480, 12, 15 };
+#define WEAK_LINK_MS 6000 /* JPEG frames go out but no ack comes back for this long: H.264 on the video track */
 
 /* A capture wants the camera: stop the pipeline, give the camera lock to the scheduler, wait until the capture is
  * done with the sensor, then start again in the same mode. False when the camera does not come back. */
@@ -902,6 +910,10 @@ static void venc_task(void *arg)
 		if (k.dc_hello) {
 			k.dc_hello = false;
 			dc_send_hello(&cur);
+			if (!k.req_pending && !k.viewer_chose) {
+				k.req = jpeg_quality; /* JPEG by default; the viewer's own choice, when it sends one, wins */
+				k.req_pending = true;
+			}
 		}
 		if (k.dc_err_pending) {
 			k.dc_err_pending = false;
@@ -917,6 +929,7 @@ static void venc_task(void *arg)
 		}
 		live_quality_t want = cur;
 		bool asked = false;
+		const char *why = NULL;
 		if (k.req_pending) {
 			k.req_pending = false;
 			want = k.req;
@@ -924,6 +937,11 @@ static void venc_task(void *arg)
 		}
 		if (want.mode == LIVE_MODE_JPEG && !k.dc_open) {
 			want = default_quality; /* the data channel is gone: H.264 on the video track */
+		} else if (cur.mode == LIVE_MODE_JPEG && want.mode == LIVE_MODE_JPEG && seq > 0 &&
+				   clock_ms() - k.last_ack_ms > WEAK_LINK_MS) {
+			want = default_quality; /* nothing arrives: the small H.264 stream copes with a weak link */
+			why = "weak_link";
+			ESP_LOGW(TAG, "no JPEG ack for %d s: H.264 %dx%d", WEAK_LINK_MS / 1000, LIVE_W, LIVE_H);
 		}
 		if (memcmp(&want, &cur, sizeof(want))) {
 			pipe_stop(&p);
@@ -940,9 +958,14 @@ static void venc_task(void *arg)
 			cur = want;
 			k.cur = cur;
 			live_dc_flow_reset(&k.flow);
+			k.last_ack_ms = clock_ms();
 			win = next = esp_timer_get_time(), win_frames = 0, win_bytes = 0, win_enc_us = 0, win_cap_us = 0;
 			ESP_LOGI(TAG, "live view now %s %dx%d q%d at %d fps", mode_name(cur.mode), cur.w, cur.h, cur.q, cur.fps);
-			dc_send_json(quality_json("mode", &cur));
+			cJSON *mo = quality_json("mode", &cur);
+			if (why) {
+				cJSON_AddStringToObject(mo, "reason", why);
+			}
+			dc_send_json(mo);
 		} else if (asked) {
 			dc_send_json(quality_json("mode", &cur)); /* already running: confirm it */
 		}
@@ -1165,7 +1188,9 @@ static void handle_offer(ev_t *e)
 	peer_close(); /* one viewer at a time: the newest one wins */
 	strlcpy(k.viewer, e->sender, sizeof(k.viewer));
 	k.offer_at = esp_timer_get_time();
-	k.dc_open = k.dc_hello = k.dc_err_pending = k.req_pending = false;
+	k.dc_open = k.dc_hello = k.dc_err_pending = k.req_pending = k.viewer_chose = false;
+	int sizes[LIVE_DC_MAX_SIZES][2];
+	live_dc_set_sizes(sizes, cam_sizes(true, sizes, LIVE_DC_MAX_SIZES)); /* the sensor's live sizes */
 	ESP_LOGI(TAG, "offer from viewer %s (%u bytes)", k.viewer, (unsigned)strlen(e->data));
 	k.venc_run = true, k.venc_done = false;
 	if (xTaskCreatePinnedToCore(venc_task, "venc", 16384, NULL, 4, &k.venc, 1) != pdPASS) {

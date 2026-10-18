@@ -40,6 +40,14 @@ int main(void)
 	CHECK(parse("{\"t\":\"hello\"}", &cur, &m) == LIVE_DC_NONE); /* unknown types are ignored */
 
 	CHECK(parse("{\"t\":\"ack\",\"seq\":42}", &cur, &m) == LIVE_DC_ACK && m.seq == 42);
+
+	/* the firmware sets the sensor's sizes: 1600x1200 offered, 1280x720 no longer */
+	static const int sz[][2] = { { 320, 240 }, { 640, 480 }, { 1600, 1200 } };
+	live_dc_set_sizes(sz, 3);
+	const int(*got)[2];
+	CHECK(live_dc_sizes(&got) == 3 && got[2][0] == 1600 && got[2][1] == 1200);
+	CHECK(parse("{\"t\":\"quality\",\"mode\":\"jpeg\",\"w\":1600,\"h\":1200}", &cur, &m) == LIVE_DC_QUALITY);
+	CHECK(parse("{\"t\":\"quality\",\"mode\":\"jpeg\",\"w\":1280,\"h\":720}", &cur, &m) == LIVE_DC_BAD);
 	CHECK(parse("{\"t\":\"ack\"}", &cur, &m) == LIVE_DC_BAD);
 
 	/* header: little endian */
@@ -73,7 +81,7 @@ int main(void)
 	live_dc_on_ack(&f, 4, 1250);
 	CHECK(f.acked == 4 && f.last_rtt_ms == 50);
 
-	CHECK(live_dc_size_ok(1024, 768) && !live_dc_size_ok(1600, 1200));
+	CHECK(!live_dc_size_ok(1024, 768) && live_dc_size_ok(1600, 1200)); /* the sizes set above */
 
 	printf("test_live_dc: %d failure(s)\n", fails);
 	return fails ? 1 : 0;

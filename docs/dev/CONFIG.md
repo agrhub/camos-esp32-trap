@@ -85,7 +85,7 @@ Strings: `serial`, `vcode`, `wifi_ssid`, `wifi_pass`, `apn`, `sim_pin`, `api_bas
 `ui_lang`, `ap_pass`, `wifi_err`, `reg_err`, `cap_size`, `admin_salt`, `admin_hash`, `mo_roi`, `st_ip`, `st_mask`, `st_gw`,
 `st_dns`, `cert`, `key` (PEM). Integers: `interval`, `power_mode` (0 auto, 1 battery, 2 powered), `cellular`, `gps`,
 `led`, `batt_mon`, `claimed`, `sd_save`, `sched_from`, `sched_to`, `motion`, `mo_sens`, `mo_cool`, `mo_upload`, `mo_sd`,
-`ip_mode`, `wifi_new`, `modem_absent`, `gps_absent`, `portal`, `boots`, `reg_retry` / `reg_taken_s` (the next
+`ip_mode`, `wifi_new`, `modem_absent`, `gps_absent`, `portal`, `boots`, `cam_pid` (the detected sensor), `reg_retry` / `reg_taken_s` (the next
 registration question after a 409, epoch s, and its back-off), `rereg_at` (the last registration again after removal). Blobs: `settings` (the persisted shadow), `gps_fix`.
 The factory partition `fctry` (0x14000, 0x6000, read-only) uses the same namespace and keys (`serial`, `vcode`, `cert`,
 `key`, `thing`, `mqtt_host`, `claimed`). `idf.py flash` never touches either partition; `idf.py erase-flash` and the
@@ -106,12 +106,14 @@ document is applied again at every MQTT connect, so FlyBot's form is the source 
 | `capture.intervalMin` | 1..1440, or `null` | all-day interval when no `detections[]` is set; `null` = portal / default (60) | `capture.intervalMin` |
 | `capture.window` | `{from:"HH:MM", to:"HH:MM"}`, or `null` (all day) | local window of `capture.intervalMin` (`to` before `from` crosses midnight) | `capture.window` |
 | `capture.jpegQuality` | 1..100 (higher = better) | photo JPEG quality | `capture.jpegQuality` |
-| `capture.resolution` | `"max"`, `"main"` (= max), or `"640x480"`, `"800x600"`, `"1024x768"`, `"1280x720"`, `"1280x1024"`, `"1600x1200"`, `"1920x1080"`, `"2048x1536"`, `"2560x1920"` | photo size; larger than the sensor = its maximum | `capture.resolution`, `capture.w`, `capture.h` (the size a photo gets) |
+| `capture.resolution` | `"max"`, `"main"` (= max), or `"WxH"` of one entry of `camera.photoSizes` | photo size; any other size is `BAD_VALUE` | `capture.resolution`, `capture.w`, `capture.h` (the size a photo gets) |
 | `video.image.brightness` | -64..64 | sensor brightness | `video.image.*` (every key below) |
 | `video.image.contrast` | 0..100 | | |
 | `video.image.saturation` | 0..100 | | |
 | `video.image.sharpness` | 0..100 | | |
-| `video.image.orientation` | 0 normal, 1 mirror, 2 flip, 3 both | | |
+| `video.image.orientation` | 0 normal, 1 mirror, 2 flip, 3 both | relative to the board's upright picture | |
+| `video.image.vflip` | bool | upside down: orientation bit 2 | `video.image.vflip` |
+| `video.image.hmirror` | bool | left-right mirror: orientation bit 1 | `video.image.hmirror` |
 | `video.image.whiteBalance` | `"auto"`, `"sunny"`, `"cloudy"`, `"office"`, `"home"` | | |
 | `video.image.effect` | `"none"`, `"negative"`, `"grayscale"`, `"red"`, `"green"`, `"blue"`, `"sepia"` | | |
 | `video.image.aeLevel` | -5..5 (OV5640; others -2..2) | exposure compensation | |
@@ -135,6 +137,29 @@ document is applied again at every MQTT connect, so FlyBot's form is the source 
 | `live.requested` | bool | a live session at the next wake (5 min) | `live.requested`, `live.supported`, `live.active` |
 | `kvs.channelName`, `kvs.region`, `kvs.credentialsEndpoint`, `kvs.roleAlias` | string | live view channel and credential provider (FlyBot fills these) | `kvs.channelName`, `kvs.region` |
 
+**Orientation.** `vflip` and `hmirror` are the two bits of `orientation` (`orientation` = `hmirror` + 2 x `vflip`), so
+either form works and `reported` carries all three; when one document has both, the key that comes later wins. All
+three are relative to the board's upright picture: the build preset sets the sensor's own flip and mirror
+(`CONFIG_CAMOS_CAM_VFLIP`, `CONFIG_CAMOS_CAM_HMIRROR`; the Freenove preset turns them on so its OV5640 is upright as
+mounted), and `false` / `false` / `0` is that picture. They apply to photos, the web console stream and the live view.
+
+**Camera and sizes (`reported.camera`, also in `state` and the web console's `/api/status`).** The sizes follow the
+camera module the board detected (esp32-camera's sensor table; the sensor's PID is kept in NVS `cam_pid`, so they are
+known at boot; before the very first power-up of a new board `sensor` is `""`, `maxW` 0 and both lists hold every size):
+
+```json
+"camera":{"sensor":"OV5640","maxW":2560,"maxH":1920,
+ "photoSizes":[[640,480],[800,600],[1024,768],[1280,720],[1280,1024],[1600,1200],[1920,1080],[2048,1536],[2560,1440],[2560,1600],[2560,1920]],
+ "liveSizes":[[320,240],[640,480],[800,600],[1024,768],[1280,720],[1280,1024],[1600,1200]]}
+```
+
+- `photoSizes`: from 640x480 to the sensor's maximum (OV2640 1600x1200, OV3660 2048x1536, OV5640 2560x1920: the
+  largest esp32-camera drives on that sensor). `capture.resolution` takes `"max"` or one of them.
+- `liveSizes`: from 320x240 to 1600x1200, within the maximum: the web console stream (`/api/stream?w=&h=&q=`) and the
+  live view data channel (`hello.sizes`, `quality` requests) offer exactly these. JPEG quality of both: 8..40 on the
+  esp32-camera scale (lower = better; `hello.qRange`).
+- `liveFps` is not reported: the frame rate depends on the link more than on the size (LIVE_VIEW.md has measurements).
+
 `NOT_SUPPORTED` (on purpose): the network (`net.*`, Wi-Fi, APN, SIM PIN, static IP: a wrong value would cut the camera
 off; use RPC `net.set`), the web console password, `video.main` / `video.sub` / `osd` / `nightMode` / `flicker` /
 `wdr` / `ldc` (no such control on these sensors), `record` and `audio` (no recording, no microphone).
@@ -144,7 +169,7 @@ Example:
 ```json
 {"version":7,"timezone":"Asia/Ho_Chi_Minh",
  "capture":{"intervalMin":30,"window":{"from":"06:00","to":"18:00"},"jpegQuality":85,"resolution":"1600x1200"},
- "video":{"image":{"brightness":0,"contrast":50,"saturation":60}},
+ "video":{"image":{"brightness":0,"contrast":50,"saturation":60,"vflip":false,"hmirror":false}},
  "power":{"mode":"auto"},
  "motion":{"enabled":true,"sensitivity":60,"cooldownS":120,"upload":false,"saveSd":true,"area":[10,10,80,80]},
  "storage":{"sdSave":true},"led":{"enabled":false},"gps":{"enabled":true},"console":{"language":"vi"}}

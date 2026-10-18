@@ -5,11 +5,27 @@
 #include "cJSON.h"
 #include "live_dc.h"
 
+static int dc_sizes[LIVE_DC_MAX_SIZES][2] = { { 320, 240 }, { 640, 480 }, { 800, 600 }, { 1024, 768 }, { 1280, 720 } };
+static int n_dc_sizes = 5;
+
+void live_dc_set_sizes(const int sizes[][2], int n)
+{
+	n_dc_sizes = n > LIVE_DC_MAX_SIZES ? LIVE_DC_MAX_SIZES : n;
+	for (int i = 0; i < n_dc_sizes; i++) {
+		dc_sizes[i][0] = sizes[i][0], dc_sizes[i][1] = sizes[i][1];
+	}
+}
+
+int live_dc_sizes(const int (**sizes)[2])
+{
+	*sizes = (const int (*)[2])dc_sizes;
+	return n_dc_sizes;
+}
+
 bool live_dc_size_ok(int w, int h)
 {
-	static const int sizes[][2] = { { 320, 240 }, { 640, 480 }, { 800, 600 }, { 1024, 768 }, { 1280, 720 } };
-	for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
-		if (sizes[i][0] == w && sizes[i][1] == h) {
+	for (int i = 0; i < n_dc_sizes; i++) {
+		if (dc_sizes[i][0] == w && dc_sizes[i][1] == h) {
 			return true;
 		}
 	}
@@ -81,7 +97,7 @@ live_dc_kind_t live_dc_parse(const char *text, size_t len, const live_quality_t 
 		} else {
 			q.w = w, q.h = h;
 		}
-		if (q.q < 8 || q.q > 40) {
+		if (q.q < LIVE_DC_Q_MIN || q.q > LIVE_DC_Q_MAX) {
 			cJSON_Delete(j);
 			return bad(out, "q is 8..40");
 		}
