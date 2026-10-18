@@ -152,7 +152,11 @@ void shadow_clear_live_request(void)
 	xSemaphoreTake(lock, portMAX_DELAY);
 	cur.live_requested = false;
 	xSemaphoreGive(lock);
-	store_set_blob("settings", &cur, sizeof(cur));
+	settings_t saved; /* only this flag in NVS: not an unsaved web console preview held in cur */
+	if (store_get_blob("settings", &saved, sizeof(saved)) && saved.n_sched >= 0 && saved.n_sched <= MAX_SCHED) {
+		saved.live_requested = false;
+		store_set_blob("settings", &saved, sizeof(saved));
+	}
 }
 
 /* ------------------------------------------------------------------ apply */
@@ -468,6 +472,14 @@ char *shadow_apply(const char *json, int len, bool persist)
 	}
 	settings_t s;
 	shadow_get(&s);
+	if (persist) {
+		/* a saved change starts from the saved settings: an unsaved web console preview (persist false) is not
+		 * written to NVS with it (a preview brightness stayed after a FlyBot desired update or a live request) */
+		settings_t saved;
+		if (store_get_blob("settings", &saved, sizeof(saved)) && saved.n_sched >= 0 && saved.n_sched <= MAX_SCHED) {
+			s = saved;
+		}
+	}
 	cJSON *errors = cJSON_CreateArray();
 
 	const cJSON *item;
