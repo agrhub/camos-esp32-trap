@@ -485,10 +485,12 @@ menu "CamOS trap camera"
         int "Camera XCLK for the live view (MHz)"
         depends on CAMOS_LIVE
         range 6 24
-        default 20
+        default 12
         help
-            The live view reads raw YUV422 frames (2 bytes per pixel) for H.264, or JPEG for its data channel: the
-            sensor's frame rate follows XCLK. Snapshots keep CAMOS_XCLK_MHZ.
+            The live view reads raw YUV422 frames (2 bytes per pixel) for H.264, or JPEG for its data channel, and the
+            web console stream runs at this clock too: the sensor's frame rate follows XCLK. Snapshots keep
+            CAMOS_XCLK_MHZ. On the Freenove board 16 and 20 MHz cost the 2.4 GHz Wi-Fi (HTTP to the camera fell from
+            400-1,300 KB/s to 5-180 KB/s, round trips rose to 100-500 ms); 10 and 12 MHz measured clean.
     config CAMOS_LIVE_KBPS
         int "Live view target bitrate (kbit/s)"
         depends on CAMOS_LIVE

@@ -116,6 +116,14 @@ static void flash_led(bool on)
 static void cam_off(void)
 {
 	esp_camera_deinit(); /* PWDN high: the sensor sleeps */
+#if CONFIG_IDF_TARGET_ESP32S3 && CONFIG_CAMOS_PIN_XCLK >= 0
+	/* On the S3 the LCD_CAM peripheral drives XCLK and esp32-camera's deinit leaves it running: the clock kept
+	 * toggling with the sensor off, and its harmonics cost the 2.4 GHz Wi-Fi (at 20 MHz: 4-8x less throughput to the
+	 * camera, round trips of 100-300 ms). The pin goes back to a plain low output; the next init routes it again. */
+	gpio_reset_pin(CONFIG_CAMOS_PIN_XCLK);
+	gpio_set_direction(CONFIG_CAMOS_PIN_XCLK, GPIO_MODE_OUTPUT);
+	gpio_set_level(CONFIG_CAMOS_PIN_XCLK, 0);
+#endif
 	cam_power(false);
 	cam_pm(false);
 	reserve_take(); /* a live session: the block the JPEG DMA buffer just gave back */
@@ -518,8 +526,8 @@ static esp_err_t stream_start(int width, int height, int quality, pixformat_t fm
 
 esp_err_t cam_stream_start(int width, int height, int quality)
 {
-	/* the live view's XCLK: at the photo XCLK (10 MHz on the Freenove board) a frame took about 230 ms at any size up
-	 * to 800x600, at 20 MHz about 100 ms (web console stream, 18 Oct) */
+	/* the live view's XCLK (12 MHz): a 640x480 frame about every 145 ms instead of 180 ms at the photo XCLK (10 MHz on
+	 * the Freenove board); 16 MHz and up cost the 2.4 GHz Wi-Fi (Kconfig CAMOS_LIVE_XCLK_MHZ) */
 	return stream_start(width, height, quality, PIXFORMAT_JPEG, CAMOS_LIVE_XCLK_MHZ, false);
 }
 

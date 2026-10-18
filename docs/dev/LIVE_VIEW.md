@@ -95,7 +95,9 @@ data channel instead (`live_dc.c` for the protocol, host-tested in `tests/test_l
   straight into PSRAM (esp32-camera's PSRAM DMA mode; for JPEG that mode lost every end marker), and the session holds a
   16 KB internal block from its start, freed just before each JPEG start (live JPEG, or a photo during the session) so
   the camera's buffer goes into that very hole, and taken again when the camera powers down (cam.c).
-- **Sensor clock.** JPEG for the live view also runs at `CAMOS_LIVE_XCLK_MHZ` (20 MHz); snapshots keep 10 MHz.
+- **Sensor clock.** H.264 and JPEG run at `CAMOS_LIVE_XCLK_MHZ`, 12 MHz (snapshots keep 10 MHz): 16 and 20 MHz cost the
+  board's own Wi-Fi 4-100x of its throughput ([../WEB_CONSOLE.md](../WEB_CONSOLE.md), "Camera clock and Wi-Fi"). In a dim
+  room the streams use the sensor's night mode ([../WEB_CONSOLE.md](../WEB_CONSOLE.md), "Exposure in dim light").
 
 FlyBot's quality choices (`client/src/utils/camosLive.js`): **Low** H.264 320x240 at 10 fps, **Medium** JPEG
 640x480 q12 at 15 fps, **High** JPEG 1024x768 q12 at 10 fps, **Auto** = High when the channel opens, else H.264.

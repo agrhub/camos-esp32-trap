@@ -112,9 +112,33 @@ camera 30-150 ms), 20 s per size; `camera` and `send` are the stream's own log (
   camera lock).
 - With the default 5,760-byte TCP send buffer a frame took 72-755 ms to send on this Wi-Fi; with 23,040 bytes
   (Freenove preset) 1-40 ms, so the sensor sets the pace again.
-- The stream now runs the sensor at the live view's 20 MHz XCLK (photos keep 10 MHz): about 100 ms per frame instead
-  of 230 ms. Up to 800x600 the OV5640 then gives about 9.5 fps, at 1280x720 about 12.
+- The 20 MHz XCLK of that table cost the camera's own Wi-Fi (next section): the stream and the live view now run the
+  sensor at 12 MHz (`CAMOS_LIVE_XCLK_MHZ`; photos keep 10 MHz). The sensor then gives a 640x480 frame about every 146 ms
+  (6.8 fps; 10 MHz: 5.6 fps, 20 MHz: 12-14 fps; frames taken by the camera with nothing sent).
 - While a cloud viewer watches, the stream is refused (`409`), as before.
+
+### Camera clock and Wi-Fi
+
+The OV5640's XCLK (and the camera bus it clocks) disturbs the board's own 2.4 GHz Wi-Fi from 16 MHz up. Measured on 19 Oct
+2026 on one Wi-Fi (the owner's home network, channel unknown), camera in place, from a PC on the same network: ping (30
+pings) and an HTTP download of the 93 KB console page (3 times) while the camera kept the sensor running and took
+frames without sending them, cases interleaved:
+
+| Sensor | Ping round trip | HTTP from the camera |
+|---|---|---|
+| off (clock stopped) | 62-64 ms, 0 % loss | 366-914 KB/s |
+| JPEG 640x480, XCLK 10 MHz | 50-63 ms | 350-919 KB/s |
+| JPEG 640x480, XCLK 12 MHz | 63-71 ms | 584-1,642 KB/s |
+| JPEG 640x480, XCLK 16 MHz | 110-121 ms, up to 3 % loss | 59-147 KB/s |
+| JPEG 640x480, XCLK 20 MHz | 99-346 ms | 5-183 KB/s |
+| YUV422 320x240 (H.264 path), 12 MHz | 54-59 ms | 626-1,340 KB/s |
+| YUV422 320x240, 20 MHz | 275-528 ms, up to 6 % loss | 7-14 KB/s |
+
+During a live session at 12 MHz (Wi-Fi power save off) the camera answered pings in 3-21 ms with no loss. Two more
+things made it worse before: esp32-camera on the S3 leaves the XCLK output running after the camera is switched off, so
+the last clock kept radiating with the sensor asleep (the firmware now stops the pin), and since 0.6.1 motion detection
+kept a 20 MHz preview running all the time. That Wi-Fi also has bad spells of its own (25-60 % loss with the sensor off),
+so compare cases taken close together.
 
 ## Image settings
 
