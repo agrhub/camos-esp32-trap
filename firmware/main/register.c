@@ -192,7 +192,8 @@ static void register_task(void *arg)
 			store_set_flag("reg_retry", 0);
 			store_set_flag("reg_taken_s", 0);
 			pending = false;
-			proto_start(); /* the certificate is there now: connect to IoT Core */
+			proto_fast_retry(180); /* IoT Core may refuse the brand-new certificate for a few seconds */
+			proto_start();         /* the certificate is there now: connect to IoT Core */
 			break;
 		}
 		free(resp);

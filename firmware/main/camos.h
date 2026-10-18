@@ -281,6 +281,7 @@ esp_err_t ota_apply(const char *url, const char *sha256_hex, char *err, size_t e
 /* ------------------------------------------------------------------ MQTT agent (proto.c) */
 
 void proto_start(void);
+void proto_fast_retry(int seconds);             /* short reconnect back-off for a while (a fresh certificate) */
 bool proto_connected(void);
 void proto_publish_event(cJSON *evt);           /* takes ownership */
 void proto_publish_state(bool retained_online);

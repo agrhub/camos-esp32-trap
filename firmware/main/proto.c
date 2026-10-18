@@ -546,6 +546,13 @@ static void mqtt_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 
 /* Protocol 1: reconnect after 1, 2, 4 ... 300 s with +-20 % jitter. Not before the clock is set: the
  * server certificate would look "not yet valid". Telemetry every 5 min on Wi-Fi, 30 min on 4G (protocol 7). */
+static volatile int64_t fast_until_ms; /* after a fresh registration: retry every few seconds */
+
+void proto_fast_retry(int seconds)
+{
+	fast_until_ms = esp_timer_get_time() / 1000 + (int64_t)seconds * 1000;
+}
+
 static void supervisor_task(void *arg)
 {
 	int backoff_s = 1;
@@ -578,12 +585,15 @@ static void supervisor_task(void *arg)
 		if (!started) {
 			esp_mqtt_client_start(client);
 			started = true;
-			next_try = now + 15000;
+			next_try = now + (now < fast_until_ms ? 5000 : 15000);
 		} else if (now >= next_try) {
 			esp_mqtt_client_reconnect(client);
 			int jitter = (int)(esp_random() % 41) - 20;
 			next_try = now + (int64_t)backoff_s * 1000 * (100 + jitter) / 100;
-			backoff_s = backoff_s * 2 > 300 ? 300 : backoff_s * 2;
+			/* a new certificate and policy take a few seconds to be accepted by IoT Core: keep the back-off short
+			 * meanwhile, or the first refusals push it to minutes */
+			int cap = now < fast_until_ms ? 5 : 300;
+			backoff_s = backoff_s * 2 > cap ? cap : backoff_s * 2;
 		}
 	}
 }
