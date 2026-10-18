@@ -54,4 +54,5 @@ idf_component_register(
          stream.c sd.c motion.c motion_core.c events.c hostname.c live_kvs.c live_dc.c sigv4.c
     INCLUDE_DIRS "." "${CAMOS_GEN_DIR}"
     EMBED_TXTFILES certs/AmazonRootCA1.pem portal.html console.html
+    EMBED_FILES www/logo.png
 )

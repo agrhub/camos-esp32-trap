@@ -385,6 +385,7 @@ cJSON *wifi_scan_json(const wifi_net_t *nets, int n); /* [{ssid, rssi, secure, c
 #include "esp_http_server.h"
 esp_err_t web_send_json(httpd_req_t *req, cJSON *o);         /* takes ownership */
 esp_err_t web_send_ok(httpd_req_t *req);
+esp_err_t web_logo_get(httpd_req_t *req);                   /* GET /logo.png (console and portal) */
 esp_err_t web_send_error(httpd_req_t *req, const char *status, const char *code, const char *message);
 cJSON *web_read_json(httpd_req_t *req, size_t max);
 esp_err_t web_config_post(httpd_req_t *req);                  /* POST /api/config (portal and console) */

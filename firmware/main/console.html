@@ -5,6 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CamOS AI Camera</title>
+<link rel="icon" type="image/png" href="/logo.png">
 <style>
 :root{--brand:#18b693;--brand-d:#119a7b;--head:#1c2531;--head2:#252f3d;--side:#f4f6f8;--line:#dfe3e8;--fg:#1f2833;--muted:#6b7684;--bg:#e9ecef;--panel:#fff;--ok:#1a8d3f;--warn:#c27400;--bad:#d1242f}
 *{box-sizing:border-box}html,body{height:100%}
@@ -106,12 +107,11 @@ pre.log{background:#141b23;color:#d3dbe5;padding:12px;height:60vh;overflow:auto;
 </style>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute"><symbol id="mark" viewBox="0 0 40 40"><rect width="40" height="40" rx="8" fill="#18b693"/><rect x="8" y="13" width="24" height="17" rx="3" fill="#fff"/><rect x="15" y="9" width="10" height="5" rx="1.5" fill="#fff"/><circle cx="20" cy="21.5" r="5.2" fill="#18b693"/><circle cx="20" cy="21.5" r="2.4" fill="#fff"/></symbol></svg>
 
 <div id="gate" class="gate hidden">
  <div class="box">
   <div class="lang"><select id="gLang"></select></div>
-  <div class="top"><svg class="logo-mark" width="44" height="44"><use href="#mark"/></svg><div><b>CamOS AI Camera</b><span id="gModel"></span></div></div>
+  <div class="top"><img class="logo-mark" src="/logo.png" width="44" height="44" alt=""><div><b>CamOS AI Camera</b><span id="gModel"></span></div></div>
   <form id="gateForm" autocomplete="off">
    <p id="gateText"></p>
    <label id="lUser"></label><input id="gUser" value="admin" disabled>
@@ -125,7 +125,7 @@ pre.log{background:#141b23;color:#d3dbe5;padding:12px;height:60vh;overflow:auto;
 
 <div id="app" class="hidden" style="height:100%">
  <header>
-  <div class="logo"><svg class="logo-mark" width="30" height="30"><use href="#mark"/></svg><span>CamOS<small id="hModel"></small></span></div>
+  <div class="logo"><img class="logo-mark" src="/logo.png" width="30" height="30" alt=""><span>CamOS<small id="hModel"></small></span></div>
   <nav><a data-top="live" id="tLive"></a><a data-top="playback" id="tPlay"></a><a data-top="config" id="tConfig"></a></nav>
   <div class="right"><span class="user">admin</span><select id="hLang"></select><button id="logoutBtn"></button></div>
  </header>

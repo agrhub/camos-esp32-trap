@@ -440,6 +440,17 @@ static bool csrf_ok(httpd_req_t *req)
 
 /* ------------------------------------------------------------------ handlers */
 
+extern const uint8_t logo_png_start[] asm("_binary_logo_png_start");
+extern const uint8_t logo_png_end[] asm("_binary_logo_png_end");
+
+/* The CamOS logo (www/logo.png, 48x48): page header and favicon of the console and the setup portal, no sign-in */
+esp_err_t web_logo_get(httpd_req_t *req)
+{
+	httpd_resp_set_type(req, "image/png");
+	httpd_resp_set_hdr(req, "Cache-Control", "max-age=86400");
+	return httpd_resp_send(req, (const char *)logo_png_start, logo_png_end - logo_png_start);
+}
+
 static esp_err_t page_get(httpd_req_t *req)
 {
 	sched_keep_awake(120); /* battery mode: someone opened the console (also before signing in) */
@@ -1180,6 +1191,8 @@ void web_start(void)
 	const httpd_uri_t uris[] = {
 		{ .uri = "/", .method = HTTP_GET, .handler = page_get },
 		{ .uri = "/index.html", .method = HTTP_GET, .handler = page_get },
+		{ .uri = "/logo.png", .method = HTTP_GET, .handler = web_logo_get },
+		{ .uri = "/favicon.ico", .method = HTTP_GET, .handler = web_logo_get },
 		{ .uri = "/api/session", .method = HTTP_GET, .handler = session_get },
 		{ .uri = "/api/lang", .method = HTTP_POST, .handler = lang_post },
 		{ .uri = "/api/activate", .method = HTTP_POST, .handler = activate_post },

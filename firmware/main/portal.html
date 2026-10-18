@@ -2,11 +2,12 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Camera setup</title>
+<link rel="icon" type="image/png" href="/logo.png">
 <style>
 body{font-family:system-ui,sans-serif;margin:0;padding:20px;background:#eef2f1;color:#1f2833}
 .card{max-width:420px;margin:0 auto 14px;background:#fff;border-radius:10px;padding:22px;box-shadow:0 2px 10px #0002}
 .brand{display:flex;align-items:center;gap:10px;margin-bottom:16px;font-weight:600}
-.brand svg{width:40px;height:40px;border-radius:8px;flex-shrink:0}
+.brand img{width:40px;height:40px;border-radius:8px;flex-shrink:0}
 .brand .lang{margin-left:auto;font-weight:400;font-size:13px}
 h1{font-size:19px;margin:0 0 4px}h2{font-size:16px;margin:0 0 4px}p{color:#5b6672;font-size:14px;margin:0 0 16px}
 label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
@@ -39,7 +40,7 @@ details.card>summary::after{content:"▸";float:right;color:#8a949e}details.card
 .hidden{display:none!important}
 </style></head><body>
 <div class="card" id="main">
- <div class="brand"><svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="8" fill="#18b693"/><rect x="8" y="13" width="24" height="17" rx="3" fill="#fff"/><rect x="15" y="9" width="10" height="5" rx="1.5" fill="#fff"/><circle cx="20" cy="21.5" r="5.2" fill="#18b693"/><circle cx="20" cy="21.5" r="2.4" fill="#fff"/></svg><span>CamOS AI Camera</span><a class="lang" id="lang"></a></div>
+ <div class="brand"><img src="/logo.png" width="40" height="40" alt=""><span>CamOS AI Camera</span><a class="lang" id="lang"></a></div>
  <div id="setup">
   <h1 id="tHeading"></h1><p id="tIntro"></p>
   <div id="errBox" class="err hidden"></div>

@@ -19,6 +19,7 @@
  *   GET  /api/qr.svg?what=claim|label
  *   GET  /info                    protocol 12.3 {serial, model, fw, wifiScan}
  *   POST /provision               protocol 12.3 {ssid, password, provisionToken?, endpoint?, apn?} -> {ok}, restarts
+ *   GET  /logo.png                the CamOS logo (web.c)
  *   GET  /                        the page; any other URL redirects there (captive portal)
  *
  * The portal closes after 10 minutes without a Connect (protocol 12.3), once a Connect got an IP, or on restart.
@@ -534,6 +535,7 @@ void portal_run(void)
 	ESP_ERROR_CHECK(httpd_start(&srv, &hc));
 	const httpd_uri_t uris[] = {
 		{ .uri = "/", .method = HTTP_GET, .handler = page_get },
+		{ .uri = "/logo.png", .method = HTTP_GET, .handler = web_logo_get },
 		{ .uri = "/api/config", .method = HTTP_GET, .handler = config_get },
 		{ .uri = "/api/config", .method = HTTP_POST, .handler = web_config_post },
 		{ .uri = "/api/wifi/scan", .method = HTTP_GET, .handler = web_scan_get },
