@@ -160,6 +160,19 @@ known at boot; before the very first power-up of a new board `sensor` is `""`, `
   esp32-camera scale (lower = better; `hello.qRange`).
 - `liveFps` is not reported: the frame rate depends on the link more than on the size (LIVE_VIEW.md has measurements).
 
+**Last reset (`reported.lastReset`, also in `state` and `/api/status`)**, so FlyBot can tell a reset from a sleep:
+
+```json
+"lastReset":{"reason":"software","detail":"watchdog","at":"2026-10-18T07:59:21Z","uptimeS":66}
+```
+
+- `reason` from the chip: `power_on`, `external`, `software`, `crash`, `int_watchdog`, `task_watchdog`, `watchdog`,
+  `brownout`, `usb`, `jtag`, `unknown`. A flash over USB shows as `power_on`.
+- `detail`, only for `software`: the firmware's own reason, `ota`, `rpc` (restart from FlyBot or the console),
+  `watchdog` (no MQTT for `CONFIG_CAMOS_NET_WATCHDOG_MIN` minutes), `reregister` (removed in FlyBot).
+- `at`: when it happened (`null` until the clock is set); `uptimeS`: seconds since then. Deep sleep wakes keep the
+  last real reset (RTC memory), so a battery camera still reports it after many wakes.
+
 `NOT_SUPPORTED` (on purpose): the network (`net.*`, Wi-Fi, APN, SIM PIN, static IP: a wrong value would cut the camera
 off; use RPC `net.set`), the web console password, `video.main` / `video.sub` / `osd` / `nightMode` / `flicker` /
 `wdr` / `ldc` (no such control on these sensors), `record` and `audio` (no recording, no microphone).

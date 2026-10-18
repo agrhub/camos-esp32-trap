@@ -616,6 +616,7 @@ void shadow_additions_json(cJSON *parent)
 	cJSON_AddBoolToObject(live, "requested", s.live_requested);
 	cJSON_AddBoolToObject(live, "supported", live_supported());
 	cJSON_AddBoolToObject(live, "active", live_active() || live_streaming());
+	last_reset_json(parent); /* reset or sleep: FlyBot shows why the camera started */
 	cJSON *mo = cJSON_AddObjectToObject(parent, "motion");
 	cJSON_AddBoolToObject(mo, "enabled", g_cfg.motion);
 	cJSON_AddNumberToObject(mo, "sensitivity", g_cfg.motion_sens);

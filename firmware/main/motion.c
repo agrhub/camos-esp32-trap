@@ -76,6 +76,32 @@ static bool decode_grey(const camera_fb_t *fb, int fw, int *gw, int *gh)
 	return true;
 }
 
+/* Capture + upload of a motion trigger (motion.upload): a TLS upload needs more stack than the motion task has
+ * (6 KB overflowed and restarted the camera), so it runs in a short-lived task of its own, one at a time */
+static volatile bool uploading;
+
+static void upload_task(void *arg)
+{
+	upload_t up;
+	char cid[27];
+	cJSON *c = evt_new("capture", cid);
+	cJSON_AddStringToObject(c, "trigger", "motion");
+	if (capture_now("motion", &up) == ESP_OK) {
+		cJSON *img = cJSON_AddObjectToObject(c, "image");
+		cJSON_AddStringToObject(img, "key", up.key);
+		cJSON_AddNumberToObject(img, "w", up.w);
+		cJSON_AddNumberToObject(img, "h", up.h);
+		cJSON_AddNumberToObject(img, "bytes", (double)up.bytes);
+		cJSON_AddStringToObject(c, "snapshotId", up.key);
+	} else {
+		cJSON_AddNullToObject(c, "image");
+		cJSON_AddStringToObject(c, "imageError", up.error[0] ? up.error : "failed");
+	}
+	proto_publish_event(c);
+	uploading = false;
+	vTaskDelete(NULL);
+}
+
 static void trigger(const motion_result_t *r, const char *sd_name)
 {
 	count++;
@@ -97,23 +123,12 @@ static void trigger(const motion_result_t *r, const char *sd_name)
 	snprintf(detail, sizeof(detail), "%d per mille changed%s", r->level, sd_name[0] ? ", on SD" : "");
 	cJSON_AddStringToObject(e, "detail", detail);
 	proto_publish_event(e);
-	if (g_cfg.motion_upload) {
-		upload_t up;
-		char cid[27];
-		cJSON *c = evt_new("capture", cid);
-		cJSON_AddStringToObject(c, "trigger", "motion");
-		if (capture_now("motion", &up) == ESP_OK) {
-			cJSON *img = cJSON_AddObjectToObject(c, "image");
-			cJSON_AddStringToObject(img, "key", up.key);
-			cJSON_AddNumberToObject(img, "w", up.w);
-			cJSON_AddNumberToObject(img, "h", up.h);
-			cJSON_AddNumberToObject(img, "bytes", (double)up.bytes);
-			cJSON_AddStringToObject(c, "snapshotId", up.key);
-		} else {
-			cJSON_AddNullToObject(c, "image");
-			cJSON_AddStringToObject(c, "imageError", up.error[0] ? up.error : "failed");
+	if (g_cfg.motion_upload && !uploading) {
+		uploading = true;
+		if (xTaskCreate(upload_task, "motion-up", 12288, NULL, 3, NULL) != pdPASS) {
+			uploading = false;
+			ESP_LOGW(TAG, "no memory for the motion photo upload");
 		}
-		proto_publish_event(c);
 	}
 }
 

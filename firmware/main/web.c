@@ -672,6 +672,7 @@ static esp_err_t status_get(httpd_req_t *req)
 	cJSON_AddBoolToObject(l, "enabled", led_enabled());
 	cJSON_AddStringToObject(img, "sensor", cam_sensor_name());
 	cam_info_json(cJSON_AddObjectToObject(o, "camera")); /* the stream and photo size menus */
+	last_reset_json(o);
 	stream_stats_t ss;
 	stream_get_stats(&ss);
 	cJSON *sj = cJSON_AddObjectToObject(o, "stream");

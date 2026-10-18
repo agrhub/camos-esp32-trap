@@ -95,6 +95,7 @@ uint64_t now_ms(void);           /* Unix ms when the clock is synced, else uptim
 bool clock_synced(void);
 void new_ulid(char out[27]);     /* protocol 3: ULID, 26 Crockford base32 characters */
 const char *boot_reason_name(void);
+void last_reset_json(cJSON *parent);            /* lastReset {reason, detail, at, uptimeS} (util.c) */
 void remember_reboot_reason(const char *reason); /* "rpc" survives the restart in RTC memory */
 uint32_t reboot_count(void);
 int jpeg_dims(const uint8_t *jpg, size_t len, int *w, int *h);

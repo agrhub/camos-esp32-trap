@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <time.h>
 #include "esp_system.h"
 #include "esp_random.h"
 #include "esp_timer.h"
@@ -93,6 +94,68 @@ const char *boot_reason_name(void)
 		cached = "power_on";
 	}
 	return cached;
+}
+
+/* The last reset (not a deep sleep wake): kept in RTC memory through deep sleep, so a sleeping camera still tells it */
+static RTC_DATA_ATTR char rst_reason[16];
+static RTC_DATA_ATTR int64_t rst_epoch; /* when it happened (epoch s), once the clock was set */
+
+static const char *reset_name(esp_reset_reason_t r)
+{
+	switch (r) {
+	case ESP_RST_POWERON:
+		return "power_on";
+	case ESP_RST_EXT:
+		return "external";
+	case ESP_RST_SW:
+		return "software";
+	case ESP_RST_PANIC:
+		return "crash";
+	case ESP_RST_INT_WDT:
+		return "int_watchdog";
+	case ESP_RST_TASK_WDT:
+		return "task_watchdog";
+	case ESP_RST_WDT:
+		return "watchdog";
+	case ESP_RST_BROWNOUT:
+		return "brownout";
+	case ESP_RST_USB:
+		return "usb";
+	case ESP_RST_JTAG:
+		return "jtag";
+	default:
+		return "unknown";
+	}
+}
+
+/* lastReset {reason, detail, at, uptimeS}: reason from the chip (power_on, software, crash, task_watchdog, brownout,
+ * usb ...), detail the firmware's own reason for a software restart (ota, rpc, watchdog = no MQTT, reregister) */
+void last_reset_json(cJSON *parent)
+{
+	esp_reset_reason_t r = esp_reset_reason();
+	if (r != ESP_RST_DEEPSLEEP && !rst_reason[0]) {
+		strlcpy(rst_reason, reset_name(r), sizeof(rst_reason));
+		rst_epoch = 0;
+	}
+	int64_t up_s = esp_timer_get_time() / 1000000;
+	if (!rst_epoch && clock_synced() && r != ESP_RST_DEEPSLEEP) {
+		rst_epoch = (int64_t)time(NULL) - up_s;
+	}
+	cJSON *o = cJSON_AddObjectToObject(parent, "lastReset");
+	cJSON_AddStringToObject(o, "reason", rst_reason[0] ? rst_reason : "unknown");
+	const char *detail = boot_reason_name();
+	if (r == ESP_RST_SW && detail && strcmp(detail, "power_on")) {
+		cJSON_AddStringToObject(o, "detail", detail);
+	}
+	if (rst_epoch) {
+		char ts[25];
+		iso8601((time_t)rst_epoch, ts);
+		cJSON_AddStringToObject(o, "at", ts);
+		cJSON_AddNumberToObject(o, "uptimeS", (double)((int64_t)time(NULL) - rst_epoch));
+	} else {
+		cJSON_AddNullToObject(o, "at");
+		cJSON_AddNumberToObject(o, "uptimeS", (double)up_s);
+	}
 }
 
 uint32_t reboot_count(void)
