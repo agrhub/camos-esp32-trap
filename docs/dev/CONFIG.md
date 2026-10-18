@@ -119,7 +119,7 @@ document is applied again at every MQTT connect, so FlyBot's form is the source 
 | `video.image.aeLevel` | -5..5 (OV5640; others -2..2) | exposure compensation | |
 | `video.image.exposureAuto`, `video.image.exposure` | bool, 0..1200 | automatic exposure, or the manual value | |
 | `video.image.gainAuto`, `video.image.gain` | bool, 0..30 | automatic gain, or the manual value | |
-| `video.image.gainCeiling` | 0..6 (2x..128x) | | |
+| `video.image.gainCeiling` | 0..6 (2x..128x), default 4 (32x) | most gain auto gain may use; OV5640: 64x and 128x are both its 64x maximum | |
 | `video.image.denoise` | 0..8 | | |
 | `power.mode` | `"auto"`, `"battery"`, `"powered"`, or `null` (portal value) | see PROTOCOL_ADDITIONS.md section 6 | `power.mode`, `power.effective` |
 | `power.highMv`, `power.lowMv` | 3000..4400 | auto-mode thresholds | `power.highMv`, `power.lowMv` |

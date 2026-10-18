@@ -32,6 +32,7 @@ static int up_xclk_mhz = CONFIG_CAMOS_XCLK_MHZ; /* XCLK of the next cam_up */
  * and taken again when the camera powers down. */
 #define LIVE_JPEG_DMA 16384
 static bool up_psram_dma;
+static bool night_ok; /* the stream being started (not a photo) may use the night mode */
 static void *dma_reserve;
 static bool reserve_wanted;
 
@@ -346,6 +347,18 @@ static void apply_image_settings(const settings_t *s)
 	sn->set_special_effect(sn, clampi(s->effect, 0, 6));
 	sn->set_exposure_ctrl(sn, s->exposure_auto ? 1 : 0);
 	sn->set_ae_level(sn, clampi(s->ae_level, ov5640 ? -5 : -2, ov5640 ? 5 : 2));
+	if (ov5640 && s->exposure_auto && night_ok) {
+		/* Streams (live view, web console): the sensor's night mode lets the auto exposure stretch the frame up to 4x
+		 * in low light, so the frame rate drops only when it is dark. Without it, a dim room at the 32x gain ceiling
+		 * gave the H.264 path a Y level of 7-10 (black after decoding); with it 54. Photos keep the normal frame. */
+		int vts = (sn->get_reg(sn, 0x380e, 0xff) << 8) | sn->get_reg(sn, 0x380f, 0xff);
+		int maxl = vts * 4 > 0x7fff ? 0x7fff : vts * 4;
+		sn->set_reg(sn, 0x3a02, 0xff, (maxl >> 8) & 0x7f);
+		sn->set_reg(sn, 0x3a03, 0xff, maxl & 0xff);
+		sn->set_reg(sn, 0x3a14, 0xff, (maxl >> 8) & 0x7f);
+		sn->set_reg(sn, 0x3a15, 0xff, maxl & 0xff);
+		sn->set_reg(sn, 0x3a00, 0x04, 0x04);
+	}
 	if (!s->exposure_auto) {
 		sn->set_aec_value(sn, clampi(s->exposure, 0, 1200));
 	}
@@ -353,7 +366,15 @@ static void apply_image_settings(const settings_t *s)
 	if (!s->gain_auto) {
 		sn->set_agc_gain(sn, clampi(s->gain, 0, 30));
 	}
-	sn->set_gainceiling(sn, (gainceiling_t)clampi(s->gain_ceiling, 0, 6));
+	int gc = clampi(s->gain_ceiling, 0, 6); /* 0..6 = 2x..128x */
+	if (ov5640) {
+		/* esp32-camera's OV5640 driver writes the value as is into the AGC ceiling (0x3a18/0x3a19, 1/16 steps): 2 meant
+		 * a ceiling of 0.125x, so the gain stayed at about 1.2x and the picture went dark in dim light */
+		int sixteenths = 16 << (gc + 1);
+		sn->set_gainceiling(sn, (gainceiling_t)(sixteenths > 1023 ? 1023 : sixteenths));
+	} else {
+		sn->set_gainceiling(sn, (gainceiling_t)gc);
+	}
 	if (sn->set_denoise) {
 		sn->set_denoise(sn, clampi(s->denoise, 0, 8));
 	}
@@ -420,6 +441,7 @@ esp_err_t cam_capture(const settings_t *s, camera_fb_t **out)
 		return ESP_ERR_INVALID_STATE;
 	}
 	int q = jpeg_q(s->jpeg_quality);
+	night_ok = false; /* a photo: the normal frame */
 #if CONFIG_CAMOS_PIN_PWDN >= 0
 	gpio_hold_dis(CONFIG_CAMOS_PIN_PWDN); /* released from deep sleep hold */
 #endif
@@ -483,6 +505,7 @@ static esp_err_t stream_start(int width, int height, int quality, pixformat_t fm
 	}
 	up_xclk_mhz = xclk_mhz;
 	up_psram_dma = psram_dma;
+	night_ok = true;
 	cam_power(true);
 	esp_err_t err = detect_and_up(framesize_for(width, height), clampi(quality, 4, 63), 2, fmt);
 	up_psram_dma = false; /* photos and the web console stream keep the internal DMA buffer */

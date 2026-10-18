@@ -126,6 +126,34 @@ reduction (0..8), plus `capture.jpegQuality`. `POST /api/image {"image":{...},"s
 camera only; `save` true (default) persists and publishes `reported`; `{"restore":true}` goes back to the saved values.
 Leaving the page with unsaved changes restores the saved values. A later shadow from FlyBot overrides local values.
 
+Exposure in dim light (18 Oct 2026, evening indoor light, mean luma 0-255 of a 640x480 preview / of a photo):
+
+| | gain ceiling 8x (2) | 32x (4, default) | 64x (6) |
+|---|---|---|---|
+| stream and live view, XCLK 20 MHz | 53 | 111 | 134 |
+| stream, XCLK 10 MHz | 76 | 135 | |
+| photo (10 MHz) | 83 | 138 | 140 |
+
+Firmware 0.6.1 and earlier gave the OV5640 a gain ceiling of 0.125x whatever the setting (esp32-camera writes the
+value as is into the sensor's 1/16-step register), so the gain stayed at 1.2x and the same scene came out at 5 on the stream at 20 MHz and 9 at 10 MHz
+(photo not measured). Exposure compensation changed nothing there: the exposure was already the whole frame time. At
+20 MHz a frame is half as long, so the stream needs about twice the gain of a photo; the auto exposure target is about
+135. A camera that saved gain ceiling 2 keeps it: set 4 in the console or FlyBot.
+
+In a dark room even 32x is not enough at a stream's frame time, so the streams (live view and web console, not photos)
+turn on the OV5640's night mode with a limit of 4 frame times: in low light the auto exposure stretches the frame and
+the frame rate drops, in good light nothing changes. Measured in a real live session on 19 Oct 2026 before dawn (mean
+luma at the viewer, frame rate at the viewer):
+
+| | without night mode | with night mode |
+|---|---|---|
+| H.264 320x240 | 3 (Y level 7-10 into the encoder: black), 5 fps | 42-45, 1.2 fps |
+| JPEG 640x480 | 28, 7.1 fps | 46-96, 1.7-2.2 fps |
+| JPEG 1600x1200 | 19-28, 1.5 fps | 71-90, 0.6 fps |
+
+The night mode used to change nothing because esp32-camera sets its exposure limit (0x3a02/0x3a03, 0x3a14/0x3a15) to
+exactly one frame; the firmware raises it to 4 frames. Daylight with night mode on is still to be measured.
+
 ## microSD card
 
 Freenove ESP32-S3 CAM: SD_MMC 1-bit (CLK 39, CMD 38, D0 40), FAT32, mounted at boot (`CAMOS_SD`, off on the AI-Thinker

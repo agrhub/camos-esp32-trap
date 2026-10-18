@@ -692,7 +692,7 @@ const PAGES = {
     let v = Object.assign({}, d.video.image), q = d.capture.jpegQuality, dirty = false, pending = null;
     delete v.orientation; /* vflip / hmirror are its two bits */
     const cam = d.camera || {}, photo = [['max', t('resMax', cam.maxW ? cam.maxW + '×' + cam.maxH : '?')]].concat((cam.photoSizes || []).map(sizeOpt));
-    const DEF = { brightness: 0, contrast: 50, saturation: 50, sharpness: 50, vflip: false, hmirror: false, whiteBalance: 'auto', effect: 'none', aeLevel: 0, exposureAuto: true, exposure: 300, gainAuto: true, gain: 0, gainCeiling: 2, denoise: 0 };
+    const DEF = { brightness: 0, contrast: 50, saturation: 50, sharpness: 50, vflip: false, hmirror: false, whiteBalance: 'auto', effect: 'none', aeLevel: 0, exposureAuto: true, exposure: 300, gainAuto: true, gain: 0, gainCeiling: 4, denoise: 0 };
     const rng = (id, min, max) => `<input type="range" id="i_${id}" min="${min}" max="${max}"><span id="i_${id}V" style="min-width:36px"></span>`;
     const ae = d.sensor === 'OV5640' ? 5 : 2;
     el.innerHTML = `<div class="split"><div class="pvw"><div class="player"><div class="screen" id="iScreen"></div></div><p class="note">${esc(d.sensor || '')}${d.capture.w ? ` · ${t('resolution')} ${d.capture.w}×${d.capture.h}` : ''}</p></div><div class="cfg">`

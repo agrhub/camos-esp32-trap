@@ -57,7 +57,7 @@ static void defaults(settings_t *s)
 	s->exposure_auto = 1;
 	s->exposure = 300;
 	s->gain_auto = 1;
-	s->gain_ceiling = 2;
+	s->gain_ceiling = 4; /* 32x: dim indoor light still reaches the AE target (cam.c) */
 	s->power_mode = -1;
 	s->claimed = -1;
 }

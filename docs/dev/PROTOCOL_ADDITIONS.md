@@ -65,7 +65,7 @@ same keys locally; a later shadow wins):
 | `aeLevel` | -5..5 (other sensors -2..2) | exposure compensation |
 | `exposureAuto`, `exposure` | bool, 0..1200 | AEC on, or the manual exposure value |
 | `gainAuto`, `gain` | bool, 0..30 | AGC on, or the manual gain |
-| `gainCeiling` | 0..6 (2x..128x) | AGC ceiling |
+| `gainCeiling` | 0..6 (2x..128x), default 4 | AGC ceiling (0x3a18/0x3a19 in 1/16 steps; 64x at most) |
 | `denoise` | 0..8 | noise reduction |
 
 `flicker`, `wdr` and `ldc` have no control in esp32-camera: `NOT_SUPPORTED`. `reported.video.image` carries every key.
