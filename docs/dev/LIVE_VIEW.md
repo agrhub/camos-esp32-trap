@@ -89,8 +89,9 @@ data channel instead (`live_dc.c` for the protocol, host-tested in `tests/test_l
 - **Memory.** The data channel caches are in PSRAM (send 512 KB, receive 16 KB). The Freenove preset now keeps only
   allocations under 256 bytes in internal RAM (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=256`, as Espressif's kvs_master
   does): with 1 KB, a JPEG session ran the internal heap down to 23 bytes and Wi-Fi lost packets. The camera DMA
-  buffer is 16 KB in both modes (`CONFIG_CAMERA_DMA_BUFFER_SIZE_MAX=16384`), so a switch back to H.264 finds the block
-  the JPEG mode freed (with 32 KB, the YUV restart failed on the fragmented heap mid-session).
+  buffer is the same 15,360 bytes in both modes (`CONFIG_CAMERA_DMA_BUFFER_SIZE_MAX=15360`: what YUV422 at 320x240
+  takes), so each switch finds the block the other mode freed. With 32 KB the YUV restart failed on the fragmented heap
+  mid-session; with 16 KB the JPEG start right after the data channel opened failed (largest free block 15,360).
 - **Sensor clock.** JPEG for the live view also runs at `CAMOS_LIVE_XCLK_MHZ` (20 MHz); snapshots keep 10 MHz.
 
 FlyBot's quality choices (`client/src/utils/camosLive.js`): **Low** H.264 320x240 at 10 fps, **Medium** JPEG

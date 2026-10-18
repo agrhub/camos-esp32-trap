@@ -34,5 +34,6 @@ CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 # with Wi-Fi buffers in PSRAM the block-ack window defaults to 16, more than twice the 6 static RX buffers (build error)
 CONFIG_ESP_WIFI_RX_BA_WIN=6
 # The live view switches the sensor between YUV422 (H.264) and JPEG (data channel) during a DTLS session, when the
-# internal RAM is fragmented: a 16 KB camera DMA buffer in both modes lets each start reuse the block the other freed
-CONFIG_CAMERA_DMA_BUFFER_SIZE_MAX=16384
+# internal RAM is fragmented: the same camera DMA buffer in both modes lets each start reuse the block the other freed.
+# YUV422 at 320x240 takes 15360 bytes (12 lines), so JPEG gets that size too (16 KB failed with 15360 the largest block)
+CONFIG_CAMERA_DMA_BUFFER_SIZE_MAX=15360
