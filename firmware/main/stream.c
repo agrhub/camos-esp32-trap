@@ -51,7 +51,8 @@ static void stream_task(void *arg)
 	size_t cap = 0;
 	int64_t t0 = esp_timer_get_time(), last_log = t0, win_t = t0;
 	uint32_t win_frames = 0, fails = 0;
-	uint64_t win_bytes = 0;
+	uint64_t win_bytes = 0, win_cam_us = 0, win_send_us = 0;
+	float cam_ms = 0, send_ms = 0;
 	memset(&stats, 0, sizeof(stats));
 	stats.w = job->w, stats.h = job->h, stats.quality = job->q;
 	ESP_LOGI(TAG, "viewer started: %dx%d q%d", job->w, job->h, job->q);
@@ -61,6 +62,7 @@ static void stream_task(void *arg)
 	}
 	while (!stop_req && esp_timer_get_time() - t0 < (int64_t)STREAM_MAX_S * 1000000) {
 		camera_fb_t *fb = NULL;
+		int64_t c0 = esp_timer_get_time();
 		esp_err_t e = preview_frame(job->w, job->h, job->q, &fb);
 		if (e != ESP_OK) {
 			/* a capture or live view owns the camera for a moment: wait and try again */
@@ -72,6 +74,8 @@ static void stream_task(void *arg)
 			continue;
 		}
 		fails = 0;
+		int64_t c1 = esp_timer_get_time();
+		win_cam_us += (uint64_t)(c1 - c0);
 		/* copy and give the camera back before the (slower) network send */
 		size_t len = fb->len;
 		if (len > cap) {
@@ -91,6 +95,7 @@ static void stream_task(void *arg)
 		if (httpd_resp_send_chunk(req, head, n) != ESP_OK || httpd_resp_send_chunk(req, (const char *)copy, len) != ESP_OK) {
 			break; /* the viewer went away */
 		}
+		win_send_us += (uint64_t)(esp_timer_get_time() - c1);
 		stats.frames++;
 		stats.bytes += len;
 		win_frames++;
@@ -99,10 +104,13 @@ static void stream_task(void *arg)
 		if (now - win_t >= 2000000) {
 			stats.fps = win_frames * 1000000.0f / (float)(now - win_t);
 			stats.avg_bytes = (uint32_t)(win_bytes / win_frames);
-			win_t = now, win_frames = 0, win_bytes = 0;
+			cam_ms = win_cam_us / 1000.0f / win_frames, send_ms = win_send_us / 1000.0f / win_frames;
+			win_t = now, win_frames = 0, win_bytes = 0, win_cam_us = 0, win_send_us = 0;
 		}
 		if (now - last_log >= 10000000) {
-			ESP_LOGI(TAG, "%dx%d q%d: %.1f fps, %u bytes per frame", job->w, job->h, job->q, stats.fps, (unsigned)stats.avg_bytes);
+			/* camera: waiting for the frame (and the lock); send: copy + HTTP send */
+			ESP_LOGI(TAG, "%dx%d q%d: %.1f fps, %u bytes per frame, camera %.0f ms, send %.0f ms", job->w, job->h, job->q,
+					 stats.fps, (unsigned)stats.avg_bytes, cam_ms, send_ms);
 			last_log = now;
 			sched_keep_awake(30);
 		}

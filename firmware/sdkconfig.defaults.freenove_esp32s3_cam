@@ -37,3 +37,7 @@ CONFIG_ESP_WIFI_RX_BA_WIN=6
 # holds a 16 KB internal block for every JPEG start (cam.c): esp32-camera's JPEG mode takes a fixed 16 KB internal
 # buffer whatever this says (its PSRAM DMA mode loses the JPEG end markers). This limit only sizes the YUV422 transfer.
 CONFIG_CAMERA_DMA_BUFFER_SIZE_MAX=15360
+# The web console's MJPEG stream and the photo uploads are TCP: with the default 5,760-byte send buffer a Wi-Fi with a
+# 30-100 ms round trip carried about 60 KB/s (a 640x480 frame took 180 ms to send, the camera 50 ms to take it).
+# 16 segments; the buffers are in PSRAM (SPIRAM_TRY_ALLOCATE_WIFI_LWIP)
+CONFIG_LWIP_TCP_SND_BUF_DEFAULT=23040

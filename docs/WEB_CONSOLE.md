@@ -95,6 +95,27 @@ Up to HD the sensor sets the pace (the network carried 6.4 Mbit/s); UXGA drops t
 With motion detection running at the same time VGA dropped to about 9 fps. A daylight scene was not available (the
 measurement ran at night): frame sizes of a lit scene are still to be measured.
 
+Measured again on 18 Oct 2026 (firmware after 0.6.0), motion detection on, an indoor scene, another Wi-Fi (ping to the
+camera 30-150 ms), 20 s per size; `camera` and `send` are the stream's own log (`stream: ... camera N ms, send N ms`):
+
+| Size, q12 | 0.6.0 | XCLK 10 MHz | XCLK 20 MHz (now) | Frame | camera / send per frame (20 MHz) |
+|---|---|---|---|---|---|
+| 320x240 | | 3.1 fps | 8.4 fps | 3 KB | 98 ms / 1 ms |
+| 640x480 | 0.4 fps | 4.4 fps | 8.6-9.3 fps | 8-10 KB | 97-107 ms / 2-20 ms |
+| 800x600 | 0.4 fps | 4.4 fps | 9.2-9.4 fps | 12-13 KB | 100-106 ms / 3 ms |
+| 1024x768 | 0.4 fps | 2.5 fps | 6.7-8.0 fps | 21 KB | 77-117 ms / 8 ms |
+| 1280x720 | 0.4 fps | 5.1 fps | 9.5-12.0 fps | 22-23 KB | 71-90 ms / 6-39 ms |
+| 1600x1200 | 0.3 fps | 1.5 fps | 3.2 fps | 55 KB | 194-293 ms / 45-74 ms |
+
+- 0.6.0 restarted the sensor for nearly every frame: motion detection chose its frame size before it held the camera,
+  so it asked for the size the stream had just replaced, and the two took turns (fixed: the size is chosen under the
+  camera lock).
+- With the default 5,760-byte TCP send buffer a frame took 72-755 ms to send on this Wi-Fi; with 23,040 bytes
+  (Freenove preset) 1-40 ms, so the sensor sets the pace again.
+- The stream now runs the sensor at the live view's 20 MHz XCLK (photos keep 10 MHz): about 100 ms per frame instead
+  of 230 ms. Up to 800x600 the OV5640 then gives about 9.5 fps, at 1280x720 about 12.
+- While a cloud viewer watches, the stream is refused (`409`), as before.
+
 ## Image settings
 
 All under the shadow `video.image` ([dev/PROTOCOL_ADDITIONS.md](dev/PROTOCOL_ADDITIONS.md) section 3), so the console and FlyBot use the same keys:

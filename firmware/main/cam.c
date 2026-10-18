@@ -499,7 +499,9 @@ static esp_err_t stream_start(int width, int height, int quality, pixformat_t fm
 
 esp_err_t cam_stream_start(int width, int height, int quality)
 {
-	return stream_start(width, height, quality, PIXFORMAT_JPEG, CONFIG_CAMOS_XCLK_MHZ, false);
+	/* the live view's XCLK: at the photo XCLK (10 MHz on the Freenove board) a frame took about 230 ms at any size up
+	 * to 800x600, at 20 MHz about 100 ms (web console stream, 18 Oct) */
+	return stream_start(width, height, quality, PIXFORMAT_JPEG, CAMOS_LIVE_XCLK_MHZ, false);
 }
 
 /* JPEG frames for the live view's data channel (the live view XCLK) */

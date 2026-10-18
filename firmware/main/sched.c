@@ -205,11 +205,15 @@ static void pv_idle_cb(void *arg)
 
 bool preview_active(void) { return preview_on; }
 
+static esp_err_t preview_frame_at(int *w, int *h, int quality, camera_fb_t **fb);
+
+/* Motion detection: a frame at whatever size the preview runs (320x240 when none). The size is chosen with the camera
+ * lock held: chosen before, a request that waited for the lock while the web console stream restarted the preview at
+ * its size asked for the old size, stopped it again, and the two alternated (0.4 fps on the stream). */
 esp_err_t preview_frame_any(camera_fb_t **fb, int *w, int *h)
 {
-	int pw = preview_on ? pv_w : 320, ph = preview_on ? pv_h : 240;
-	*w = pw, *h = ph;
-	return preview_frame(pw, ph, 12, fb);
+	*w = *h = 0;
+	return preview_frame_at(w, h, 12, fb);
 }
 
 void camera_settings_changed(void)
@@ -227,6 +231,12 @@ void camera_settings_changed(void)
 
 esp_err_t preview_frame(int w, int h, int quality, camera_fb_t **fb)
 {
+	return preview_frame_at(&w, &h, quality, fb);
+}
+
+/* *w, *h 0: the running size (320x240 when none), written back */
+static esp_err_t preview_frame_at(int *pw, int *ph, int quality, camera_fb_t **fb)
+{
 	*fb = NULL;
 	if (live_streaming()) {
 		return ESP_ERR_INVALID_STATE;
@@ -235,6 +245,11 @@ esp_err_t preview_frame(int w, int h, int quality, camera_fb_t **fb)
 	if (xSemaphoreTake(cam_mutex, pdMS_TO_TICKS(10000)) != pdTRUE) {
 		return ESP_ERR_TIMEOUT; /* a capture + upload is running */
 	}
+	if (!*pw) {
+		*pw = preview_on ? pv_w : 320;
+		*ph = preview_on ? pv_h : 240;
+	}
+	int w = *pw, h = *ph;
 	if (preview_on && (w != pv_w || h != pv_h)) {
 		stop_preview_locked();
 	}

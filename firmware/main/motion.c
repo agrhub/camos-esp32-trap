@@ -134,6 +134,8 @@ static void trigger(const motion_result_t *r, const char *sd_name)
 
 static void motion_task(void *arg)
 {
+	uint8_t *copy = NULL;
+	size_t copy_cap = 0;
 	for (;;) {
 		if (!wanted()) {
 			if (running) {
@@ -156,6 +158,25 @@ static void motion_task(void *arg)
 			vTaskDelay(pdMS_TO_TICKS(1000)); /* a capture owns the camera */
 			continue;
 		}
+		/* the JPEG is copied and the camera given back before the (slow) decode: the web console stream waited for it */
+		if (fb->len > copy_cap) {
+			free(copy);
+			copy_cap = fb->len + fb->len / 4;
+			copy = heap_caps_malloc(copy_cap, MALLOC_CAP_SPIRAM);
+			if (!copy) {
+				copy_cap = 0;
+			}
+		}
+		if (!copy) {
+			preview_release(fb);
+			vTaskDelay(pdMS_TO_TICKS(1000));
+			continue;
+		}
+		camera_fb_t local = *fb;
+		memcpy(copy, fb->buf, fb->len);
+		local.buf = copy;
+		preview_release(fb);
+		fb = &local;
 		motion_result_t r = { 0 };
 		bool ok = decode_grey(fb, fw, &gw, &gh);
 		if (ok) {
@@ -167,7 +188,6 @@ static void motion_task(void *arg)
 		if (fire && g_cfg.motion_sd && sd_present()) {
 			sd_save_jpeg(fb->buf, fb->len, "motion", sd_name, sizeof(sd_name));
 		}
-		preview_release(fb);
 		if (fire) {
 			trigger(&r, sd_name);
 		}
