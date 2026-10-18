@@ -125,7 +125,23 @@ viewer in Chromium on the same Wi-Fi, channel unordered with `maxPacketLifeTime:
   shown (not measured glass-to-glass); on the poor link the window kept it under about 0.7 s instead of letting it
   grow.
 
-Not measured: daylight frame sizes over the data channel, a remote viewer through TURN with JPEG, 4G.
+Measured again on 18 Oct 2026, late morning (a lit room, so frames 1.7-3.5x the evening sizes), same board and bench
+viewer on the same Wi-Fi, ICE round trip 15-43 ms, every size asked at 25 fps so the link sets the pace:
+
+| Asked | Sent / shown | Frame size | Bitrate | Ack after | Notes |
+|---|---|---|---|---|---|
+| JPEG 640x480 q12 (the default, 15 fps) | 8.6-11.1 / 9.5 fps | 11 KB | 860 kbit/s | 31 ms | |
+| JPEG 640x480 q12, 25 fps | 3.4-10.1 / 8.3 fps | 11 KB | 750 kbit/s | 92 ms | |
+| JPEG 800x600 q12, 25 fps | 6.8-9.3 / 9.3 fps | 16 KB | 1,210 kbit/s | 11 ms | |
+| JPEG 1024x768 q12, 25 fps | 2.9-5.4 / 4.4 fps | 24 KB | 870 kbit/s | 78 ms | |
+| JPEG 1280x720 q12, 25 fps | 3.7-6.3 / 5.5 fps | 27 KB | 1,220 kbit/s | 107 ms | |
+| JPEG 1600x1200 q12, 25 fps | 2.6-3.6 / 3.3 fps | 56 KB | 1,520 kbit/s | 26 ms | four chunks per frame |
+| no acks from the viewer | H.264 320x240 at 7 fps | | | | `mode` with `reason: weak_link` 7.0 s after the last ack |
+
+The camera waited for acks most of the time (`waits` 54-118 per run), so these are again the link's numbers, about
+1-1.5 Mbit/s that morning, not the sensor's.
+
+Not measured: a remote viewer through TURN with JPEG, 4G.
 
 ### Measured on the board (17 Oct 2026)
 
