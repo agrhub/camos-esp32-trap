@@ -193,7 +193,7 @@ const I18N = {
   setBy: 'Thiết lập bởi', srcCloud: 'FlyBot (lịch từ cloud, chỉ xem ở đây)', srcLocal: 'Camera này', window: 'Khung giờ chụp', from: 'Từ', to: 'Đến', allDay: 'Từ = Đến nghĩa là cả ngày',
   nextCaptures: 'Các lần chụp tới', every: 'mỗi {0} phút', noClock: 'Đồng hồ chưa đồng bộ.', schedCloudNote: 'Lịch này do FlyBot đặt (detections trong shadow). Hãy đổi trên FlyBot.',
   schedNote: 'Chụp một ảnh mỗi chu kỳ trong khung giờ (giờ của camera; khung kết thúc trước giờ bắt đầu thì qua nửa đêm). Ở chế độ pin camera ngủ sâu giữa các lần chụp. Camera chưa có chủ chụp tối đa một ảnh mỗi giờ.',
-  motionOn: 'Bật phát hiện chuyển động', sensitivity: 'Độ nhạy', cooldown: 'Khoảng nghỉ giữa hai lần (giây)', region: 'Vùng phát hiện', regionHelp: 'Kéo chuột trên hình để vẽ vùng.', fullFrame: 'Toàn khung hình',
+  motionOn: 'Bật phát hiện chuyển động', sensitivity: 'Độ nhạy', cooldown: 'Khoảng nghỉ giữa hai lần (giây)', region: 'Vùng phát hiện', regionHelp: 'Kéo trên hình để vẽ vùng; kéo các nút ở góc và cạnh để đổi kích thước, kéo bên trong để di chuyển.', fullFrame: 'Toàn khung hình',
   onMotion: 'Khi có chuyển động', mSd: 'Lưu ảnh vào thẻ nhớ', mUpload: 'Chụp ảnh đầy đủ và gửi lên FlyBot', level: 'Mức thay đổi', mRunning: 'Đang theo dõi', mOff: 'Tắt',
   mNeedPowered: 'Đang chờ: chỉ chạy khi chế độ nguồn đang chạy là luôn cấp nguồn (Nguồn điện & lịch chụp). Hiện tại: {0}.', mLive: 'Tạm dừng khi đang xem trực tiếp qua cloud.',
   mCount: 'Số lần từ khi khởi động', lastMotion: 'Lần cuối', perMille: '{0} ‰ (kích hoạt từ {1} ‰)',
@@ -266,7 +266,7 @@ const I18N = {
   setBy: 'Set by', srcCloud: 'FlyBot (cloud schedule, read only here)', srcLocal: 'This camera', window: 'Capture window', from: 'From', to: 'To', allDay: 'From = To means all day',
   nextCaptures: 'Next captures', every: 'every {0} min', noClock: 'The clock is not synced yet.', schedCloudNote: 'FlyBot sets this schedule (detections in the shadow). Change it in FlyBot.',
   schedNote: 'One photo every interval inside the window (camera local time; a window that ends before it starts crosses midnight). In battery mode the camera deep sleeps in between. An unclaimed camera takes at most one photo an hour.',
-  motionOn: 'Enable motion detection', sensitivity: 'Sensitivity', cooldown: 'Wait between triggers (s)', region: 'Detection area', regionHelp: 'Drag on the picture to draw the area.', fullFrame: 'Whole picture',
+  motionOn: 'Enable motion detection', sensitivity: 'Sensitivity', cooldown: 'Wait between triggers (s)', region: 'Detection area', regionHelp: 'Drag on the picture to draw the area; drag the handles on its corners and edges to resize it, inside it to move it.', fullFrame: 'Whole picture',
   onMotion: 'On motion', mSd: 'Save the picture to the SD card', mUpload: 'Capture a full photo and send it to FlyBot', level: 'Change now', mRunning: 'Watching', mOff: 'Off',
   mNeedPowered: 'Waiting: motion detection runs only when the effective power mode is powered (Power & Schedule). Now: {0}.', mLive: 'Paused while cloud live view runs.',
   mCount: 'Triggers since start', lastMotion: 'Last motion', perMille: '{0} ‰ (trigger at {1} ‰)',
@@ -757,14 +757,38 @@ const PAGES = {
       ctx.clearRect(0, 0, W, H); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(0, 0, W, H);
       const [x, y, w, h] = roi.map((n, i) => n * (i % 2 ? H : W) / 100); ctx.clearRect(x, y, w, h);
       ctx.strokeStyle = '#18b693'; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+      ctx.fillStyle = '#fff'; HANDLES.forEach(([hx, hy]) => { const cx = x + hx * w, cy = y + hy * h; ctx.fillRect(cx - 4, cy - 4, 8, 8); ctx.strokeRect(cx - 4, cy - 4, 8, 8); });
       $('#mRoi').textContent = roi.join(',');
     };
     pic.img.addEventListener('load', drawRoi); window.addEventListener('resize', drawRoi); timers.push(() => window.removeEventListener('resize', drawRoi));
+    /* Drag outside the area: a new one; inside: move it; on a handle (corners, edge middles): resize that side */
+    const HANDLES = [[0, 0], [0.5, 0], [1, 0], [1, 0.5], [1, 1], [0.5, 1], [0, 1], [0, 0.5]];
     let drag = null;
     const pct = (e) => { const r = cv.getBoundingClientRect(); return [Math.max(0, Math.min(100, (e.clientX - r.left) * 100 / r.width)), Math.max(0, Math.min(100, (e.clientY - r.top) * 100 / r.height))]; };
-    cv.onpointerdown = (e) => { drag = pct(e); cv.setPointerCapture(e.pointerId); };
-    cv.onpointermove = (e) => { if (!drag) return; const p = pct(e); roi = [Math.min(drag[0], p[0]), Math.min(drag[1], p[1]), Math.abs(p[0] - drag[0]), Math.abs(p[1] - drag[1])].map(Math.round); drawRoi(); };
-    cv.onpointerup = () => { if (!drag) return; drag = null; if (roi[2] < 5 || roi[3] < 5) roi = [0, 0, 100, 100]; roi[2] = Math.min(roi[2], 100 - roi[0]); roi[3] = Math.min(roi[3], 100 - roi[1]); drawRoi(); };
+    const hit = (e) => {
+      const r = cv.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top, [x, y, w, h] = roi.map((n, i) => n * (i % 2 ? r.height : r.width) / 100);
+      const near = e.pointerType === 'touch' ? 18 : 9;
+      const i = HANDLES.findIndex(([hx, hy]) => Math.abs(px - (x + hx * w)) <= near && Math.abs(py - (y + hy * h)) <= near);
+      if (i >= 0) return { kind: 'size', h: HANDLES[i] };
+      return px > x && px < x + w && py > y && py < y + h ? { kind: 'move' } : { kind: 'new' };
+    };
+    const clampRoi = (a) => { let [x, y, w, h] = a.map(Math.round); w = Math.max(5, Math.min(w, 100)); h = Math.max(5, Math.min(h, 100)); x = Math.max(0, Math.min(x, 100 - w)); y = Math.max(0, Math.min(y, 100 - h)); return [x, y, w, h]; };
+    cv.style.touchAction = 'none';
+    cv.onpointerdown = (e) => { drag = Object.assign(hit(e), { p0: pct(e), r0: roi.slice() }); cv.setPointerCapture(e.pointerId); };
+    cv.onpointermove = (e) => {
+      if (!drag) { const k = hit(e).kind; cv.style.cursor = k === 'size' ? 'nwse-resize' : k === 'move' ? 'move' : 'crosshair'; return; }
+      const p = pct(e), [x0, y0, w0, h0] = drag.r0, dx = p[0] - drag.p0[0], dy = p[1] - drag.p0[1];
+      if (drag.kind === 'new') roi = [Math.min(drag.p0[0], p[0]), Math.min(drag.p0[1], p[1]), Math.abs(dx), Math.abs(dy)].map(Math.round);
+      else if (drag.kind === 'move') roi = clampRoi([x0 + dx, y0 + dy, w0, h0]);
+      else {
+        let l = x0, tp = y0, rt = x0 + w0, b = y0 + h0; const [hx, hy] = drag.h;
+        if (hx === 0) l = Math.min(p[0], rt - 5); if (hx === 1) rt = Math.max(p[0], l + 5);
+        if (hy === 0) tp = Math.min(p[1], b - 5); if (hy === 1) b = Math.max(p[1], tp + 5);
+        roi = clampRoi([l, tp, rt - l, b - tp]);
+      }
+      drawRoi();
+    };
+    cv.onpointerup = () => { if (!drag) return; const was = drag.kind; drag = null; if (was === 'new' && (roi[2] < 5 || roi[3] < 5)) roi = [0, 0, 100, 100]; /* a click: the whole picture */ roi = clampRoi(roi); drawRoi(); };
     $('#mFull').onclick = () => { roi = [0, 0, 100, 100]; drawRoi(); };
     $('#mSens').oninput = () => { $('#mSensV').textContent = $('#mSens').value; };
     setTimeout(drawRoi, 300);

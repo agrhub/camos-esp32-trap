@@ -36,7 +36,7 @@ activation form. Sessions are a random `HttpOnly; SameSite=Strict` cookie, 30 mi
 | | Network > 4G | modem state, APN (automatic from the SIM by default), SIM PIN. |
 | | Network > Cloud Platform | FlyBot / IoT Core state, claim QR while unclaimed, FlyBot address and IoT endpoint. |
 | | Image > Display | live picture next to every image control (below); changes show at once, Save keeps them, Restore goes back to the saved values, Defaults. |
-| | Event > Motion Detection | enable, sensitivity, cooldown, detection area drawn on the live picture, actions (save to SD, capture + upload), live change meter against the trigger level, trigger count, last motion. |
+| | Event > Motion Detection | enable, sensitivity, cooldown, detection area drawn on the live picture (drag to draw, corner and edge handles to resize, drag inside to move), actions (save to SD, capture + upload), live change meter against the trigger level, trigger count, last motion. |
 | | Event > Capture Schedule | who sets the schedule (FlyBot detections or this camera), local interval and capture window, the next 8 captures. |
 | | Storage > Storage Management | card name, capacity, used / free, "save every photo to the card", format. |
 | | Power & location > Power & Schedule, GPS | power mode, interval, LED, battery divider, GPS fix. |
