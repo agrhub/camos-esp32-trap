@@ -412,6 +412,20 @@ static int cmd_sleep(int argc, char **argv)
 	return 0;
 }
 
+/* Bench: the portal's Connect check from the console (no phone needed); without arguments the stored network */
+static int cmd_connect(int argc, char **argv)
+{
+	if (!portal_active()) {
+		printf("only in the setup portal (command `portal`)\n");
+		return 1;
+	}
+	const char *ssid = argc > 1 ? argv[1] : g_cfg.wifi_ssid;
+	const char *pass = argc > 2 ? argv[2] : (strcmp(ssid, g_cfg.wifi_ssid) ? "" : g_cfg.wifi_pass);
+	esp_err_t e = portal_try(ssid, pass);
+	printf(e == ESP_OK ? "checking \"%s\" (GET /api/connect, or watch the log)\n" : "busy (%s)\n", e == ESP_OK ? ssid : esp_err_to_name(e));
+	return e == ESP_OK ? 0 : 1;
+}
+
 static int cmd_portal(int argc, char **argv)
 {
 	store_set_flag("portal", 1);
@@ -615,6 +629,7 @@ void console_start(void)
 		{ .command = "awake", .help = "awake [s]: no deep sleep for a while", .func = cmd_awake },
 		{ .command = "sleep", .help = "sleep [s]: deep sleep now", .func = cmd_sleep },
 		{ .command = "portal", .help = "restart into the setup portal", .func = cmd_portal },
+		{ .command = "connect", .help = "connect [ssid [password]]: in the portal, check a network like the page's Connect", .func = cmd_connect },
 		{ .command = "factory", .help = "erase the configuration (keeps serial and verify code)", .func = cmd_factory },
 		{ .command = "led", .help = "led [state|capture|uploaderr|lowbatt|on|disable]: show an LED state", .func = cmd_led },
 		{ .command = "scan", .help = "Wi-Fi scan (APSTA in the portal: the SoftAP stays up)", .func = cmd_scan },

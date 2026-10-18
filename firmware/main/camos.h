@@ -132,8 +132,8 @@ void wifi_set_up_cb(void (*cb)(void));
 void wifi_stop(void);
 
 /* hostname.c: flybot-<last 6 of the serial>, the DHCP host name and <name>.local over mDNS */
-const char *local_hostname(void);              /* "flybot-92877c" */
-void local_hostname_url(char *out, size_t n);  /* "http://flybot-92877c.local/" */
+const char *local_hostname(void);              /* "flybot-a1b2c3" */
+void local_hostname_url(char *out, size_t n);  /* "http://flybot-a1b2c3.local/" */
 struct esp_netif_obj;
 void local_hostname_apply(struct esp_netif_obj *sta); /* before DHCP starts */
 void local_mdns_start(void);                   /* once; answers <name>.local and announces the console */
@@ -153,6 +153,8 @@ void modem_ip(char *out, size_t n);
 /* ------------------------------------------------------------------ portal (portal.c) */
 
 void portal_run(void) __attribute__((noreturn)); /* SoftAP CAM-xxxx + captive portal, restarts when done */
+bool portal_active(void);                       /* the setup portal runs (this boot) */
+esp_err_t portal_try(const char *ssid, const char *pass); /* join check with the AP up; stored once it gets an IP */
 /* BOOT button: released after 3-10 s = setup portal (settings kept), held 10 s = factory reset (identity kept) */
 #define BUTTON_PORTAL_MS 3000
 #define BUTTON_FACTORY_MS 10000

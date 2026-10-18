@@ -106,6 +106,10 @@ const T = {
   connect: 'Kết nối', rescan: 'Không thấy mạng của bạn? Quét lại', scanning: 'Đang quét…', found: '{0} mạng', noNets: 'Không thấy mạng nào.',
   connecting: 'Đang kết nối…', connectingText: 'Camera đang kết nối vào mạng đã chọn và sẽ tắt mạng cài đặt này. Nếu sai mật khẩu, mạng cài đặt sẽ bật lại sau khoảng một phút để nhập lại.',
   errChoose: 'Hãy chọn một mạng Wi-Fi.', errShort: 'Mật khẩu Wi-Fi có ít nhất 8 ký tự.', errJoin: 'Không kết nối được "{0}". Kiểm tra mật khẩu và thử lại.',
+  checking: 'Đang thử kết nối "{0}"… {1} giây', connected: 'Đã kết nối', joined: 'Camera đã vào mạng "{0}" (địa chỉ {1}). Camera khởi động lại và tắt mạng cài đặt này.',
+  errAuth: 'Sai mật khẩu của "{0}". Hãy nhập lại.', errNotFound: 'Không tìm thấy mạng "{0}". Đặt camera gần bộ phát Wi-Fi hơn hoặc kiểm tra tên mạng.',
+  errTimeout: '"{0}" không cấp địa chỉ cho camera trong 30 giây. Hãy thử lại.', errBusy: 'Camera đang thử một mạng, chờ vài giây.',
+  lost: 'Mất liên lạc với camera (mạng cài đặt có thể đã chuyển sang kênh của bộ phát Wi-Fi). Kết nối lại điện thoại vào {0}; kết quả sẽ hiện ở đây.',
   errTaken: 'FlyBot từ chối đăng ký: số serial này đã được đăng ký với mã xác minh khác. Chủ camera cần đặt lại camera trên FlyBot.',
   unclaimed: 'Chưa có chủ', claimText: 'Mở {0} hoặc quét mã QR trên nhãn trong ứng dụng FlyBot để nhận camera.', serial: 'Serial', code: 'Mã xác minh', local: 'Tên cục bộ',
   localNext: 'Khi camera đã vào mạng, mở {0} trên điện thoại hoặc máy tính cùng mạng Wi-Fi để vào trang quản lý camera.',
@@ -128,6 +132,10 @@ const T = {
   connect: 'Connect', rescan: 'Network not listed? Scan again', scanning: 'Scanning…', found: '{0} networks', noNets: 'No networks found.',
   connecting: 'Connecting…', connectingText: 'The camera is joining the chosen network and will close this setup network. If the password is wrong, setup comes back in about a minute.',
   errChoose: 'Choose a Wi-Fi network.', errShort: 'Wi-Fi passwords have at least 8 characters.', errJoin: 'Could not join "{0}". Check the password and try again.',
+  checking: 'Trying "{0}"… {1} s', connected: 'Connected', joined: 'The camera joined "{0}" (address {1}). It restarts now and closes this setup network.',
+  errAuth: 'Wrong password for "{0}". Type it again.', errNotFound: 'Network "{0}" not found. Move the camera closer to the router or check the name.',
+  errTimeout: '"{0}" did not give the camera an address within 30 s. Try again.', errBusy: 'The camera is still trying a network, wait a few seconds.',
+  lost: 'Lost contact with the camera (the setup network may have moved to the router\'s channel). Reconnect this phone to {0}; the result shows here.',
   errTaken: 'FlyBot refused the registration: this serial is registered with another verify code. The camera owner has to reset it in FlyBot.',
   unclaimed: 'Unclaimed', claimText: 'Open {0} or scan the label QR in the FlyBot app to claim this camera.', serial: 'Serial', code: 'Verify code', local: 'Local name',
   localNext: 'Once the camera is on your network, open {0} from a phone or computer on the same Wi-Fi to reach the camera console.',
@@ -248,13 +256,39 @@ $('connect').onclick = async () => {
   if (body.ssid && secure && body.password && body.password.length < 8) return err(t('errShort'));
   $('connect').disabled = true;
   try {
-    await api('/api/connect', body); err('');
+    const r = await api('/api/connect', body); err('');
     $('setup').classList.add('hidden'); $('connecting').classList.remove('hidden'); $('adv').classList.add('hidden');
+    if (r.checking) watchJoin(r.ssid);
   } catch (e) {
     $('connect').disabled = false;
-    err(e.code === 'CHOOSE_NETWORK' ? t('errChoose') : e.code === 'SHORT_PASSWORD' ? t('errShort') : t('rejected', e.message));
+    err(e.code === 'CHOOSE_NETWORK' ? t('errChoose') : e.code === 'SHORT_PASSWORD' ? t('errShort') : e.code === 'BUSY' ? t('errBusy') : t('rejected', e.message));
   }
 };
+/* The camera tries the network with this setup network still up; the page follows until it has an address (then
+ * the camera restarts onto it) or says why it failed, and the user can retype. */
+async function watchJoin(ssid) {
+  const text = $('tConnectingText'), t0 = Date.now();
+  text.innerHTML = '<span class="spin"></span> ' + esc(t('checking', ssid, 0));
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 1000));
+    let s = null;
+    try { s = await api('/api/connect'); } catch (e) { /* the phone may have lost the setup network */ }
+    if (!s) { if (Date.now() - t0 > 5000) text.textContent = t('lost', cfg.apSsid); continue; }
+    if (s.state === 'joining') { text.innerHTML = '<span class="spin"></span> ' + esc(t('checking', s.ssid, s.elapsedS)); continue; }
+    if (s.state === 'ok') {
+      $('tConnecting').textContent = t('connected'); text.textContent = t('joined', s.ssid, s.ip);
+      if (s.hostname) $('localNext').textContent = t('localNext', `http://${s.hostname}.local/`);
+      return;
+    }
+    $('connecting').classList.add('hidden'); $('setup').classList.remove('hidden'); $('adv').classList.remove('hidden');
+    $('connect').disabled = false; $('tConnecting').textContent = t('connecting'); $('tConnectingText').textContent = t('connectingText');
+    if (s.state === 'failed') {
+      err(s.reason === 'auth' ? t('errAuth', s.ssid) : s.reason === 'not_found' ? t('errNotFound', s.ssid) : t('errTimeout', s.ssid));
+      if (s.reason === 'auth') { $('password').value = ''; $('password').focus(); }
+    }
+    return;
+  }
+}
 function advMsg(text, ok) { const m = $('advMsg'); m.textContent = text; m.className = ok ? 'ok' : 'err'; }
 $('saveAdv').onclick = async () => { try { await api('/api/config', advanced()); advMsg(t('saved'), true); await load(); } catch (e) { advMsg(t('rejected', e.message)); } };
 $('saveCert').onclick = async () => { try { await api('/api/cert', { cert: $('cert').value, key: $('key').value }); $('cert').value = ''; $('key').value = ''; advMsg(t('certSaved'), true); await load(); } catch (e) { advMsg(t('rejected', e.message)); } };

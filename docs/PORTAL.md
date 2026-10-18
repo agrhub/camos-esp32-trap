@@ -7,13 +7,14 @@ The camera opens its own Wi-Fi network, `CAM-xxxx` (the last 4 characters of its
   holding it **10 s**, until the LED turns red, is a factory reset first), or
 - it could not join a new Wi-Fi network within about a minute (the page then says why).
 
-The LED breathes blue while the setup page is open. It closes after 10 minutes, or when you press Connect.
+The LED breathes blue while the setup page is open. It closes after 10 minutes without a Connect, or once Connect has
+joined your network.
 
 ## Step by step
 
 | | |
 |---|---|
-| ![Wi-Fi list](img/portal-wifi.png) | 1. On your phone, join **`CAM-xxxx`**, password **`camos1234`**. The page opens by itself (else open `http://192.168.4.1`). <br>2. The list shows the networks the camera can hear, strongest first, with the signal bars and a lock for protected ones. <br>3. Tap yours. Type its password ("Show" reveals it). A hidden network: "Other network (hidden)…". <br>4. Tap **Connect**. The setup network closes and the camera joins yours. If the password was wrong, `CAM-xxxx` comes back after about a minute with "Could not join ...". |
+| ![Wi-Fi list](img/portal-wifi.png) | 1. On your phone, join **`CAM-xxxx`**, password **`camos1234`**. The page opens by itself (else open `http://192.168.4.1`). <br>2. The list shows the networks the camera can hear, strongest first, with the signal bars and a lock for protected ones. <br>3. Tap yours. Type its password ("Show" reveals it). A hidden network: "Other network (hidden)…". <br>4. Tap **Connect**. The camera tries your network while `CAM-xxxx` stays up and the page shows the progress. With an address it says so, restarts onto your network and closes `CAM-xxxx`. A wrong password, a network it cannot find or no address within 30 s: the page says which, and you retype. If your phone drops `CAM-xxxx` meanwhile (it moves to your router's channel), join it again; the result shows there. |
 | ![unclaimed camera](img/portal-unclaimed.png) | A camera that is not yet claimed in FlyBot shows its **claim QR code**, its **serial number**, its **verify code** and its **local name** (`flybot-xxxxxx.local`) at the top. Scan the QR in FlyBot ("Add camera"), or type the two codes. |
 
 The page is in English; "Tiếng Việt" at the top right switches it to Vietnamese (remembered on the camera and in the

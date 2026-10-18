@@ -15,7 +15,8 @@ are English by default; the language link switches to Vietnamese and the choice 
 |---|---|
 | `GET /api/config` | every setting with its effective value; secrets (`password`, `simPin`, `provisionToken`, `token`, `apPassword`) as `true`/`false`; `defaults` (keys that are build defaults), `cert`, `key`, `paired`, `registered`, `claimed`, `hasModem`, `hasGps`, `hasLive`, `serial`, `verifyCode`, `labelQr`, `claimUrl`, `apSsid`, `wifiError`, `regError`, `timezoneAuto`, `timezoneSource`, `uiLang`, `model`, `fw`, `hostname` (read-only: the local name without `.local`) |
 | `GET /api/wifi/scan[?refresh=1]` | `[{ssid, rssi, secure, channel}]`, deduplicated by SSID, strongest first; cached from the scan at portal start, `refresh=1` scans again |
-| `POST /api/connect` | `{ssid, password, ...any keys}`: save and restart onto that network. `400 CHOOSE_NETWORK`, `400 SHORT_PASSWORD`, `400 BAD_VALUE` |
+| `POST /api/connect` | `{ssid, password, ...any keys}`: save the other keys, then join that network with the AP still up: `{ok, checking: true, ssid, timeoutS: 30}`; the network is stored only once it gave an IP (an empty password = the stored one of the same network). With 4G on: save and restart (`{ok}`). `400 CHOOSE_NETWORK`, `400 SHORT_PASSWORD`, `400 BAD_VALUE`, `409 BUSY` |
+| `GET /api/connect` | `{state: idle\|joining\|ok\|failed, ssid, elapsedS, timeoutS, reason: auth\|not_found\|timeout, ip, hostname}`; `ok`: the camera restarts onto the network 5 s later; `failed`: the portal stays (the 10 minutes start again) |
 | `POST /api/config` | `{key: value, ...}` with any of `ssid password apn simPin cellular apiBase provisionToken token iotHost thingName kvsChannel kvsRegion roleAlias credHost timezone intervalMin powerMode ledEnabled gps batteryMonitor apPassword uiLang` (an empty string = back to the default) |
 | `POST /api/cert` | `{"cert": "<PEM>", "key": "<PEM>"}` (each under 6000 bytes) |
 | `POST /api/pair` | pre-provisioned path: joins the Wi-Fi with the AP up and calls `POST /api/device/pair` with the provisioning token |
@@ -60,6 +61,7 @@ Available in normal operation and inside the portal; English. `help` lists the c
 | `set <key> <value>` | the portal keys (`set apn v-internet`, `set powerMode battery`, `set uiLang vi`, `set batteryMonitor 1`) |
 | `cert`, `key` | paste a PEM, finish with a line `END` |
 | `scan` | Wi-Fi scan (in the portal with the SoftAP up) |
+| `connect [ssid [password]]` | in the portal: the page's Connect check (AP up, stored once it gets an IP); no arguments = the stored network |
 | `net` | bring the network up and print IP, RSSI, cell info |
 | `reg [start]`, `csr` | registration / claim state; the CSR registration sends (the device key is made once) |
 | `qr [label]` | the claim URL (or label) as a QR on the console |
