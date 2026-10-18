@@ -36,7 +36,7 @@ Camera đang chạy cũng tự cập nhật được từ trang web của nó (B
 [Releases](https://github.com/agrhub/camos-esp32-trap/releases) và ghi vào địa chỉ 0:
 
 ```
-python -m esptool --chip esp32s3 --port COM7 write_flash 0x0 camos-esp32-trap-freenove-v0.6.0-install.bin
+python -m esptool --chip esp32s3 --port COM7 write_flash 0x0 camos-esp32-trap-freenove-v0.6.1-install.bin
 ```
 
 (cài `esptool` bằng `pip install esptool`; trên Linux cổng là `/dev/ttyUSB0`.)
