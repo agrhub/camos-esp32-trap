@@ -88,10 +88,13 @@ data channel instead (`live_dc.c` for the protocol, host-tested in `tests/test_l
   request every 2 s (3 times) until a `mode` message confirms it.
 - **Memory.** The data channel caches are in PSRAM (send 512 KB, receive 16 KB). The Freenove preset now keeps only
   allocations under 256 bytes in internal RAM (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=256`, as Espressif's kvs_master
-  does): with 1 KB, a JPEG session ran the internal heap down to 23 bytes and Wi-Fi lost packets. The camera DMA
-  buffer is the same 15,360 bytes in both modes (`CONFIG_CAMERA_DMA_BUFFER_SIZE_MAX=15360`: what YUV422 at 320x240
-  takes), so each switch finds the block the other mode freed. With 32 KB the YUV restart failed on the fragmented heap
-  mid-session; with 16 KB the JPEG start right after the data channel opened failed (largest free block 15,360).
+  does): with 1 KB, a JPEG session ran the internal heap down to 23 bytes and Wi-Fi lost packets. Camera DMA during a
+  session: esp32-camera's JPEG mode takes a fixed 16 KB internal block (whatever `CONFIG_CAMERA_DMA_BUFFER_SIZE_MAX`
+  says), and on the heap a DTLS session had fragmented the JPEG start right after the data channel opened failed now
+  and then (largest free block 15,360 bytes: the YUV422 pipeline's). So the H.264 pipeline's YUV422 frames go by DMA
+  straight into PSRAM (esp32-camera's PSRAM DMA mode; for JPEG that mode lost every end marker), and the session holds a
+  16 KB internal block from its start, freed just before each JPEG start (live JPEG, or a photo during the session) so
+  the camera's buffer goes into that very hole, and taken again when the camera powers down (cam.c).
 - **Sensor clock.** JPEG for the live view also runs at `CAMOS_LIVE_XCLK_MHZ` (20 MHz); snapshots keep 10 MHz.
 
 FlyBot's quality choices (`client/src/utils/camosLive.js`): **Low** H.264 320x240 at 10 fps, **Medium** JPEG
@@ -140,6 +143,14 @@ viewer on the same Wi-Fi, ICE round trip 15-43 ms, every size asked at 25 fps so
 
 The camera waited for acks most of the time (`waits` 54-118 per run), so these are again the link's numbers, about
 1-1.5 Mbit/s that morning, not the sensor's.
+
+After the DMA change (H.264 frames in PSRAM, the JPEG block held for the session), 18 Oct afternoon, another Wi-Fi, each
+size asked at 25 fps for 12 s: 640x480 11.0 fps (10 KB), 800x600 10.9 fps (12 KB), 1024x768 7.5 fps (20 KB), 1280x720
+7.7-10.5 fps (22-23 KB), 1600x1200 3.5-4.1 fps (51-53 KB, 4 fps held for 3.3 minutes). The automatic JPEG start worked
+in each of four sessions (first JPEG 1.1-1.2 s after the channel opened; two other attempts failed at ICE, before any
+video). A photo during the session paused the stream for about 7 s (the switch to the full-size photo and back) and the
+stream came back in the mode it had, also at 1600x1200; the 300 KB upload then ran beside it, and the weak-link check
+waits meanwhile (acks get lost while the upload fills the uplink).
 
 Not measured: a remote viewer through TURN with JPEG, 4G.
 

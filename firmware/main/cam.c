@@ -10,6 +10,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_attr.h"
+#include "esp_heap_caps.h"
 #include "driver/gpio.h"
 #include "esp_pm.h"
 #include "freertos/FreeRTOS.h"
@@ -23,6 +24,37 @@ static const char *TAG = "cam";
 #define CAMOS_LIVE_XCLK_MHZ CONFIG_CAMOS_XCLK_MHZ
 #endif
 static int up_xclk_mhz = CONFIG_CAMOS_XCLK_MHZ; /* XCLK of the next cam_up */
+/* The cloud live view's camera DMA. A DTLS session fragments the internal heap, and esp32-camera's JPEG mode needs one
+ * 16 KB internal block (fixed on the S3; its PSRAM DMA mode loses the JPEG end markers): the switch from H.264 to JPEG
+ * failed now and then (largest free block 15,360 bytes). So during a session the H.264 pipeline's raw frames go by DMA
+ * straight into PSRAM, and a 16 KB internal DMA block is held from the session's start whenever the camera is not in a
+ * JPEG mode: freed just before any JPEG start (live JPEG, or a photo during the session), which takes that very hole,
+ * and taken again when the camera powers down. */
+#define LIVE_JPEG_DMA 16384
+static bool up_psram_dma;
+static void *dma_reserve;
+static bool reserve_wanted;
+
+static void reserve_take(void)
+{
+	if (reserve_wanted && !dma_reserve) {
+		dma_reserve = heap_caps_malloc(LIVE_JPEG_DMA, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+		if (!dma_reserve) {
+			ESP_LOGW(TAG, "no %d-byte internal block left for the live JPEG mode", LIVE_JPEG_DMA);
+		}
+	}
+}
+
+void cam_live_reserve(bool on)
+{
+	reserve_wanted = on;
+	if (on) {
+		reserve_take();
+	} else if (dma_reserve) {
+		heap_caps_free(dma_reserve);
+		dma_reserve = NULL;
+	}
+}
 static RTC_DATA_ATTR framesize_t max_fs; /* known after the first power-up; kept through deep sleep */
 static RTC_DATA_ATTR uint16_t sensor_pid; /* the detected sensor (camera_pid_t) */
 static framesize_t known_fs;              /* from NVS cam_pid before this boot's first power-up: sizes only */
@@ -89,6 +121,7 @@ static void cam_off(void)
 	esp_camera_deinit(); /* PWDN high: the sensor sleeps */
 	cam_power(false);
 	cam_pm(false);
+	reserve_take(); /* a live session: the block the JPEG DMA buffer just gave back */
 }
 
 void cam_sleep_prepare(void)
@@ -155,6 +188,11 @@ static esp_err_t cam_up(framesize_t fs, int quality, int fb_count, pixformat_t f
 		.fb_location = CAMERA_FB_IN_PSRAM,
 		.grab_mode = CAMERA_GRAB_LATEST, /* after the warm-up, the newest frame */
 	};
+	esp_camera_set_psram_mode(up_psram_dma);
+	if (fmt == PIXFORMAT_JPEG && !up_psram_dma && dma_reserve) {
+		heap_caps_free(dma_reserve); /* the JPEG DMA buffer goes into this hole */
+		dma_reserve = NULL;
+	}
 	return esp_camera_init(&c);
 }
 
@@ -438,14 +476,16 @@ static framesize_t framesize_for(int width, int height)
 	return FRAMESIZE_QVGA;
 }
 
-static esp_err_t stream_start(int width, int height, int quality, pixformat_t fmt, int xclk_mhz)
+static esp_err_t stream_start(int width, int height, int quality, pixformat_t fmt, int xclk_mhz, bool psram_dma)
 {
 	if (streaming) {
 		return ESP_OK;
 	}
 	up_xclk_mhz = xclk_mhz;
+	up_psram_dma = psram_dma;
 	cam_power(true);
 	esp_err_t err = detect_and_up(framesize_for(width, height), clampi(quality, 4, 63), 2, fmt);
+	up_psram_dma = false; /* photos and the web console stream keep the internal DMA buffer */
 	if (err != ESP_OK) {
 		cam_off();
 		return err;
@@ -459,19 +499,19 @@ static esp_err_t stream_start(int width, int height, int quality, pixformat_t fm
 
 esp_err_t cam_stream_start(int width, int height, int quality)
 {
-	return stream_start(width, height, quality, PIXFORMAT_JPEG, CONFIG_CAMOS_XCLK_MHZ);
+	return stream_start(width, height, quality, PIXFORMAT_JPEG, CONFIG_CAMOS_XCLK_MHZ, false);
 }
 
 /* JPEG frames for the live view's data channel (the live view XCLK) */
 esp_err_t cam_stream_start_live_jpeg(int width, int height, int quality)
 {
-	return stream_start(width, height, quality, PIXFORMAT_JPEG, CAMOS_LIVE_XCLK_MHZ);
+	return stream_start(width, height, quality, PIXFORMAT_JPEG, CAMOS_LIVE_XCLK_MHZ, false);
 }
 
 /* Raw YUV422 (Y U Y V per pixel pair, 2 bytes per pixel) for the H.264 encoder; stop with cam_stream_stop */
 esp_err_t cam_stream_start_yuv(int width, int height)
 {
-	return stream_start(width, height, 12, PIXFORMAT_YUV422, CAMOS_LIVE_XCLK_MHZ);
+	return stream_start(width, height, 12, PIXFORMAT_YUV422, CAMOS_LIVE_XCLK_MHZ, true);
 }
 
 void cam_stream_stop(void)

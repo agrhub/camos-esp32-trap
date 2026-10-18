@@ -236,6 +236,7 @@ esp_err_t cam_stream_start(int width, int height, int quality);
 esp_err_t cam_stream_start_yuv(int width, int height); /* YUV422 frames for the live view encoder */
 esp_err_t cam_stream_start_live_jpeg(int width, int height, int quality); /* JPEG for the live view data channel */
 void cam_stream_stop(void);
+void cam_live_reserve(bool on);                  /* a live session: hold the JPEG mode's internal DMA block */
 
 /* ------------------------------------------------------------------ FlyBot device API (flybot.c, CONTRACTS section 2) */
 
@@ -303,6 +304,7 @@ cJSON *evt_new(const char *type, char id_out[27]); /* event with v, id, ts, cloc
 /* ------------------------------------------------------------------ capture and schedule (sched.c) */
 
 /* Capture + upload under the camera lock. trigger as for flybot_snapshot. */
+bool capture_busy(void);                        /* a capture + upload runs (it fills the uplink) */
 esp_err_t capture_now(const char *trigger, upload_t *out);
 void sched_start(void);
 void sched_init_lock(void);                     /* the camera lock alone (portal mode console) */

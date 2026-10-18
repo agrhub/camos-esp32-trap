@@ -62,18 +62,31 @@ time_t sched_next_capture(void)
  * Order: JPEG first, then the network. In battery mode the network is off until here; the JPEG waits in PSRAM while
  * the network comes up. The battery is read before Wi-Fi starts (ESP32 ADC2 cannot be read with Wi-Fi on).
  * A JPEG over the 2 MB limit of the snapshot API is retaken at a lower quality (OV5640 at QSXGA can exceed it).
- * During a cloud live session the stream pauses for the photo (live_pause): the camera gives the encoder back as soon
- * as the JPEG is copied to PSRAM, and the upload runs while the stream goes on in the mode it had.
+ * During a cloud live session the stream pauses for the photo (live_pause). The camera is given back (to the live
+ * view, the web console stream, motion detection) as soon as the JPEG is copied to PSRAM, and the upload runs from the
+ * copy; one capture + upload at a time (cap_mutex).
  */
+static SemaphoreHandle_t cap_mutex;
+static volatile bool cap_busy;
+
+bool capture_busy(void)
+{
+	return cap_busy;
+}
+
 esp_err_t capture_now(const char *trigger, upload_t *out)
 {
 	memset(out, 0, sizeof(*out));
+	sched_init_lock();
+	xSemaphoreTake(cap_mutex, portMAX_DELAY); /* first: a live stream is not paused while another upload runs */
+	cap_busy = true;
 	int paused = live_pause(10000);
 	if (paused < 0) {
+		cap_busy = false;
+		xSemaphoreGive(cap_mutex);
 		strlcpy(out->error, "live view did not give the camera up", sizeof(out->error));
 		return ESP_ERR_INVALID_STATE;
 	}
-	sched_init_lock();
 	xSemaphoreTake(cam_mutex, portMAX_DELAY);
 	bool locked = true;
 	camera_fb_t copy_fb = { 0 };
@@ -106,8 +119,8 @@ esp_err_t capture_now(const char *trigger, upload_t *out)
 		out->bytes = fb->len;
 		ESP_LOGI(TAG, "JPEG %dx%d, %u bytes, free heap %u, free PSRAM %u", out->w, out->h, (unsigned)fb->len,
 				 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL), (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-		if (paused > 0 && (copy = heap_caps_malloc(fb->len, MALLOC_CAP_SPIRAM))) {
-			/* the live view gets the camera back now; the upload works on the copy */
+		if ((copy = heap_caps_malloc(fb->len, MALLOC_CAP_SPIRAM))) {
+			/* the camera is free again now (live view, web console stream, motion); the upload works on the copy */
 			memcpy(copy, fb->buf, fb->len);
 			copy_fb = *fb;
 			copy_fb.buf = copy;
@@ -115,7 +128,9 @@ esp_err_t capture_now(const char *trigger, upload_t *out)
 			fb = &copy_fb;
 			xSemaphoreGive(cam_mutex);
 			locked = false;
-			live_resume();
+			if (paused > 0) {
+				live_resume();
+			}
 		}
 		if (g_cfg.sd_save && sd_present()) {
 			sd_save_jpeg(fb->buf, fb->len, trigger, out->sd_file, sizeof(out->sd_file)); /* kept even when the upload fails */
@@ -154,6 +169,8 @@ esp_err_t capture_now(const char *trigger, upload_t *out)
 	if (paused > 0) {
 		live_resume(); /* no-op when it ran already */
 	}
+	cap_busy = false;
+	xSemaphoreGive(cap_mutex);
 	sched_changed();
 	return err;
 }
@@ -578,6 +595,7 @@ void sched_init_lock(void)
 {
 	if (!cam_mutex) {
 		cam_mutex = xSemaphoreCreateMutex();
+		cap_mutex = xSemaphoreCreateMutex();
 	}
 }
 

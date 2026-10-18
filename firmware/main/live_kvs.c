@@ -863,6 +863,7 @@ static bool pause_cycle(pipe_t *p, live_quality_t *cur, bool *cam_held)
 		dc_send_json(quality_json("mode", cur));
 	}
 	live_dc_flow_reset(&k.flow);
+	k.last_ack_ms = clock_ms(); /* no acks during the pause: not a weak link */
 	k.pause_ms = (int)((esp_timer_get_time() - t0) / 1000);
 	ESP_LOGI(TAG, "live stream back after %d ms", k.pause_ms);
 	return true;
@@ -875,6 +876,7 @@ static void venc_task(void *arg)
 	live_quality_t cur = default_quality;
 	k.cur = cur;
 	stream_stop(); /* a LAN MJPEG viewer gives way */
+	cam_live_reserve(true); /* before the DTLS session fragments the internal heap (cam.c) */
 	if (!camera_take(15000)) {
 		set_err("camera busy (capture in progress)");
 		goto done;
@@ -937,6 +939,8 @@ static void venc_task(void *arg)
 		}
 		if (want.mode == LIVE_MODE_JPEG && !k.dc_open) {
 			want = default_quality; /* the data channel is gone: H.264 on the video track */
+		} else if (capture_busy()) {
+			k.last_ack_ms = clock_ms(); /* a photo upload fills the uplink and acks get lost: not a weak link */
 		} else if (cur.mode == LIVE_MODE_JPEG && want.mode == LIVE_MODE_JPEG && seq > 0 &&
 				   clock_ms() - k.last_ack_ms > WEAK_LINK_MS) {
 			want = default_quality; /* nothing arrives: the small H.264 stream copes with a weak link */
@@ -1069,6 +1073,7 @@ static void venc_task(void *arg)
 	}
 done:
 	pipe_stop(&p);
+	cam_live_reserve(false);
 	if (cam_held) {
 		camera_give();
 	}
