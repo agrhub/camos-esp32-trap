@@ -103,6 +103,9 @@ void app_main(void)
 	power_setup();
 	button_task_start();
 	shadow_init();
+#if CONFIG_CAMOS_LIVE
+	cam_dma_reserve_init(); /* before TLS and the live view fragment the internal heap */
+#endif
 	if (sd_mount()) {
 		events_note("sd", "card mounted");
 	}

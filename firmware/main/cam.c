@@ -24,12 +24,13 @@ static const char *TAG = "cam";
 #define CAMOS_LIVE_XCLK_MHZ CONFIG_CAMOS_XCLK_MHZ
 #endif
 static int up_xclk_mhz = CONFIG_CAMOS_XCLK_MHZ; /* XCLK of the next cam_up */
-/* The cloud live view's camera DMA. A DTLS session fragments the internal heap, and esp32-camera's JPEG mode needs one
- * 16 KB internal block (fixed on the S3; its PSRAM DMA mode loses the JPEG end markers): the switch from H.264 to JPEG
- * failed now and then (largest free block 15,360 bytes). So during a session the H.264 pipeline's raw frames go by DMA
- * straight into PSRAM, and a 16 KB internal DMA block is held from the session's start whenever the camera is not in a
- * JPEG mode: freed just before any JPEG start (live JPEG, or a photo during the session), which takes that very hole,
- * and taken again when the camera powers down. */
+/* Camera DMA. esp32-camera's JPEG mode needs one 16 KB internal block (fixed on the S3; its PSRAM DMA mode loses the
+ * JPEG end markers), and TLS, DTLS and the motion photo's task fragment the internal heap: the switch from H.264 to
+ * JPEG failed now and then (largest free block 15,360 bytes), and by a session's start there was at times no 16 KB
+ * block left to set aside. So the block is taken at boot, before the network starts, and held whenever the camera is
+ * not in a JPEG mode: freed just before any JPEG start (a photo, the web console stream, the live view's JPEG), which
+ * takes that very hole, and taken again when the camera powers down. The live view's H.264 frames go by DMA straight
+ * into PSRAM. */
 #define LIVE_JPEG_DMA 16384
 static bool up_psram_dma;
 static bool night_ok; /* the stream being started (not a photo) may use the night mode */
@@ -41,20 +42,15 @@ static void reserve_take(void)
 	if (reserve_wanted && !dma_reserve) {
 		dma_reserve = heap_caps_malloc(LIVE_JPEG_DMA, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
 		if (!dma_reserve) {
-			ESP_LOGW(TAG, "no %d-byte internal block left for the live JPEG mode", LIVE_JPEG_DMA);
+			ESP_LOGW(TAG, "no %d-byte internal block left for the camera's JPEG mode", LIVE_JPEG_DMA);
 		}
 	}
 }
 
-void cam_live_reserve(bool on)
+void cam_dma_reserve_init(void)
 {
-	reserve_wanted = on;
-	if (on) {
-		reserve_take();
-	} else if (dma_reserve) {
-		heap_caps_free(dma_reserve);
-		dma_reserve = NULL;
-	}
+	reserve_wanted = true;
+	reserve_take();
 }
 static RTC_DATA_ATTR framesize_t max_fs; /* known after the first power-up; kept through deep sleep */
 static RTC_DATA_ATTR uint16_t sensor_pid; /* the detected sensor (camera_pid_t) */

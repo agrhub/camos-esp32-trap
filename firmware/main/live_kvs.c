@@ -876,7 +876,6 @@ static void venc_task(void *arg)
 	live_quality_t cur = default_quality;
 	k.cur = cur;
 	stream_stop(); /* a LAN MJPEG viewer gives way */
-	cam_live_reserve(true); /* before the DTLS session fragments the internal heap (cam.c) */
 	if (!camera_take(15000)) {
 		set_err("camera busy (capture in progress)");
 		goto done;
@@ -1073,7 +1072,6 @@ static void venc_task(void *arg)
 	}
 done:
 	pipe_stop(&p);
-	cam_live_reserve(false);
 	if (cam_held) {
 		camera_give();
 	}
