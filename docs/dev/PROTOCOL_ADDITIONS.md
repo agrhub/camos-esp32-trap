@@ -207,3 +207,29 @@ the key, the certificate, the device token and the thing (protocol 9 `factory_re
 
 The first CONTRACTS section 2 example paired `2026-10-16T08:00:00Z` with epoch 1792396800 (2026-10-19T16:00:00Z); it was
 corrected to 1792137600 in flybot-aws 169aa44. The firmware trusts `epoch` when present.
+
+## 11. Remote log and crash reports (0.8.0)
+
+For cameras nobody can plug a cable into (logfwd.c). Off unless FlyBot asks, and it always ends by itself.
+
+- RPC `log.start {level: "error"|"warn"|"info"|"debug"|"verbose", minutes: 1..60, backlog: true}` answers with the
+  `log` block below; `log.stop` ends it. Desired `log {level, until}` (`until` ISO 8601 UTC) does the same at the next
+  wake of a camera that sleeps; `null`, or an `until` in the past, ends a session the shadow started. On battery the camera
+  stays awake for the session, at most 10 minutes a wake.
+- Batches on `camos/{serial}/log`, QoS 0, every 2 s or at 3 KB:
+  `{"v":1,"session":"1a2b3c4d","seq":7,"uptimeMs":812345,"at":1792396800000,"level":"info","lines":["I (812001) proto: ..."],"dropped":0}`;
+  the last one has `"end":true`. `backlog: true` sends the log kept since boot (up to 24 KB) first. 4 KB/s at most
+  (12 KB burst), 1 MB a session; a live viewer goes first. Debug and verbose lines appear only for tags built with that
+  level (`CONFIG_LOG_MAXIMUM_LEVEL`).
+- Secrets never leave the camera: the device token, the Wi-Fi and access point passwords, the SIM PIN, the
+  provisioning token and the label verify code are replaced by `***` in every line.
+- `reported` (and `state`) carry `log {on, level?, until?, sent?, session?}`.
+- After a crash, an interrupt / task watchdog, a brownout or the firmware's own watchdog restart, the next boot sends
+  one event `crash {reason, detail?, fw, logTail, coredump?}`: `logTail` is the last 2 KB of log before the reset (RTC
+  memory: kept through a reset, lost with the power); `coredump {task, pc, backtrace[], corrupted, elfSha256}` comes from
+  the `coredump` partition (128 KB, in the tables since 0.8.0: a camera keeps its partition table through OTA, so it needs
+  the 0.8.0 install image once). The addresses are decoded with the release's ELF (`xtensa-esp32s3-elf-addr2line -pfiaC -e`).
+- Without MQTT for 2 minutes while the network is up, the crash report goes to `POST /api/device/logs`
+  `{"v":1,"kind":"crash","fw","uptimeMs","crash":{...},"lines":[...]}`, and once an hour a `kind: "diag"` report with the
+  last 8 KB of log, both with the device token.
+- Test builds only: `CONFIG_CAMOS_CONSOLE_CRASH_TEST` adds the console command `crash` (abort on purpose).

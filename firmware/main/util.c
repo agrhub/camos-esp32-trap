@@ -100,6 +100,13 @@ const char *boot_reason_name(void)
 static RTC_DATA_ATTR char rst_reason[16];
 static RTC_DATA_ATTR int64_t rst_epoch; /* when it happened (epoch s), once the clock was set */
 
+static const char *reset_name(esp_reset_reason_t r);
+
+const char *chip_reset_name(void)
+{
+	return reset_name(esp_reset_reason());
+}
+
 static const char *reset_name(esp_reset_reason_t r)
 {
 	switch (r) {

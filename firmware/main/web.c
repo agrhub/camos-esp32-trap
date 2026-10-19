@@ -31,6 +31,7 @@
 #include <stdarg.h>
 #include <sys/time.h>
 #include "esp_log.h"
+#include "esp_attr.h"
 #include "esp_random.h"
 #include "esp_timer.h"
 #include "esp_system.h"
@@ -187,6 +188,15 @@ static volatile uint32_t ring_total; /* bytes ever written; position = total % L
 static portMUX_TYPE ring_mux = portMUX_INITIALIZER_UNLOCKED;
 static vprintf_like_t prev_vprintf;
 
+/* The last lines before a reset, in RTC memory: they survive a crash, a watchdog and a software restart (not a power
+ * loss) and go into the crash report (logfwd.c) after the camera is back */
+#define CRASH_RING 2048
+#define CRASH_MAGIC 0x4c4f4721u
+static RTC_NOINIT_ATTR char crash_ring[CRASH_RING];
+static RTC_NOINIT_ATTR uint32_t crash_total;
+static RTC_NOINIT_ATTR uint32_t crash_magic;
+static char *crash_tail; /* the previous boot's tail, read before this boot writes */
+
 static int log_hook(const char *fmt, va_list ap)
 {
 	char line[256];
@@ -208,6 +218,8 @@ static int log_hook(const char *fmt, va_list ap)
 			}
 			ring[ring_total % LOG_RING] = line[i];
 			ring_total++;
+			crash_ring[crash_total % CRASH_RING] = line[i];
+			crash_total++;
 		}
 		portEXIT_CRITICAL(&ring_mux);
 	}
@@ -219,10 +231,57 @@ void log_capture_start(void)
 	if (ring) {
 		return;
 	}
+	if (crash_magic == CRASH_MAGIC && crash_total > 0 && (crash_tail = malloc(CRASH_RING + 1)) != NULL) {
+		if (!log_ring_tail(crash_ring, CRASH_RING, crash_total, crash_tail, CRASH_RING + 1)) {
+			free(crash_tail);
+			crash_tail = NULL;
+		}
+	}
+	crash_total = 0;
+	crash_magic = CRASH_MAGIC;
 	ring = heap_caps_malloc(LOG_RING, MALLOC_CAP_SPIRAM);
 	if (ring) {
 		prev_vprintf = esp_log_set_vprintf(log_hook);
 	}
+}
+
+const char *log_crash_tail(void)
+{
+	return crash_tail;
+}
+
+void log_crash_tail_free(void)
+{
+	free(crash_tail);
+	crash_tail = NULL;
+}
+
+uint32_t log_ring_total(void)
+{
+	return ring_total;
+}
+
+uint32_t log_ring_copy(uint32_t since, char *out, size_t outn, uint32_t *lost)
+{
+	uint32_t total = ring_total;
+	*lost = 0;
+	if (!ring || !outn || since >= total) {
+		return 0;
+	}
+	if (total - since > LOG_RING) {
+		*lost = total - since - LOG_RING; /* overwritten before it was read */
+		since = total - LOG_RING;
+	}
+	uint32_t n = total - since;
+	if (n > outn) {
+		n = (uint32_t)outn;
+	}
+	portENTER_CRITICAL(&ring_mux);
+	for (uint32_t i = 0; i < n; i++) {
+		out[i] = ring[(since + i) % LOG_RING];
+	}
+	portEXIT_CRITICAL(&ring_mux);
+	return n;
 }
 
 #if CONFIG_CAMOS_WEB_CONSOLE

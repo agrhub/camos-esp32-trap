@@ -75,6 +75,7 @@ void app_main(void)
 
 	log_capture_start(); /* the web console's log page */
 	store_load();
+	logfwd_init(); /* remote log on request, and the crash report of the previous boot */
 	led_init();
 	ESP_LOGI(TAG, "camos-esp32-trap %s fw %s serial %s", CONFIG_CAMOS_MODEL, fw_version(), g_cfg.serial);
 

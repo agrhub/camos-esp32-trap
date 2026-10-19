@@ -2,7 +2,7 @@
 # OV5640 (OV2640 detected too), microSD (SD_MMC 1-bit: CLK 39, CMD 38, D0 40), WS2812 RGB LED on GPIO48, two USB-C
 # (CH340 UART + native USB). Pin map verified against Freenove/Freenove_ESP32_S3_WROOM_Board Sketch_07.1 camera_pins.h
 # (CAMERA_MODEL_ESP32S3_EYE). The image declares 8 MB flash so that one release runs on both variants (the partition
-# table ends at 6.1 MB; a 16 MB chip only logs that it is larger).
+# table ends at 6.25 MB with the coredump partition; a 16 MB chip only logs that it is larger).
 CONFIG_CAMOS_BOARD_FREENOVE_S3CAM=y
 CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y

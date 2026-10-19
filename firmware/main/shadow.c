@@ -22,6 +22,7 @@
  *   kvs.channelName              v1 addition: the KVS signaling channel (stored in NVS)
  *   kvs.credentialsEndpoint      v1 addition: IoT credential provider host and role alias of the live view
  *   kvs.roleAlias                (stored in NVS, like pairing's iot.credentialsEndpoint / iot.roleAlias)
+ *   log                          v1 addition: {level, until} turns the remote log on until then (logfwd.c)
  *   disabled                     v1 addition: true while a FlyBot administrator pauses the camera (no captures,
  *                                uploads, motion photos or live view; it wakes every 6 h on battery; OTA still works)
  *
@@ -549,6 +550,8 @@ char *shadow_apply(const char *json, int len, bool persist)
 			} else {
 				add_error(errors, "claimed", "BAD_VALUE");
 			}
+		} else if (!strcmp(k, "log")) {
+			logfwd_desired(item, errors); /* remote log: not part of the saved settings */
 		} else if (!strcmp(k, "disabled")) {
 			if (cJSON_IsBool(item)) {
 				s.disabled = cJSON_IsTrue(item);
@@ -701,6 +704,7 @@ void shadow_additions_json(cJSON *parent)
 	cJSON_AddStringToObject(parent, "clockSource", clock_source());
 	cJSON_AddBoolToObject(parent, "claimed", shadow_claimed());
 	cJSON_AddBoolToObject(parent, "disabled", shadow_disabled());
+	logfwd_json(parent);
 	battery_json(parent);
 	time_t next = sched_next_capture();
 	if (next) {

@@ -30,7 +30,7 @@ extern const char root_ca_pem[] asm("_binary_AmazonRootCA1_pem_start");
 
 static esp_mqtt_client_handle_t client;
 static volatile bool connected;
-static char t_state[64], t_event[64], t_telemetry[64], t_desired[64], t_reported[64], t_req[64], t_res[64];
+static char t_state[64], t_event[64], t_telemetry[64], t_desired[64], t_reported[64], t_req[64], t_res[64], t_log[64];
 static char uri[160];
 static int64_t down_since_ms;
 static volatile int64_t connected_at_ms;
@@ -97,6 +97,15 @@ void proto_publish_event(cJSON *evt)
 		pub(t_event, s, 1, false);
 		free(s);
 	}
+}
+
+/* Remote log batches (logfwd.c): QoS 0, only while connected; false when not sent */
+bool proto_publish_log(const char *json)
+{
+	if (!client || !connected) {
+		return false;
+	}
+	return esp_mqtt_client_publish(client, t_log, json, 0, 0, 0) >= 0;
 }
 
 void proto_publish_reported(const char *json)
@@ -397,6 +406,26 @@ static void rpc_handle(const char *json, TickType_t received)
 				rpc_reply(id, NULL, "TIMEOUT", "no fix");
 			}
 		}
+	} else if (!strcmp(method, "log.start")) {
+		/* remote log (logfwd.c): level error|warn|info|debug|verbose, minutes 1..60, backlog = the log since boot first */
+		const char *lvl = cJSON_GetStringValue(cJSON_GetObjectItem(params, "level"));
+		cJSON *m = cJSON_GetObjectItem(params, "minutes");
+		cJSON *bl = cJSON_GetObjectItem(params, "backlog");
+		int level = lvl ? log_level_from_name(lvl) : 3;
+		int minutes = cJSON_IsNumber(m) ? (int)m->valuedouble : 15;
+		char err[64];
+		if (!level || minutes < 1 || minutes > 60) {
+			rpc_reply(id, NULL, "BAD_PARAMS", "level error|warn|info|debug|verbose, minutes 1..60");
+		} else if (logfwd_start(level, minutes, !cJSON_IsFalse(bl), err, sizeof(err)) != ESP_OK) {
+			rpc_reply(id, NULL, "BAD_PARAMS", err);
+		} else {
+			cJSON *r = cJSON_CreateObject();
+			logfwd_json(r);
+			rpc_reply(id, r, NULL, NULL);
+		}
+	} else if (!strcmp(method, "log.stop")) {
+		logfwd_stop("rpc");
+		rpc_reply(id, NULL, NULL, NULL);
 	} else if (!strcmp(method, "ota.apply")) {
 		rpc_ota(id);
 	} else if (!strcmp(method, "reboot")) {
@@ -511,6 +540,7 @@ static void on_connected(void)
 			proto_publish_event(e);
 		}
 	}
+	logfwd_connected(); /* the crash report of the previous boot, once */
 }
 
 static int refused; /* failed connection attempts since the last CONNECTED */
@@ -650,6 +680,7 @@ void proto_start(void)
 	}
 	snprintf(t_state, sizeof(t_state), "camos/%s/state", g_cfg.serial);
 	snprintf(t_event, sizeof(t_event), "camos/%s/event", g_cfg.serial);
+	snprintf(t_log, sizeof(t_log), "camos/%s/log", g_cfg.serial);
 	snprintf(t_telemetry, sizeof(t_telemetry), "camos/%s/telemetry", g_cfg.serial);
 	snprintf(t_desired, sizeof(t_desired), "camos/%s/shadow/desired", g_cfg.serial);
 	snprintf(t_reported, sizeof(t_reported), "camos/%s/shadow/reported", g_cfg.serial);

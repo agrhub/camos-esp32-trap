@@ -26,6 +26,13 @@ menu "CamOS trap camera"
         default "AIC-FREENOVE-S3CAM" if CAMOS_BOARD_FREENOVE_S3CAM
         default "AIC-ESP32S3CAM"
 
+    config CAMOS_CONSOLE_CRASH_TEST
+        bool "Serial console command crash (test builds only)"
+        default n
+        help
+            Adds the console command "crash", which aborts the firmware on purpose, to check the crash report
+            (last log lines, core dump summary) that FlyBot receives after the restart. Never in a release.
+
     config CAMOS_HW_REV
         string "Hardware revision in the state message (empty = not sent)"
         default "1.0"

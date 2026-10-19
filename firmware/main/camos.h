@@ -15,6 +15,7 @@
 #include "sdkconfig.h"
 #include "power_decide.h"
 #include "fleet_policy.h"
+#include "logfwd_core.h"
 
 #define CAMOS_PROTOCOL 1
 #define CAMOS_NS "camos" /* NVS namespace, see tools/provision.sh and docs/PORTAL.md */
@@ -97,6 +98,7 @@ uint64_t now_ms(void);           /* Unix ms when the clock is synced, else uptim
 bool clock_synced(void);
 void new_ulid(char out[27]);     /* protocol 3: ULID, 26 Crockford base32 characters */
 const char *boot_reason_name(void);
+const char *chip_reset_name(void);              /* reset reason of this boot: power_on, crash, task_watchdog, brownout ... */
 void last_reset_json(cJSON *parent);            /* lastReset {reason, detail, at, uptimeS} (util.c) */
 void remember_reboot_reason(const char *reason); /* "rpc" survives the restart in RTC memory */
 uint32_t reboot_count(void);
@@ -308,6 +310,7 @@ bool proto_connected(void);
 void proto_publish_event(cJSON *evt);           /* takes ownership */
 void proto_publish_state(bool retained_online);
 void proto_publish_reported(const char *json);
+bool proto_publish_log(const char *json);       /* camos/<serial>/log, QoS 0, only while connected */
 void proto_publish_reported_now(void);          /* after a local change (location, power mode, pairing) */
 bool proto_flush(int timeout_ms);               /* wait until the outbox is empty */
 void proto_goodbye(uint64_t wake_at_ms);        /* retained {"v":1,"online":false,"sleeping":true,"wakeAt"}, before deep sleep */
@@ -427,6 +430,23 @@ char *register_csr_pem(void);           /* the CSR it would send (console `csr`)
 /* Parses a register response (201/200 JSON) into the configuration; pure apart from store_*; false + err on a bad one */
 bool register_apply_response(const char *json, char *err, size_t errn);
 void log_capture_start(void);                                 /* ring buffer of the log for /api/logs */
+uint32_t log_ring_total(void);                                /* bytes ever written to the log ring */
+/* Copy from position since (at most outn bytes); *lost = bytes overwritten before they were read (the copy then
+ * starts at since + *lost). Returns the bytes copied. */
+uint32_t log_ring_copy(uint32_t since, char *out, size_t outn, uint32_t *lost);
+const char *log_crash_tail(void);                             /* the previous boot's last log lines (RTC), or NULL */
+void log_crash_tail_free(void);
+
+/* ------------------------------------------------------------------ remote log (logfwd.c) */
+
+void logfwd_init(void);                         /* task; the crash report of the previous boot */
+esp_err_t logfwd_start(int level, int minutes, bool backlog, char *err, size_t errn); /* level 1..5, minutes 1..60 */
+void logfwd_stop(const char *why);
+bool logfwd_on(void);
+void logfwd_connected(void);                    /* MQTT is up: a pending crash report goes out */
+void logfwd_desired(const cJSON *item, cJSON *errors); /* shadow log {level, until} */
+void logfwd_json(cJSON *parent);                /* reported log {on, level, until, sent, dropped} */
+int64_t logfwd_until_epoch(void);               /* end of the session (epoch s), 0 when off */
 
 /* ------------------------------------------------------------------ camera preview (sched.c, shares the camera lock) */
 

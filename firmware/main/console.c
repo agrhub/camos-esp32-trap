@@ -420,6 +420,17 @@ static int cmd_ota(int argc, char **argv)
 	return 0;
 }
 
+#if CONFIG_CAMOS_CONSOLE_CRASH_TEST
+/* Test builds: crash on purpose, to check the crash report FlyBot receives after the restart */
+static int cmd_crash(int argc, char **argv)
+{
+	ESP_LOGE("console", "crash test: abort() now");
+	vTaskDelay(pdMS_TO_TICKS(200));
+	abort();
+	return 0;
+}
+#endif
+
 static int cmd_awake(int argc, char **argv)
 {
 	int s = argc > 1 ? atoi(argv[1]) : 600;
@@ -657,6 +668,9 @@ void console_start(void)
 		{ .command = "live", .help = "live [status] | start [min] | stop", .func = cmd_live },
 		{ .command = "ota", .help = "check GET /api/device/ota and apply", .func = cmd_ota },
 		{ .command = "awake", .help = "awake [s]: no deep sleep for a while", .func = cmd_awake },
+#if CONFIG_CAMOS_CONSOLE_CRASH_TEST
+		{ .command = "crash", .help = "crash: abort on purpose (test builds only)", .func = cmd_crash },
+#endif
 		{ .command = "sleep", .help = "sleep [s]: deep sleep now", .func = cmd_sleep },
 		{ .command = "portal", .help = "restart into the setup portal", .func = cmd_portal },
 		{ .command = "connect", .help = "connect [ssid [password]]: in the portal, check a network like the page's Connect", .func = cmd_connect },

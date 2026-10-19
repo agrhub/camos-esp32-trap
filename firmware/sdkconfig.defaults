@@ -17,6 +17,11 @@ CONFIG_MQTT_TRANSPORT_SSL=y
 # OTA: two app slots, the new image must mark itself valid (proto.c does it on the first MQTT connect)
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 
+# Crash reports (logfwd.c): a core dump in the coredump partition (tables since 0.8.0; a camera flashed with an older
+# install image has none and reports the reset reason and the last log lines only)
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y
+
 # Power: Wi-Fi modem sleep + automatic light sleep (CAMOS_LIGHT_SLEEP)
 CONFIG_PM_ENABLE=y
 CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
