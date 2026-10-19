@@ -58,8 +58,23 @@ static void defaults(settings_t *s)
 	s->exposure = 300;
 	s->gain_auto = 1;
 	s->gain_ceiling = 4; /* 32x: dim indoor light still reaches the AE target (cam.c) */
+	s->night_mode = 0;   /* streams keep their frame rate; the gain brightens a dim scene (cam.c) */
 	s->power_mode = -1;
 	s->claimed = -1;
+}
+
+/* The saved settings: defaults first, so a shorter blob from an older release (fields are only ever added at the end
+ * of settings_t) keeps its values and leaves the newer fields at their defaults */
+static bool load_saved(settings_t *out)
+{
+	size_t got = 0;
+	defaults(out);
+	if (!store_get_blob_upto("settings", out, sizeof(*out), &got) || got < offsetof(settings_t, night_mode)
+		|| out->n_sched < 0 || out->n_sched > MAX_SCHED) {
+		defaults(out);
+		return false;
+	}
+	return true;
 }
 
 /* The shadow's `timezone`, when the cloud set one (tz.c decides between it, a manual override and /api/device/time) */
@@ -89,7 +104,7 @@ void shadow_init(void)
 	lock = xSemaphoreCreateMutex();
 	defaults(&cur);
 	settings_t saved;
-	if (store_get_blob("settings", &saved, sizeof(saved)) && saved.n_sched >= 0 && saved.n_sched <= MAX_SCHED) {
+	if (load_saved(&saved)) {
 		cur = saved;
 		ESP_LOGI(TAG, "settings from NVS: version %d, %d schedule(s), tz %s, interval %d, power %d", cur.version, cur.n_sched,
 				 cur.tz, cur.interval_min, cur.power_mode);
@@ -104,7 +119,7 @@ void shadow_reload(void)
 	if (!lock) {
 		shadow_init();
 	}
-	if (!store_get_blob("settings", &saved, sizeof(saved)) || saved.n_sched < 0 || saved.n_sched > MAX_SCHED) {
+	if (!load_saved(&saved)) {
 		defaults(&saved);
 	}
 	xSemaphoreTake(lock, portMAX_DELAY);
@@ -153,7 +168,7 @@ void shadow_clear_live_request(void)
 	cur.live_requested = false;
 	xSemaphoreGive(lock);
 	settings_t saved; /* only this flag in NVS: not an unsaved web console preview held in cur */
-	if (store_get_blob("settings", &saved, sizeof(saved)) && saved.n_sched >= 0 && saved.n_sched <= MAX_SCHED) {
+	if (load_saved(&saved)) {
 		saved.live_requested = false;
 		store_set_blob("settings", &saved, sizeof(saved));
 	}
@@ -235,7 +250,7 @@ static void apply_detections(const cJSON *arr, settings_t *s, cJSON *errors)
 }
 
 /* video.image fields: the protocol ones (brightness, contrast, saturation, sharpness, orientation) and the ESP32
- * additions (white balance, effect, AE level, manual exposure / gain, gain ceiling, denoise). flicker, wdr and ldc have
+ * additions (white balance, effect, AE level, manual exposure / gain, gain ceiling, denoise, night mode). flicker, wdr and ldc have
  * no OV2640 / OV5640 control in esp32-camera: NOT_SUPPORTED. */
 static const char *const wb_names[] = { "auto", "sunny", "cloudy", "office", "home", NULL };
 static const char *const fx_names[] = { "none", "negative", "grayscale", "red", "green", "blue", "sepia", NULL };
@@ -261,6 +276,7 @@ static const img_field_t img_fields[] = {
 	F("exposure", exposure, 0, 1200),
 	{ "gainAuto", offsetof(settings_t, gain_auto), 0, 1, NULL, true, 0 },
 	F("gain", gain, 0, 30), F("gainCeiling", gain_ceiling, 0, 6), F("denoise", denoise, 0, 8),
+	{ "nightMode", offsetof(settings_t, night_mode), 0, 1, NULL, true, 0 },
 };
 #undef F
 
@@ -476,7 +492,7 @@ char *shadow_apply(const char *json, int len, bool persist)
 		/* a saved change starts from the saved settings: an unsaved web console preview (persist false) is not
 		 * written to NVS with it (a preview brightness stayed after a FlyBot desired update or a live request) */
 		settings_t saved;
-		if (store_get_blob("settings", &saved, sizeof(saved)) && saved.n_sched >= 0 && saved.n_sched <= MAX_SCHED) {
+		if (load_saved(&saved)) {
 			s = saved;
 		}
 	}

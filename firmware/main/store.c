@@ -109,6 +109,21 @@ int store_get_flag_default(const char *name, int dflt)
 	return v;
 }
 
+/* Up to `len` bytes of a blob: `got` is its stored size (0 when missing or larger than `len`) */
+bool store_get_blob_upto(const char *name, void *out, size_t len, size_t *got)
+{
+	nvs_handle_t h;
+	*got = 0;
+	if (nvs_open(CAMOS_NS, NVS_READONLY, &h) != ESP_OK) {
+		return false;
+	}
+	size_t n = len;
+	bool ok = nvs_get_blob(h, name, out, &n) == ESP_OK && n <= len;
+	nvs_close(h);
+	*got = ok ? n : 0;
+	return ok;
+}
+
 bool store_get_blob(const char *name, void *out, size_t len)
 {
 	nvs_handle_t h;

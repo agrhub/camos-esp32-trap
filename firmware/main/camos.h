@@ -79,6 +79,7 @@ void store_set_flag(const char *name, int value);
 int store_get_flag(const char *name);
 int store_get_flag_default(const char *name, int dflt); /* dflt when the key is absent */
 bool store_get_blob(const char *name, void *out, size_t len); /* exactly len bytes */
+bool store_get_blob_upto(const char *name, void *out, size_t len, size_t *got); /* a blob up to len bytes; got = its size */
 void store_set_blob(const char *name, const void *data, size_t len);
 bool store_set_pem(const char *cert, const char *key);  /* both PEM, validated (BEGIN/END lines) */
 void store_erase_all(void);                             /* factory reset: keeps serial and verify code */
@@ -202,6 +203,8 @@ typedef struct {
 	bool tz_set;          /* `timezone` came from the shadow (else automatic, CONTRACTS 2a.6) */
 	char tz_iana[48];
 	int claimed;          /* shadow `claimed`: -1 not said, 0/1 */
+	/* New fields go last: a shorter blob saved by an older release still loads, the new ones at their defaults */
+	int night_mode;       /* video.image.nightMode: streams may stretch a frame up to 4x in low light (OV5640) */
 } settings_t;
 
 void shadow_init(void);                         /* load the persisted desired document */
@@ -231,6 +234,9 @@ bool cam_size_ok(bool live, int w, int h);      /* one of them (any known size w
 void cam_info_json(cJSON *o);                   /* reported `camera`: sensor, maxW, maxH, photoSizes, liveSizes */
 void cam_apply_settings(const settings_t *s);   /* the image settings to a running sensor (call with the camera lock) */
 const char *cam_sensor_name(void);              /* "OV5640" ..., "" before the first power-up */
+void cam_set_night_override(int v);             /* console diagnosis: -1 = default, 0 = night mode off, 1 = on */
+void cam_print_regs(void);                      /* console diagnosis: the OV5640's exposure, gain, AWB, clock registers */
+int cam_reg(int addr, int value);               /* console diagnosis: read (value < 0) or write a sensor register */
 /* Live view: the sensor at a small size, streaming JPEG frames (ESP32-S3). Returns ESP_OK and keeps the sensor up. */
 esp_err_t cam_stream_start(int width, int height, int quality);
 esp_err_t cam_stream_start_yuv(int width, int height); /* YUV422 frames for the live view encoder */

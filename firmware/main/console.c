@@ -260,6 +260,28 @@ static int cmd_frame(int argc, char **argv)
 	return fb ? 0 : 1;
 }
 
+/* cam regs | cam night on|off|auto | cam reg <hex addr> [hex value]: the sensor's state, for diagnosis */
+static int cmd_cam(int argc, char **argv)
+{
+	if (argc >= 3 && !strcmp(argv[1], "night")) {
+		cam_set_night_override(!strcmp(argv[2], "on") ? 1 : !strcmp(argv[2], "off") ? 0 : -1);
+		printf("night mode %s for the next stream start\n", argv[2]);
+		return 0;
+	}
+	if (argc >= 3 && !strcmp(argv[1], "reg")) {
+		int addr = (int)strtol(argv[2], NULL, 16), val = argc > 3 ? (int)strtol(argv[3], NULL, 16) : -1;
+		int r = cam_reg(addr, val);
+		if (r < 0) {
+			printf("camera off\n");
+			return 1;
+		}
+		printf("0x%04x = 0x%02x\n", addr, r);
+		return 0;
+	}
+	cam_print_regs();
+	return 0;
+}
+
 static int cmd_batt(int argc, char **argv)
 {
 	battery_sample();
@@ -619,6 +641,7 @@ void console_start(void)
 		{ .command = "time", .help = "time [flybot]: clock state, or sync from FlyBot", .func = cmd_time },
 		{ .command = "snap", .help = "capture and upload now", .func = cmd_snap },
 		{ .command = "meta", .help = "print the snapshot meta JSON", .func = cmd_meta },
+		{ .command = "cam", .help = "cam [regs] | cam night on|off|auto | cam reg <hex addr> [hex value]: sensor state", .func = cmd_cam },
 		{ .command = "frame", .help = "frame [w h [q]]: one JPEG at that size (default 640 480 12), size and timings", .func = cmd_frame },
 		{ .command = "batt", .help = "read battery / solar, print the power decision", .func = cmd_batt },
 		{ .command = "mode", .help = "mode auto|battery|powered", .func = cmd_mode },

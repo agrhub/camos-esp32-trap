@@ -86,7 +86,7 @@ const status = () => ({
   motion: { enabled: true, running: true, active: false, count: 3, level: 4, threshold: 13, lastAt: '2026-10-17T02:41:09Z' },
   sd: { present: true, totalMB: 29820, freeMB: 29102, save: true }, features: { modem: true, gps: true, live: false, sd: true },
 });
-const image = () => ({ video: { image: { brightness: 0, contrast: 50, saturation: 55, sharpness: 50, orientation: 0, whiteBalance: 'auto', effect: 'none', aeLevel: 0, exposureAuto: true, exposure: 300, gainAuto: true, gain: 0, gainCeiling: 2, denoise: 2 } },
+const image = () => ({ video: { image: { brightness: 0, contrast: 50, saturation: 55, sharpness: 50, orientation: 0, whiteBalance: 'auto', effect: 'none', aeLevel: 0, exposureAuto: true, exposure: 300, gainAuto: true, gain: 0, gainCeiling: 2, denoise: 2, nightMode: false } },
   capture: { resolution: 'max', jpegQuality: 85, intervalMin: 30, w: 2560, h: 1920 }, sensor: 'OV5640', shadowVersion: 12 });
 const days = ['20261017', '20261016', '20261015'];
 const files = (day) => { const out = []; for (let m = 5 * 60 + 30; m <= 18 * 60 + 30; m += 30) { const hh = String(Math.floor(m / 60)).padStart(2, '0'), mm = String(m % 60).padStart(2, '0'); out.push({ name: `${hh}${mm}00S.JPG`, bytes: 240000 + (m * 37) % 90000, trigger: 'S' }); }

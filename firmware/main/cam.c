@@ -34,6 +34,7 @@ static int up_xclk_mhz = CONFIG_CAMOS_XCLK_MHZ; /* XCLK of the next cam_up */
 #define LIVE_JPEG_DMA 16384
 static bool up_psram_dma;
 static bool night_ok; /* the stream being started (not a photo) may use the night mode */
+static int night_override = -1; /* console `cam night`: -1 = as night_ok, 0 = off, 1 = on (diagnosis) */
 static void *dma_reserve;
 static bool reserve_wanted;
 
@@ -348,13 +349,22 @@ static void apply_image_settings(const settings_t *s)
 	sn->set_whitebal(sn, 1);
 	sn->set_awb_gain(sn, 1);
 	sn->set_wb_mode(sn, clampi(s->wb_mode, 0, 4));
+	if (ov5640) {
+		/* Simple AWB (0x5183 bit 7) instead of the advanced one, whose generic calibration does not fit this module:
+		 * in a room lit by LED tubes it settled at R 1.38x / B 1.44x over G and the picture went pink; simple AWB gave
+		 * R 1.17x / B 1.24x and natural whites. (esp32-camera names this bit "dcw".) */
+		sn->set_reg(sn, 0x5183, 0x80, 0x80);
+	}
 	sn->set_special_effect(sn, clampi(s->effect, 0, 6));
 	sn->set_exposure_ctrl(sn, s->exposure_auto ? 1 : 0);
 	sn->set_ae_level(sn, clampi(s->ae_level, ov5640 ? -5 : -2, ov5640 ? 5 : 2));
-	if (ov5640 && s->exposure_auto && night_ok) {
-		/* Streams (live view, web console): the sensor's night mode lets the auto exposure stretch the frame up to 4x
-		 * in low light, so the frame rate drops only when it is dark. Without it, a dim room at the 32x gain ceiling
-		 * gave the H.264 path a Y level of 7-10 (black after decoding); with it 54. Photos keep the normal frame. */
+	bool night = night_override >= 0 ? night_override == 1 : (night_ok && s->night_mode);
+	if (ov5640 && s->exposure_auto && night) {
+		/* video.image.nightMode (off by default), streams only: the sensor's night mode lets the auto exposure stretch
+		 * the frame up to 4x. The OV5640's AEC fills the exposure before it raises the gain, so in an ordinary room it
+		 * ran at 4 frames with the gain at 6.8x: 640x480 JPEG took 1171 ms a frame and moving things smeared. Without
+		 * it the gain went to 28x for the same picture and a frame took 73 ms. It helps only a really dark trap, where
+		 * the 32x gain ceiling is not enough (an H.264 Y level of 7-10 against 54). Photos keep the normal frame. */
 		int vts = (sn->get_reg(sn, 0x380e, 0xff) << 8) | sn->get_reg(sn, 0x380f, 0xff);
 		int maxl = vts * 4 > 0x7fff ? 0x7fff : vts * 4;
 		sn->set_reg(sn, 0x3a02, 0xff, (maxl >> 8) & 0x7f);
@@ -387,6 +397,51 @@ static void apply_image_settings(const settings_t *s)
 void cam_apply_settings(const settings_t *s)
 {
 	apply_image_settings(s);
+}
+
+void cam_set_night_override(int v)
+{
+	night_override = v < 0 ? -1 : (v ? 1 : 0);
+}
+
+/* Console `cam regs`: what the OV5640 is doing now (frame length, exposure, gain, night mode, white balance, clock) */
+void cam_print_regs(void)
+{
+	sensor_t *sn = esp_camera_sensor_get();
+	if (!sn) {
+		printf("camera off\n");
+		return;
+	}
+	if (sn->id.PID != OV5640_PID) {
+		printf("sensor 0x%x: register dump is for the OV5640\n", sn->id.PID);
+		return;
+	}
+#define R(a) (sn->get_reg(sn, (a), 0xff) & 0xff)
+	int hts = (R(0x380c) << 8) | R(0x380d), vts = (R(0x380e) << 8) | R(0x380f);
+	int exp = (((R(0x3500) & 0x0f) << 16) | (R(0x3501) << 8) | R(0x3502)) >> 4;
+	int gain = ((R(0x350a) & 0x03) << 8) | R(0x350b);
+	int maxe = ((R(0x3a02) & 0x7f) << 8) | R(0x3a03);
+	int rg = ((R(0x3400) & 0x0f) << 8) | R(0x3401), gg = ((R(0x3402) & 0x0f) << 8) | R(0x3403),
+		bg = ((R(0x3404) & 0x0f) << 8) | R(0x3405);
+	printf("hts %d vts %d; exposure %d lines (%.2f frames), max %d; gain %d/16 (%.1fx), ceiling %d/16; night %s (0x3a00 0x%02x); "
+		   "awb %s (0x3406 0x%02x, 0x5001 0x%02x), gains r %d g %d b %d (1024 = 1x); lenc 0x5000 0x%02x; "
+		   "pll 0x3034 0x%02x 0x3035 0x%02x 0x3036 0x%02x 0x3037 0x%02x 0x3824 0x%02x 0x460c 0x%02x; night override %d\n",
+		   hts, vts, exp, vts ? (double)exp / vts : 0.0, maxe, gain, gain / 16.0, ((R(0x3a18) & 0x03) << 8) | R(0x3a19),
+		   (R(0x3a00) & 0x04) ? "on" : "off", R(0x3a00), (R(0x3406) & 1) ? "manual" : "auto", R(0x3406), R(0x5001), rg, gg, bg,
+		   R(0x5000), R(0x3034), R(0x3035), R(0x3036), R(0x3037), R(0x3824), R(0x460c), night_override);
+#undef R
+}
+
+int cam_reg(int addr, int value)
+{
+	sensor_t *sn = esp_camera_sensor_get();
+	if (!sn) {
+		return -1;
+	}
+	if (value >= 0) {
+		sn->set_reg(sn, addr, 0xff, value & 0xff);
+	}
+	return sn->get_reg(sn, addr, 0xff) & 0xff;
 }
 
 const char *cam_sensor_name(void)

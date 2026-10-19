@@ -182,7 +182,7 @@ const I18N = {
   sharpness: 'Độ sắc nét', orientation: 'Hướng ảnh', oNormal: 'Bình thường', oMirror: 'Lật ngang', oFlip: 'Lật dọc', oBoth: 'Lật ngang + dọc (180°)',
   whiteBalance: 'Cân bằng trắng', wbAuto: 'Tự động', wbSunny: 'Nắng', wbCloudy: 'Nhiều mây', wbOffice: 'Văn phòng (đèn huỳnh quang)', wbHome: 'Trong nhà (đèn sợi đốt)',
   effect: 'Hiệu ứng', fxNone: 'Không', fxNegative: 'Âm bản', fxGrayscale: 'Đen trắng', fxRed: 'Ánh đỏ', fxGreen: 'Ánh xanh lá', fxBlue: 'Ánh xanh dương', fxSepia: 'Nâu cổ điển',
-  exposure: 'Phơi sáng', aeLevel: 'Bù phơi sáng', autoW: 'Tự động', manualVal: 'Giá trị thủ công', gain: 'Độ khuếch đại', gainCeiling: 'Giới hạn khuếch đại (tự động)', denoise: 'Khử nhiễu',
+  exposure: 'Phơi sáng', aeLevel: 'Bù phơi sáng', autoW: 'Tự động', manualVal: 'Giá trị thủ công', gain: 'Độ khuếch đại', gainCeiling: 'Giới hạn khuếch đại (tự động)', denoise: 'Khử nhiễu', nightMode: 'Chế độ ban đêm khi xem trực tiếp (chậm hơn, sáng hơn nơi rất tối)',
   restore: 'Khôi phục', defaultsBtn: 'Mặc định', unsaved: 'Chưa lưu: chỉ đang xem thử trên camera.', restored: 'Đã khôi phục giá trị đã lưu.', sensor: 'Cảm biến', grpPicture: 'Hình ảnh', grpExposure: 'Phơi sáng & khuếch đại', grpCapture: 'Chụp ảnh',
   noCard: 'Không có thẻ nhớ microSD (hoặc thẻ không phải FAT32). Lắp thẻ rồi khởi động lại camera.', notBuilt: 'Camera này không hỗ trợ thẻ nhớ.', noCardShort: 'Không có thẻ', notBuiltShort: 'Không hỗ trợ', sdCard: 'Thẻ nhớ',
   dayList: 'Ngày', photos: '{0} ảnh', noPhotos: 'Không có ảnh trong ngày này.', time: 'Giờ', trigger: 'Nguồn chụp', size: 'Dung lượng', del: 'Xóa', deleteDay: 'Xóa cả ngày',
@@ -255,7 +255,7 @@ const I18N = {
   sharpness: 'Sharpness', orientation: 'Orientation', oNormal: 'Normal', oMirror: 'Mirror', oFlip: 'Flip', oBoth: 'Mirror + flip (180°)',
   whiteBalance: 'White balance', wbAuto: 'Auto', wbSunny: 'Sunny', wbCloudy: 'Cloudy', wbOffice: 'Office (fluorescent)', wbHome: 'Home (incandescent)',
   effect: 'Effect', fxNone: 'None', fxNegative: 'Negative', fxGrayscale: 'Black & white', fxRed: 'Red tint', fxGreen: 'Green tint', fxBlue: 'Blue tint', fxSepia: 'Sepia',
-  exposure: 'Exposure', aeLevel: 'Exposure compensation', autoW: 'Auto', manualVal: 'Manual value', gain: 'Gain', gainCeiling: 'Gain ceiling (auto)', denoise: 'Noise reduction',
+  exposure: 'Exposure', aeLevel: 'Exposure compensation', autoW: 'Auto', manualVal: 'Manual value', gain: 'Gain', gainCeiling: 'Gain ceiling (auto)', denoise: 'Noise reduction', nightMode: 'Night mode for live view (slower, brighter in a very dark place)',
   restore: 'Restore', defaultsBtn: 'Defaults', unsaved: 'Not saved: previewed on the camera only.', restored: 'Saved values restored.', sensor: 'Sensor', grpPicture: 'Picture', grpExposure: 'Exposure & gain', grpCapture: 'Capture',
   noCard: 'No microSD card in the camera (or the card is not FAT32). Insert one and restart the camera.', notBuilt: 'This camera has no SD card support.', noCardShort: 'Not inserted', notBuiltShort: 'Not supported', sdCard: 'SD card',
   dayList: 'Days', photos: '{0} photos', noPhotos: 'No photos on this day.', time: 'Time', trigger: 'Trigger', size: 'Size', del: 'Delete', deleteDay: 'Delete the day',
@@ -692,7 +692,7 @@ const PAGES = {
     let v = Object.assign({}, d.video.image), q = d.capture.jpegQuality, dirty = false, pending = null;
     delete v.orientation; /* vflip / hmirror are its two bits */
     const cam = d.camera || {}, photo = [['max', t('resMax', cam.maxW ? cam.maxW + '×' + cam.maxH : '?')]].concat((cam.photoSizes || []).map(sizeOpt));
-    const DEF = { brightness: 0, contrast: 50, saturation: 50, sharpness: 50, vflip: false, hmirror: false, whiteBalance: 'auto', effect: 'none', aeLevel: 0, exposureAuto: true, exposure: 300, gainAuto: true, gain: 0, gainCeiling: 4, denoise: 0 };
+    const DEF = { brightness: 0, contrast: 50, saturation: 50, sharpness: 50, vflip: false, hmirror: false, whiteBalance: 'auto', effect: 'none', aeLevel: 0, exposureAuto: true, exposure: 300, gainAuto: true, gain: 0, gainCeiling: 4, denoise: 0, nightMode: false };
     const rng = (id, min, max) => `<input type="range" id="i_${id}" min="${min}" max="${max}"><span id="i_${id}V" style="min-width:36px"></span>`;
     const ae = d.sensor === 'OV5640' ? 5 : 2;
     el.innerHTML = `<div class="split"><div class="pvw"><div class="player"><div class="screen" id="iScreen"></div></div><p class="note">${esc(d.sensor || '')}${d.capture.w ? ` · ${t('resolution')} ${d.capture.w}×${d.capture.h}` : ''}</p></div><div class="cfg">`
@@ -703,14 +703,15 @@ const PAGES = {
         + row(t('denoise'), rng('denoise', 0, 8)))
       + panel(t('grpExposure'), row(t('exposure'), chk('i_exposureAuto', true, t('autoW'))) + `<div id="expMan">${row(t('manualVal'), rng('exposure', 0, 1200))}</div>` + row(t('aeLevel'), rng('aeLevel', -ae, ae))
         + row(t('gain'), chk('i_gainAuto', true, t('autoW'))) + `<div id="gainMan">${row(t('manualVal'), rng('gain', 0, 30))}</div>`
-        + row(t('gainCeiling'), sel('i_gainCeiling', 2, ['2×', '4×', '8×', '16×', '32×', '64×', '128×'].map((x, i) => [i, x]))))
+        + row(t('gainCeiling'), sel('i_gainCeiling', 2, ['2×', '4×', '8×', '16×', '32×', '64×', '128×'].map((x, i) => [i, x])))
+        + row(t('nightMode'), chk('i_nightMode', false)))
       + panel(t('grpCapture'), row(t('jpegQuality'), '<input type="range" id="i_q" min="1" max="100"><span id="i_qV"></span>') + row(t('resolution'), sel('i_res', d.capture.resolution || 'max', photo), esc(d.sensor || t('bySensor'))) + `<p class="note">${t('imageNote')}</p>`,
         `<button class="btn primary" id="iSave">${t('save')}</button><button class="btn" id="iRestore">${t('restore')}</button><button class="btn" id="iDef">${t('defaultsBtn')}</button><span class="msg" id="iSaveMsg"></span>`)
       + '</div></div>';
     const pic = livePicture($('#iScreen'), { w: 640, h: 480, q: 12, name: st.model });
     pic.start();
     every(1000, async () => pic.osd(null));
-    const ranges = ['brightness', 'contrast', 'saturation', 'sharpness', 'denoise', 'exposure', 'aeLevel', 'gain'], sels = ['whiteBalance', 'effect', 'gainCeiling'], bools = ['exposureAuto', 'gainAuto', 'vflip', 'hmirror'];
+    const ranges = ['brightness', 'contrast', 'saturation', 'sharpness', 'denoise', 'exposure', 'aeLevel', 'gain'], sels = ['whiteBalance', 'effect', 'gainCeiling'], bools = ['exposureAuto', 'gainAuto', 'vflip', 'hmirror', 'nightMode'];
     const fill = () => {
       ranges.forEach((k) => { $('#i_' + k).value = v[k]; $('#i_' + k + 'V').textContent = v[k]; });
       sels.forEach((k) => { $('#i_' + k).value = v[k]; }); bools.forEach((k) => { $('#i_' + k).checked = !!v[k]; });

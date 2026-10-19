@@ -146,7 +146,7 @@ All under the shadow `video.image` ([dev/PROTOCOL_ADDITIONS.md](dev/PROTOCOL_ADD
 brightness, contrast, saturation, sharpness, orientation (normal, mirror, flip, both), white balance (auto, sunny,
 cloudy, office, home), effect (none, negative, black & white, red, green, blue tint, sepia), exposure (auto or manual
 0..1200), exposure compensation (-5..5 on the OV5640), gain (auto or manual 0..30), gain ceiling (2x..128x), noise
-reduction (0..8), plus `capture.jpegQuality`. `POST /api/image {"image":{...},"save":false}` previews on the running
+reduction (0..8), night mode for streams (`nightMode`, off by default), plus `capture.jpegQuality`. `POST /api/image {"image":{...},"save":false}` previews on the running
 camera only; `save` true (default) persists and publishes `reported`; `{"restore":true}` goes back to the saved values.
 Leaving the page with unsaved changes restores the saved values. A later shadow from FlyBot overrides local values.
 
@@ -164,10 +164,22 @@ value as is into the sensor's 1/16-step register), so the gain stayed at 1.2x an
 20 MHz a frame is half as long, so the stream needs about twice the gain of a photo; the auto exposure target is about
 135. A camera that saved gain ceiling 2 keeps it: set 4 in the console or FlyBot.
 
-In a dark room even 32x is not enough at a stream's frame time, so the streams (live view and web console, not photos)
-turn on the OV5640's night mode with a limit of 4 frame times: in low light the auto exposure stretches the frame and
-the frame rate drops, in good light nothing changes. Measured in a real live session on 19 Oct 2026 before dawn (mean
-luma at the viewer, frame rate at the viewer):
+In a dark room even 32x is not enough at a stream's frame time. The OV5640's night mode with a limit of 4 frame times
+lets the auto exposure stretch the frame: `nightMode` turns it on for the streams (live view and web console, not
+photos). Firmware 0.6.2 had it always on; since 0.6.3 it is off by default, because the sensor's AEC fills the exposure
+before it raises the gain, so even ordinary room light ran at 4 frame times. Measured on 19 Oct 2026 in the evening
+(LED tubes), sensor registers through the serial console's `cam regs`, frame rate at the viewer:
+
+| | night mode on (0.6.2) | off (0.6.3 default) |
+|---|---|---|
+| exposure, gain | 4.00 frames, 6.8x | 1.00 frame, 24-28x |
+| one 640x480 JPEG frame from the sensor (`frame`) | 1171 ms | 73 ms |
+| live JPEG 640x480 | 2.1 fps | 5.4 fps |
+| live JPEG 800x600 / 1280x720 | | 6.7 / 5.6 fps |
+| live JPEG 1600x1200 | 0.6 fps | 1.8 fps |
+
+The long exposure also smeared anything that moved. Turn `nightMode` on only for a trap that is really dark; measured
+in a real live session on 19 Oct 2026 before dawn (mean luma at the viewer, frame rate at the viewer):
 
 | | without night mode | with night mode |
 |---|---|---|
@@ -176,7 +188,11 @@ luma at the viewer, frame rate at the viewer):
 | JPEG 1600x1200 | 19-28, 1.5 fps | 71-90, 0.6 fps |
 
 The night mode used to change nothing because esp32-camera sets its exposure limit (0x3a02/0x3a03, 0x3a14/0x3a15) to
-exactly one frame; the firmware raises it to 4 frames. Daylight with night mode on is still to be measured.
+exactly one frame; with `nightMode` the firmware raises it to 4 frames.
+
+White balance "auto" uses the OV5640's simple AWB (0x5183 bit 7) since 0.6.3. The advanced AWB, with its generic
+calibration, settled under the same LED tubes at R 1.38x / B 1.44x over G and the picture went pink (white walls
+lavender); simple AWB gave R 1.17x / B 1.24x and natural whites, checked by eye on the live view.
 
 ## microSD card
 
