@@ -7,3 +7,4 @@ test_motion
 test_sigv4
 test_live_dc
 test_fleet
+test_sched

@@ -25,6 +25,7 @@
 #include "freertos/semphr.h"
 #include "esp_heap_caps.h"
 #include "camos.h"
+#include "sched_policy.h"
 
 static const char *TAG = "sched";
 static SemaphoreHandle_t cam_mutex;
@@ -555,13 +556,22 @@ static void sched_task(void *arg)
 			next_capture = 0;
 		}
 
-		/* A boot capture (power-on or reset, not a timer wake-up) when the camera is paired: "boot" trigger */
-		if (!boot_capture_done && !paused && store_paired() && boot_reason_name() && proto_connected()) {
-			boot_capture_done = true;
-			scheduled_capture("boot", "boot");
-			continue;
+		/* A boot capture (power-on, reset or OTA restart, not a timer wake-up) when the camera is paired: "boot"
+		 * trigger, once MQTT is up (the clock syncs seconds before it), given up after CONNECT_GIVEUP_S */
+		if (!boot_capture_done) {
+			switch (boot_capture_decide(boot_reason_name() != NULL, store_paired(), paused, proto_connected(),
+										esp_timer_get_time() / 1000000, CONNECT_GIVEUP_S)) {
+			case BOOT_CAPTURE_NOW:
+				boot_capture_done = true;
+				scheduled_capture("boot", "boot");
+				continue;
+			case BOOT_CAPTURE_SKIP:
+				boot_capture_done = true;
+				break;
+			case BOOT_CAPTURE_WAIT:
+				break; /* MQTT is not up yet: looked at again in a second (wait_max below) */
+			}
 		}
-		boot_capture_done = true;
 
 		bool deep = power_may_deep_sleep();
 #if CONFIG_CAMOS_DEEP_SLEEP
@@ -589,7 +599,8 @@ static void sched_task(void *arg)
 			gps_fix(CONFIG_CAMOS_GPS_FIX_TIMEOUT_S, NULL);
 			proto_publish_reported_now();
 		}
-		int wait_max = deep ? 5 : 60; /* re-check often when a sleep decision is pending */
+		/* re-check often when a sleep decision or the boot photo (MQTT does not notify this task) is pending */
+		int wait_max = !boot_capture_done ? 1 : deep ? 5 : 60;
 		if (best_i < 0) {
 			ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(wait_max * 1000));
 			continue;
