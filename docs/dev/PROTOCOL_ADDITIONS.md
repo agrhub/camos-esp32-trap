@@ -229,6 +229,12 @@ For cameras nobody can plug a cable into (logfwd.c). Off unless FlyBot asks, and
   memory: kept through a reset, lost with the power); `coredump {task, pc, backtrace[], corrupted, elfSha256}` comes from
   the `coredump` partition (128 KB, in the tables since 0.8.0: a camera keeps its partition table through OTA, so it needs
   the 0.8.0 install image once). The addresses are decoded with the release's ELF (`xtensa-esp32s3-elf-addr2line -pfiaC -e`).
+- On an older partition table (a camera updated to 0.8.0 over the air) nothing else changes: the partition was added
+  after `ota_1` (0x620000 on 8 / 16 MB, 0x380000 on 4 MB), so app, otadata and NVS offsets are the same and later OTA
+  updates work as before. At boot ESP-IDF logs "No core dump partition found!" twice; at a panic the core dump writer
+  refuses to start (its flash config check fails) and writes nothing; the camera restarts once and its crash report
+  carries the reason and `logTail` without `coredump`. Checked on the Freenove board on 2026-10-19: 0.7.0 on the old
+  table, OTA to 0.8.0, a panic, then OTA again.
 - Without MQTT for 2 minutes while the network is up, the crash report goes to `POST /api/device/logs`
   `{"v":1,"kind":"crash","fw","uptimeMs","crash":{...},"lines":[...]}`, and once an hour a `kind: "diag"` report with the
   last 8 KB of log, both with the device token.
