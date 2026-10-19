@@ -5,6 +5,7 @@
  * A wrong hash leaves the running firmware untouched (esp_ota_abort). The new image must then mark itself valid
  * (esp_ota_mark_app_valid_cancel_rollback) after its first successful MQTT connect; the bootloader rolls back
  * otherwise when CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE is on (sdkconfig.defaults).
+ * `progress` (may be NULL) is called at 25, 50 and 75 % when the server gives the length (ota_progress events).
  */
 #include <string.h>
 #include <stdlib.h>
@@ -27,7 +28,7 @@ static int hexval(char c)
 	return -1;
 }
 
-esp_err_t ota_apply(const char *url, const char *sha256_hex, char *err, size_t errn)
+esp_err_t ota_apply(const char *url, const char *sha256_hex, char *err, size_t errn, ota_progress_cb progress, void *ctx)
 {
 	err[0] = 0;
 	uint8_t expect[32];
@@ -102,6 +103,7 @@ esp_err_t ota_apply(const char *url, const char *sha256_hex, char *err, size_t e
 	mbedtls_sha256_starts(&sha, 0);
 	char *buf = malloc(4096);
 	size_t got = 0;
+	int reported = 0; /* last ota_progress milestone */
 	bool ok = buf != NULL;
 	while (ok) {
 		int n = esp_http_client_read(h, buf, 4096);
@@ -119,6 +121,13 @@ esp_err_t ota_apply(const char *url, const char *sha256_hex, char *err, size_t e
 			got += n;
 			if ((got & 0x3ffff) == 0) {
 				ESP_LOGI(TAG, "%u bytes", (unsigned)got);
+			}
+			int pct = ota_progress_next((long long)got, (long long)total, reported, 25);
+			if (pct > 0) {
+				reported = pct;
+				if (progress) {
+					progress(pct, ctx);
+				}
 			}
 		}
 	}

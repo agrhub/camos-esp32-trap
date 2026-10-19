@@ -130,6 +130,39 @@ void modem_ip(char *out, size_t n)
 	}
 }
 
+/* IMEI and ICCID kept in NVS (blob "cellids"), so the state carries them while the camera is on Wi-Fi too */
+typedef struct {
+	char imei[24];
+	char iccid[24];
+} cell_ids_t;
+
+static void save_ids(void)
+{
+	cell_ids_t now = { 0 }, saved = { 0 };
+	strlcpy(now.imei, imei, sizeof(now.imei));
+	strlcpy(now.iccid, iccid, sizeof(now.iccid));
+	if (!now.imei[0] && !now.iccid[0]) {
+		return;
+	}
+	if (!store_get_blob("cellids", &saved, sizeof(saved)) || memcmp(&saved, &now, sizeof(now)) != 0) {
+		store_set_blob("cellids", &now, sizeof(now));
+	}
+}
+
+void modem_saved_ids(char *out_imei, size_t in, char *out_iccid, size_t cn)
+{
+	cell_ids_t saved = { 0 };
+	if (imei[0] || iccid[0]) {
+		strlcpy(saved.imei, imei, sizeof(saved.imei));
+		strlcpy(saved.iccid, iccid, sizeof(saved.iccid));
+	} else if (!store_get_blob("cellids", &saved, sizeof(saved))) {
+		memset(&saved, 0, sizeof(saved));
+	}
+	saved.imei[sizeof(saved.imei) - 1] = saved.iccid[sizeof(saved.iccid) - 1] = 0;
+	strlcpy(out_imei, saved.imei, in);
+	strlcpy(out_iccid, saved.iccid, cn);
+}
+
 void modem_cell_json(cJSON *net)
 {
 	cJSON *cell = cJSON_AddObjectToObject(net, "cell"); /* protocol 4 */
@@ -253,6 +286,7 @@ bool modem_start(void)
 	}
 	esp_modem_get_imei(dce, imei);
 	read_iccid();
+	save_ids();
 	/* network time zone updates (NITZ) into the RTC of the module: AT+CCLK? then gives local time + zone */
 	esp_modem_at(dce, "AT+CTZU=1", NULL, 1000);
 	/* APN: the user's when set, else from the IMSI (MCC-MNC table, apn.c) */
@@ -387,6 +421,7 @@ void modem_stop(void) {}
 bool modem_up(void) { return false; }
 int modem_rssi(void) { return 0; }
 void modem_cell_json(cJSON *net) { (void)net; }
+void modem_saved_ids(char *imei, size_t in, char *iccid, size_t cn) { if (in) imei[0] = 0; if (cn) iccid[0] = 0; }
 int modem_at(const char *cmd, char *out, size_t n, int timeout_ms) { (void)cmd; (void)timeout_ms; if (n) out[0] = 0; return -1; }
 void modem_ip(char *out, size_t n) { if (n) out[0] = 0; }
 

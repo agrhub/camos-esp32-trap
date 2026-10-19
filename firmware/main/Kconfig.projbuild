@@ -26,6 +26,13 @@ menu "CamOS trap camera"
         default "AIC-FREENOVE-S3CAM" if CAMOS_BOARD_FREENOVE_S3CAM
         default "AIC-ESP32S3CAM"
 
+    config CAMOS_HW_REV
+        string "Hardware revision in the state message (empty = not sent)"
+        default "1.0"
+        help
+            The trap's hardware revision (board, wiring, enclosure), shown on FlyBot's fleet page and kept in its
+            serial registry. Raise it when a batch is built differently.
+
     config CAMOS_XCLK_MHZ
         int "Camera XCLK (MHz)"
         range 6 24
@@ -225,6 +232,12 @@ menu "CamOS trap camera"
         config CAMOS_BATT_LOW_MV
             int "low_power event below (mV)"
             default 3500
+        config CAMOS_OTA_MIN_MV
+            int "Remote firmware update only at or above (mV, 0 = always)"
+            default 3700
+            help
+                On battery, without the charger, ota.apply answers LOW_BATTERY below this cell voltage and FlyBot
+                tries again at a later wake: a download and flash take about a minute at full radio power.
         config CAMOS_BATT_CRITICAL_MV
             int "Stop capturing below (mV, 0 = never): deep sleep 6 h at a time to protect the cell"
             default 3300

@@ -22,6 +22,8 @@
  *   kvs.channelName              v1 addition: the KVS signaling channel (stored in NVS)
  *   kvs.credentialsEndpoint      v1 addition: IoT credential provider host and role alias of the live view
  *   kvs.roleAlias                (stored in NVS, like pairing's iot.credentialsEndpoint / iot.roleAlias)
+ *   disabled                     v1 addition: true while a FlyBot administrator pauses the camera (no captures,
+ *                                uploads, motion photos or live view; it wakes every 6 h on battery; OTA still works)
  *
  * capture.resolution / window, motion, storage, led, gps and console are the web console's settings (NVS, store.c):
  * a desired value overwrites what was set on the camera, and both show in `reported`. Key list: docs/dev/CONFIG.md.
@@ -44,6 +46,7 @@ static const char *TAG = "shadow";
 static settings_t cur;
 static SemaphoreHandle_t lock;
 static cJSON *last_errors; /* from the last apply, repeated in every reported */
+static volatile bool disabled_hint; /* a snapshot upload was answered 403 "disabled" */
 
 static void defaults(settings_t *s)
 {
@@ -88,6 +91,20 @@ bool shadow_tz(char *iana, size_t in, char *posix, size_t pn)
 	strlcpy(posix, cur.tz, pn);
 	xSemaphoreGive(lock);
 	return true;
+}
+
+bool shadow_disabled(void)
+{
+	return cur.disabled != 0 || disabled_hint;
+}
+
+void shadow_note_disabled(bool on)
+{
+	if (on && !shadow_disabled()) {
+		ESP_LOGW(TAG, "FlyBot says this camera is paused: no captures until the shadow says otherwise");
+	}
+	disabled_hint = on;
+	sched_changed();
 }
 
 /* claimed in FlyBot (CONTRACTS 2a.4): the shadow's `claimed` once it said so, else the registration result */
@@ -532,6 +549,13 @@ char *shadow_apply(const char *json, int len, bool persist)
 			} else {
 				add_error(errors, "claimed", "BAD_VALUE");
 			}
+		} else if (!strcmp(k, "disabled")) {
+			if (cJSON_IsBool(item)) {
+				s.disabled = cJSON_IsTrue(item);
+				disabled_hint = false; /* the shadow decides from now on */
+			} else {
+				add_error(errors, "disabled", "BAD_VALUE");
+			}
 		} else if (!strcmp(k, "live") && cJSON_IsObject(item)) {
 			const cJSON *r = cJSON_GetObjectItem(item, "requested");
 			if (r && !cJSON_IsBool(r)) {
@@ -583,6 +607,9 @@ char *shadow_apply(const char *json, int len, bool persist)
 	xSemaphoreGive(lock);
 	tz_apply();
 	camera_settings_changed(); /* live: a running preview / stream picks the new image settings up now */
+	if (s.disabled && (live_active() || live_streaming())) {
+		live_stop(); /* paused: the viewer goes too */
+	}
 	if (persist) {
 		store_set_blob("settings", &s, sizeof(s));
 	}
@@ -673,6 +700,7 @@ void shadow_additions_json(cJSON *parent)
 	cJSON_AddStringToObject(parent, "tzSource", tz_effective_source());
 	cJSON_AddStringToObject(parent, "clockSource", clock_source());
 	cJSON_AddBoolToObject(parent, "claimed", shadow_claimed());
+	cJSON_AddBoolToObject(parent, "disabled", shadow_disabled());
 	battery_json(parent);
 	time_t next = sched_next_capture();
 	if (next) {

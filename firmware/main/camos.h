@@ -14,6 +14,7 @@
 #include "esp_camera.h"
 #include "sdkconfig.h"
 #include "power_decide.h"
+#include "fleet_policy.h"
 
 #define CAMOS_PROTOCOL 1
 #define CAMOS_NS "camos" /* NVS namespace, see tools/provision.sh and docs/PORTAL.md */
@@ -149,6 +150,8 @@ void modem_stop(void);             /* PPP down, AT+CPOF, PWRKEY, power rail off 
 bool modem_up(void);
 int modem_rssi(void);
 void modem_cell_json(cJSON *net);
+/* The modem's IMEI / ICCID from the last time it answered (kept in NVS), empty when never read */
+void modem_saved_ids(char *imei, size_t in, char *iccid, size_t cn);
 int modem_at(const char *cmd, char *out, size_t n, int timeout_ms); /* console `at` command; -1 when not in command mode */
 void modem_ip(char *out, size_t n);
 
@@ -205,6 +208,7 @@ typedef struct {
 	int claimed;          /* shadow `claimed`: -1 not said, 0/1 */
 	/* New fields go last: a shorter blob saved by an older release still loads, the new ones at their defaults */
 	int night_mode;       /* video.image.nightMode: streams may stretch a frame up to 4x in low light (OV5640) */
+	int disabled;         /* `disabled`: an administrator paused the camera (no captures, uploads or live view) */
 } settings_t;
 
 void shadow_init(void);                         /* load the persisted desired document */
@@ -220,6 +224,10 @@ power_mode_t shadow_power_mode(void);           /* configured mode (not the effe
 void shadow_clear_live_request(void);           /* live.requested handled */
 void shadow_reload(void);                       /* back to the saved settings (the console's image preview) */
 bool shadow_claimed(void);                      /* CONTRACTS 2a: false = unclaimed mode (1 snapshot per nextWakeAt) */
+/* Paused by a FlyBot administrator: the shadow's `disabled`, or a snapshot upload answered 403 "disabled" (kept in
+ * RAM until the next desired document says otherwise). No captures, uploads, motion photos or live view; OTA works. */
+bool shadow_disabled(void);
+void shadow_note_disabled(bool on);
 
 /* ------------------------------------------------------------------ camera (cam.c) */
 
@@ -289,7 +297,8 @@ cJSON *flybot_meta_json(const char *trigger, time_t captured_at);
 /* ------------------------------------------------------------------ OTA (ota.c) */
 
 /* Downloads url into the other OTA slot, checks the SHA-256 (hex) before it is made bootable. Restarts on success. */
-esp_err_t ota_apply(const char *url, const char *sha256_hex, char *err, size_t errn);
+typedef void (*ota_progress_cb)(int pct, void *ctx); /* 25, 50, 75 while the image downloads */
+esp_err_t ota_apply(const char *url, const char *sha256_hex, char *err, size_t errn, ota_progress_cb progress, void *ctx);
 
 /* ------------------------------------------------------------------ MQTT agent (proto.c) */
 

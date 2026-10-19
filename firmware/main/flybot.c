@@ -172,6 +172,11 @@ static esp_err_t snapshot_attempt(const camera_fb_t *fb, const char *meta, uploa
 	if (status == 401) {
 		register_check_identity("snapshot upload 401");
 	}
+	if (upload_says_disabled(status, body)) {
+		shadow_note_disabled(true); /* paused by an administrator: stop until the shadow says otherwise */
+		strlcpy(out->error, "paused by FlyBot", sizeof(out->error));
+		return ESP_ERR_NOT_ALLOWED;
+	}
 	if (status != 200 && status != 201) {
 		snprintf(out->error, sizeof(out->error), "http %d", status); /* 401 bad token, 413 too large */
 		return ESP_FAIL;
@@ -219,7 +224,7 @@ esp_err_t flybot_snapshot(const camera_fb_t *fb, const char *trigger, upload_t *
 		err = snapshot_attempt(fb, meta, out);
 		if (err != ESP_OK) {
 			ESP_LOGW(TAG, "snapshot attempt %d: %s", tries, out->error);
-			if (!strncmp(out->error, "http 4", 6)) {
+			if (!strncmp(out->error, "http 4", 6) || err == ESP_ERR_NOT_ALLOWED) {
 				break;
 			}
 			if (tries < 4) {

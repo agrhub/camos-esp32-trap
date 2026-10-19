@@ -19,6 +19,7 @@
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
 #include "esp_ota_ops.h"
+#include "esp_mac.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -128,6 +129,22 @@ void proto_publish_state(bool online)
 		cJSON_AddTrueToObject(o, "online");
 		cJSON_AddStringToObject(o, "model", CONFIG_CAMOS_MODEL);
 		cJSON_AddStringToObject(o, "fw", fw_version());
+		if (CONFIG_CAMOS_HW_REV[0]) {
+			cJSON_AddStringToObject(o, "hw", CONFIG_CAMOS_HW_REV); /* hardware revision, for FlyBot's fleet page */
+		}
+		uint8_t mac[6];
+		if (esp_read_mac(mac, ESP_MAC_WIFI_STA) == ESP_OK) {
+			char ms[18];
+			snprintf(ms, sizeof(ms), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+			cJSON_AddStringToObject(o, "mac", ms);
+		}
+		char imei[24], iccid[24];
+		modem_saved_ids(imei, sizeof(imei), iccid, sizeof(iccid));
+		if (imei[0] || iccid[0]) {
+			cJSON *md = cJSON_AddObjectToObject(o, "modem"); /* also while on Wi-Fi: the SIM in the camera */
+			cJSON_AddStringToObject(md, "imei", imei);
+			cJSON_AddStringToObject(md, "iccid", iccid);
+		}
 		cJSON_AddNumberToObject(o, "protocol", CAMOS_PROTOCOL);
 		cJSON *net = cJSON_AddObjectToObject(o, "net"); /* no sd on these boards */
 		char ip[16];
@@ -182,7 +199,6 @@ static void publish_telemetry(void)
 	cJSON_AddNumberToObject(o, "rssi", net_rssi());
 	cJSON_AddStringToObject(o, "net", net_type_name());
 	cJSON_AddNumberToObject(o, "rebootCount", reboot_count());
-	battery_sample();
 	battery_json(o);
 	power_json(o);
 	char *s = cJSON_PrintUnformatted(o);
@@ -239,11 +255,24 @@ static void rpc_capture(const char *id)
 		rpc_reply(id, image_result(&up), NULL, NULL);
 	} else if (up.bytes) {
 		rpc_reply(id, NULL, "UPLOAD_FAILED", up.error);
+	} else if (err == ESP_ERR_NOT_ALLOWED) {
+		rpc_reply(id, NULL, "DISABLED", up.error);
 	} else if (err == ESP_ERR_INVALID_STATE) {
 		rpc_reply(id, NULL, "BUSY", up.error);
 	} else {
 		rpc_reply(id, NULL, "INTERNAL", up.error[0] ? up.error : "camera");
 	}
+}
+
+/* ota_progress events while the image downloads (FlyBot's progress bar); QoS 1 like every event */
+static void ota_progress_event(int pct, void *ctx)
+{
+	char eid[27];
+	cJSON *ev = evt_new("ota_progress", eid);
+	cJSON_AddStringToObject(ev, "target", "firmware");
+	cJSON_AddStringToObject(ev, "version", (const char *)ctx);
+	cJSON_AddNumberToObject(ev, "pct", pct);
+	proto_publish_event(ev);
 }
 
 static void rpc_ota(const char *id)
@@ -257,12 +286,19 @@ static void rpc_ota(const char *id)
 		rpc_reply(id, NULL, "OLD_VERSION", fw);
 		return;
 	}
+	/* A weak cell must not die halfway through: FlyBot waits for a wake with more charge (or the charger) */
+	if (!ota_battery_ok(battery_mv(), battery_charging(), power_effective() == POWER_POWERED, CONFIG_CAMOS_OTA_MIN_MV)) {
+		char m[48];
+		snprintf(m, sizeof(m), "battery %d mV < %d mV", battery_mv(), CONFIG_CAMOS_OTA_MIN_MV);
+		rpc_reply(id, NULL, "LOW_BATTERY", m);
+		return;
+	}
 	cJSON *r = cJSON_CreateObject();
 	cJSON_AddStringToObject(r, "version", fw);
 	rpc_reply(id, r, NULL, NULL); /* protocol 9: a heavy command answers at once, the result is an event */
 	proto_flush(3000);
 	sched_keep_awake(600);
-	esp_err_t e = ota_apply(url, sha, err, sizeof(err));
+	esp_err_t e = ota_apply(url, sha, err, sizeof(err), ota_progress_event, fw);
 	char eid[27];
 	cJSON *ev = evt_new("ota_result", eid);
 	cJSON_AddStringToObject(ev, "target", "firmware");
@@ -337,7 +373,7 @@ static void rpc_handle(const char *json, TickType_t received)
 				cJSON_AddNumberToObject(r, "seconds", live_remaining_s());
 				rpc_reply(id, r, NULL, NULL);
 			} else {
-				rpc_reply(id, NULL, e == ESP_ERR_NOT_SUPPORTED ? "NOT_SUPPORTED" : e == ESP_ERR_INVALID_STATE ? "BUSY" : "INTERNAL", err);
+				rpc_reply(id, NULL, e == ESP_ERR_NOT_SUPPORTED ? "NOT_SUPPORTED" : e == ESP_ERR_NOT_ALLOWED ? "DISABLED" : e == ESP_ERR_INVALID_STATE ? "BUSY" : "INTERNAL", err);
 			}
 		}
 	} else if (!strcmp(method, "live.stop")) {
@@ -421,7 +457,7 @@ static void on_message(const char *topic, const char *data, int len)
 		}
 		settings_t s;
 		shadow_get(&s);
-		if (s.live_requested && live_supported() && !live_active()) {
+		if (s.live_requested && live_supported() && !live_active() && !shadow_disabled()) {
 			char err[96];
 			if (live_start(5, err, sizeof(err)) != ESP_OK) {
 				ESP_LOGW(TAG, "live.requested: %s", err);

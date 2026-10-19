@@ -77,6 +77,10 @@ bool capture_busy(void)
 esp_err_t capture_now(const char *trigger, upload_t *out)
 {
 	memset(out, 0, sizeof(*out));
+	if (shadow_disabled()) {
+		strlcpy(out->error, "paused by FlyBot", sizeof(out->error));
+		return ESP_ERR_NOT_ALLOWED;
+	}
 	sched_init_lock();
 	xSemaphoreTake(cap_mutex, portMAX_DELAY); /* first: a live stream is not paused while another upload runs */
 	cap_busy = true;
@@ -544,8 +548,15 @@ static void sched_task(void *arg)
 		}
 		next_capture = best;
 
+		/* Paused by a FlyBot administrator: no slot fires; on battery it wakes every 6 h to read the shadow */
+		bool paused = shadow_disabled();
+		if (paused) {
+			best = 0, best_i = -1;
+			next_capture = 0;
+		}
+
 		/* A boot capture (power-on or reset, not a timer wake-up) when the camera is paired: "boot" trigger */
-		if (!boot_capture_done && store_paired() && boot_reason_name() && proto_connected()) {
+		if (!boot_capture_done && !paused && store_paired() && boot_reason_name() && proto_connected()) {
 			boot_capture_done = true;
 			scheduled_capture("boot", "boot");
 			continue;
@@ -563,8 +574,9 @@ static void sched_task(void *arg)
 				proto_publish_reported_now();
 				proto_flush(5000);
 			}
-			if (battery_critical()) {
-				/* Protect the cell: no captures, wake every 6 h to look at the battery (low_power goes out when connected) */
+			if (battery_critical() || paused) {
+				/* Protect the cell: no captures, wake every 6 h to look at the battery (low_power goes out when connected);
+				 * a paused camera does the same to see whether FlyBot resumed it */
 				deep_sleep_until(now + CRITICAL_SLEEP_S, now, false);
 			} else if (best_i >= 0 && best - now >= CONFIG_CAMOS_DEEP_SLEEP_MIN_S) {
 				deep_sleep_until(best, now, true);

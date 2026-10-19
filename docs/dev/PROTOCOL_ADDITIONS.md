@@ -22,7 +22,7 @@ The token is only ever sent to `apiBase` (protocol 11.4).
 | `POST /api/device/pair` `{"serial","verifyCode","provisionToken","model","fw"}` | once, when a provisioning token is stored and no device token: from the portal page ("Save and pair now", over the configured Wi-Fi) or at the next boot over whichever network comes up (4G included). Stores `deviceToken`, `iot.endpoint`, `iot.thingName`, `kvs.channelName`, `kvs.region`; also `iot.credentialsEndpoint` and `iot.roleAlias` when present (live view credentials). The provisioning token is erased after success. `model` and `fw` are additive. |
 | `POST /api/device/snapshot` multipart `image` (image/jpeg) + `meta` (application/json) | every capture: schedule, RPC (`capture` / `snapshot.now`), boot. 4 attempts, back-off 2 / 4 / 8 s + jitter; a 4xx stops the retries. A JPEG over 2 MB is retaken at a lower quality (up to twice) before the upload. `nextWakeAt` moves the next capture when it is sooner than the schedule. |
 | `GET /api/device/time` | when SNTP gets no answer within 15 s of the network coming up (4G carriers that block UDP 123); retried with SNTP until the clock is set. `epoch` is preferred, `now` parsed otherwise. |
-| `GET /api/device/ota` | on RPC `ota.apply` and the console `ota` command. 204 = nothing to do. |
+| `GET /api/device/ota` | on RPC `ota.apply` and the console `ota` command. 204 = nothing to do. The image `url` may carry a query (FlyBot's signed link); the token goes along when it starts with `apiBase`. |
 
 `meta` as sent (CONTRACTS shape plus two additive fields):
 
@@ -49,6 +49,7 @@ list, with the web console settings FlyBot can set (`capture.window`, `capture.r
 | `power.mode` | `"auto"` \| `"battery"` \| `"powered"`, or `null` | see section 6. `null` = the portal value. |
 | `power.highMv`, `power.lowMv` | 3000..4400 | auto-mode hysteresis thresholds (defaults from Kconfig: 4050 / 3850). |
 | `live.requested` | bool | `true`: the camera starts a live session (5 min) at the next wake / shadow delivery, then clears it. |
+| `disabled` | bool | `true`: a FlyBot administrator paused the camera (0.7.0). No scheduled, boot, RPC or motion captures and no uploads (`snapshot.now` and `capture` answer `DISABLED`), no live view (`live.start` answers `DISABLED`, `live.requested` is ignored, a running session stops); on battery the camera wakes every 6 h to read the shadow. `ota.apply`, `reboot`, `state` and the settings still work. `false` resumes. A snapshot upload answered `403 {"error":"disabled"}` pauses the camera the same way until the next desired document. Reported as `disabled`. |
 | `kvs.channelName`, `kvs.region` | string | stored in NVS (normally set by pairing). |
 | `kvs.credentialsEndpoint`, `kvs.roleAlias` | string | the AWS IoT credential provider host and role alias of the live view credentials, stored in NVS (for cameras that registered or paired without them; see LIVE_VIEW.md). |
 
@@ -72,6 +73,10 @@ same keys locally; a later shadow wins):
 `flicker`, `wdr` and `ldc` have no control in esp32-camera: `NOT_SUPPORTED`. `reported.video.image` carries every key.
 
 `claimed` (bool) is also accepted (section 8).
+
+The retained `state` also carries (0.7.0) `hw` (Kconfig `CAMOS_HW_REV`, the hardware revision), `mac` (Wi-Fi station
+MAC) and, once the 4G modem has answered, `modem {imei, iccid}` (kept in NVS, so also while the camera is on Wi-Fi), for
+FlyBot's fleet page. `reported` carries `disabled`.
 
 `reported` (and the retained `state`) carry, next to the existing `version`, `appliedAt`, `errors`, `video.image`, `capture`:
 
@@ -103,7 +108,7 @@ channel without a window (LIVE_VIEW.md).
 | `live.start` | `{"minutes": 1..60}` (default 5) | `{"channelName","seconds"}`; `NOT_SUPPORTED` when the build has no live view (ESP32-CAM, or CAMOS_LIVE off) or the camera has no KVS channel or credential provider settings (see LIVE_VIEW.md), `BAD_PARAMS`, `BUSY`. Repeating it extends the session. The camera joins the channel within a few seconds of the answer (credentials, endpoints, WebSocket); a viewer offer sent before that is lost and the viewer offers again. |
 | `live.stop` | — | — (drops the viewer and ends the window; a powered camera stays on the channel) |
 | `gps.fix` | `{"timeoutS"?}` (default 120) | `{"location":{lat,lng,fixAt},"sats"}`; `TIMEOUT` when no fix, `NOT_SUPPORTED` without GPS. Blocks the RPC queue for up to `timeoutS`. |
-| `ota.apply` | — | `{"version"}` at once, then the event `ota_result` (`stage: "installed"` + restart, or `ok:false` with `DOWNLOAD_FAILED` / `SIGNATURE_INVALID` for a SHA-256 mismatch). `NOT_FOUND` when `GET /api/device/ota` gives 204, `OLD_VERSION` when it offers the running version. |
+| `ota.apply` | — | `{"version"}` at once, then `ota_progress` events and the event `ota_result` (`stage: "installed"` + restart, or `ok:false` with `DOWNLOAD_FAILED` / `SIGNATURE_INVALID` for a SHA-256 mismatch). `NOT_FOUND` when `GET /api/device/ota` gives 204, `OLD_VERSION` when it offers the running version, `LOW_BATTERY` (0.7.0) on battery without the charger below `CAMOS_OTA_MIN_MV` (3700 mV): FlyBot tries again at a later wake. |
 | `reboot` | — | as before |
 | `net.set` | `wifi {ssid, password}`, `cellular {apn}` | stored, effective at the next boot (protocol 9 method, now supported) |
 | `factory_reset` | — | erases everything but the serial and verify code (protocol 9 method, now supported) |
@@ -120,6 +125,8 @@ Unchanged: `ping`, `state`, `capture`. Everything else answers `NOT_SUPPORTED`.
   area (percent of the picture), `level` in per mille of the area, `sdFile` = `YYYYMMDD/HHMMSSM.JPG` when the picture
   was saved on the microSD card. At most one per cooldown (web console setting, default 60 s).
 - `location_changed` `{lat, lon, distanceM}` when a new fix is more than 50 m from the previous one.
+- `ota_progress` `{target:"firmware", version, pct}` (0.7.0): at 25, 50 and 75 % of the download when the server
+  sends its length.
 - `ota_result` `{target:"firmware", version, ok, stage, error?, detail?}`.
 - `boot` `{reason, fw}`: `reason` now also `"ota"` after a successful update.
 - `low_power` `{voltage}` as before.

@@ -3,3 +3,7 @@ test_power
 test_reg
 *.exe
 *.o
+test_motion
+test_sigv4
+test_live_dc
+test_fleet

@@ -909,7 +909,7 @@ static void ota_task(void *arg)
 {
 	char fw[32], url[256], sha[80], err[96];
 	if (flybot_ota_check(fw, sizeof(fw), url, sizeof(url), sha, sizeof(sha)) && strcmp(fw, fw_version())) {
-		if (ota_apply(url, sha, err, sizeof(err)) == ESP_OK) {
+		if (ota_apply(url, sha, err, sizeof(err), NULL, NULL) == ESP_OK) {
 			remember_reboot_reason("ota");
 			esp_restart();
 		}

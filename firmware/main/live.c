@@ -39,6 +39,10 @@ int live_remaining_s(void)
 esp_err_t live_start(int minutes, char *err, size_t errn)
 {
 	err[0] = 0;
+	if (shadow_disabled()) {
+		strlcpy(err, "paused by FlyBot", errn);
+		return ESP_ERR_NOT_ALLOWED;
+	}
 	if (!g_cfg.kvs_channel[0] || !g_cfg.kvs_region[0]) {
 		strlcpy(err, "no kvs.channelName / region (pair first)", errn);
 		return ESP_ERR_NOT_SUPPORTED;

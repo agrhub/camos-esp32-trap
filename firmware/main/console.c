@@ -388,6 +388,12 @@ static int cmd_live(int argc, char **argv)
 	return e == ESP_OK ? 0 : 1;
 }
 
+static void ota_progress_print(int pct, void *ctx)
+{
+	(void)ctx;
+	printf("downloaded %d %%\n", pct);
+}
+
 static int cmd_ota(int argc, char **argv)
 {
 	char fw[32], url[256], sha[80], err[96];
@@ -402,13 +408,14 @@ static int cmd_ota(int argc, char **argv)
 	}
 	printf("offered %s from %s\n", fw, url);
 	sched_keep_awake(600);
-	esp_err_t e = ota_apply(url, sha, err, sizeof(err));
+	esp_err_t e = ota_apply(url, sha, err, sizeof(err), ota_progress_print, NULL);
 	if (e != ESP_OK) {
 		printf("failed: %s\n", err);
 		return 1;
 	}
 	printf("installed, restarting\n");
 	vTaskDelay(pdMS_TO_TICKS(500));
+	remember_reboot_reason("ota"); /* the boot event says why, as after ota.apply */
 	esp_restart();
 	return 0;
 }
