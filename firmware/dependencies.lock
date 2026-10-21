@@ -13,20 +13,6 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 2.1.8
-  espressif/esp_h264:
-    component_hash: 3d60078419ceac61cd87579664ae6a5a9b9a42d6f2edf4e23d753af8d2a67da9
-    dependencies:
-    - name: idf
-      require: private
-      version: '>=4.4'
-    source:
-      registry_url: https://components.espressif.com/
-      type: service
-    targets:
-    - esp32s3
-    - esp32s31
-    - esp32p4
-    version: 1.4.1
   espressif/esp_jpeg:
     component_hash: defb83669293cbf86d0fa86b475ba5517aceed04ed70db435388c151ab37b5d7
     dependencies:
@@ -37,13 +23,6 @@ dependencies:
       registry_url: https://components.espressif.com
       type: service
     version: 1.3.1
-  espressif/esp_libsrtp:
-    component_hash: 131560184c73ec09f77d8904a2db709307803f0f9f111898921b6966776eac15
-    dependencies: []
-    source:
-      registry_url: https://components.espressif.com
-      type: service
-    version: 1.0.0
   espressif/esp_modem:
     component_hash: 71c9f54fc512c60d93ea9763377ceb1d5b575a4616f3f3344440b97e2a38da29
     dependencies:
@@ -54,27 +33,6 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 1.4.3
-  espressif/esp_peer:
-    component_hash: 92bc1b80772acf8a0e2dc36193ec24278e0793140eca2a4060d8ce7b45c47845
-    dependencies:
-    - name: espressif/esp_libsrtp
-      registry_url: https://components.espressif.com
-      require: private
-      version: ^1.0.0
-    source:
-      registry_url: https://components.espressif.com/
-      type: service
-    version: 1.5.7
-  espressif/esp_websocket_client:
-    component_hash: 3fb288702517ef4d75bf933a115f1056ee0c2540d964f9e1d856e0bb67e1dfeb
-    dependencies:
-    - name: idf
-      require: private
-      version: '>=5.0'
-    source:
-      registry_url: https://components.espressif.com/
-      type: service
-    version: 1.7.0
   espressif/led_strip:
     component_hash: 097f698887601de00bed7ff58f91b9e074fa1ae1bcf53582034b01191cc88e9f
     dependencies:
@@ -102,37 +60,17 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 0.2.0
-  espressif/tinyusb:
-    component_hash: a40b7f67df6ac254a4afd96c6401cc56f2059ae747d6d7e66b568bca53ad0edc
-    dependencies:
-    - name: idf
-      require: private
-      version: '>=5.0'
-    source:
-      registry_url: https://components.espressif.com/
-      type: service
-    targets:
-    - esp32s2
-    - esp32s3
-    - esp32p4
-    - esp32h4
-    - esp32s31
-    version: 0.19.0~3
   idf:
     source:
       type: idf
     version: 5.4.4
 direct_dependencies:
 - espressif/esp32-camera
-- espressif/esp_h264
 - espressif/esp_modem
-- espressif/esp_peer
-- espressif/esp_websocket_client
 - espressif/led_strip
 - espressif/mdns
 - espressif/qrcode
-- espressif/tinyusb
 - idf
-manifest_hash: eb56727679c7e3ddc986ab9acb1ce3559c25ece7e27daf39d8abd3c6eb327a27
-target: esp32s3
+manifest_hash: 26eb5afbefd5eed1d8e5947d456ca3567438022f8a835d15270bc5b806cb08cf
+target: esp32
 version: 2.0.0

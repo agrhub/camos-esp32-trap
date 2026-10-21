@@ -38,6 +38,9 @@ static bool mounted;
 bool sd_present(void) { return mounted; }
 
 static SemaphoreHandle_t lock; /* recursive: sd_format remounts */
+static const char *base = MOUNT; /* where photos go: the card, or a USB stick (sd_stick_mounted) */
+static char root[24] = ROOT;
+static bool on_stick;
 static bool lent;              /* the card is with the computer (usbMode storage) */
 static sdmmc_card_t raw_card;  /* the lent card: initialised, no file system */
 
@@ -105,7 +108,7 @@ bool sd_usage(uint64_t *total, uint64_t *free_bytes)
 	if (!mounted) {
 		return false;
 	}
-	return esp_vfs_fat_info(MOUNT, total, free_bytes) == ESP_OK;
+	return esp_vfs_fat_info(base, total, free_bytes) == ESP_OK;
 }
 
 static bool valid_day(const char *d)
@@ -138,7 +141,7 @@ static bool valid_file(const char *f)
 /* Delete the oldest day directory (files first) */
 static void delete_oldest_day(void)
 {
-	DIR *dir = opendir(ROOT);
+	DIR *dir = opendir(root);
 	if (!dir) {
 		return;
 	}
@@ -154,7 +157,7 @@ static void delete_oldest_day(void)
 		return;
 	}
 	char path[64];
-	snprintf(path, sizeof(path), ROOT "/%s", oldest);
+	snprintf(path, sizeof(path), "%s/%s", root, oldest);
 	DIR *d = opendir(path);
 	int n = 0;
 	if (d) {
@@ -189,7 +192,7 @@ static esp_err_t sd_save_jpeg_u(const uint8_t *buf, size_t len, const char *trig
 	} else {
 		strlcpy(day, "19700101", sizeof(day)); /* no clock yet: still kept, sorted first */
 	}
-	snprintf(path, sizeof(path), ROOT "/%s", day);
+	snprintf(path, sizeof(path), "%s/%s", root, day);
 	if (mkdir(path, 0775) != 0 && errno != EEXIST) {
 		ESP_LOGW(TAG, "cannot create %s (errno %d %s)", path, errno, strerror(errno));
 	}
@@ -212,7 +215,17 @@ static esp_err_t sd_save_jpeg_u(const uint8_t *buf, size_t len, const char *trig
 		ESP_LOGW(TAG, "cannot write %s (errno %d %s)", full, errno, strerror(errno));
 		return ESP_FAIL;
 	}
-	size_t w = fwrite(buf, 1, len, f);
+	/* 4 KB at a time: a USB drive (usbhost.c) turns each write into one bulk transfer whose buffer must be internal
+	 * DMA memory, and usb_host_msc 1.3.0 frees its old buffer before allocating a larger one (a failed allocation then
+	 * ends in a double free); small writes never need the larger buffer */
+	size_t w = 0;
+	while (w < len) {
+		size_t n = len - w > 4096 ? 4096 : len - w;
+		if (fwrite(buf + w, 1, n, f) != n) {
+			break;
+		}
+		w += n;
+	}
 	fclose(f);
 	if (w != len) {
 		unlink(full);
@@ -229,7 +242,7 @@ static esp_err_t sd_save_jpeg_u(const uint8_t *buf, size_t len, const char *trig
 static cJSON *sd_list_days_u(void)
 {
 	cJSON *arr = cJSON_CreateArray();
-	DIR *dir = mounted ? opendir(ROOT) : NULL;
+	DIR *dir = mounted ? opendir(root) : NULL;
 	if (!dir) {
 		return arr;
 	}
@@ -239,7 +252,7 @@ static cJSON *sd_list_days_u(void)
 			continue;
 		}
 		char path[64];
-		snprintf(path, sizeof(path), ROOT "/%.15s", e->d_name);
+		snprintf(path, sizeof(path), "%s/%.15s", root, e->d_name);
 		int n = 0;
 		DIR *d = opendir(path);
 		if (d) {
@@ -265,7 +278,7 @@ static cJSON *sd_list_files_u(const char *day)
 		return arr;
 	}
 	char path[64];
-	snprintf(path, sizeof(path), ROOT "/%s", day);
+	snprintf(path, sizeof(path), "%s/%s", root, day);
 	DIR *d = opendir(path);
 	if (!d) {
 		return arr;
@@ -295,7 +308,7 @@ static esp_err_t sd_serve_u(httpd_req_t *req, const char *day, const char *file,
 		return web_send_error(req, "404 Not Found", "NOT_FOUND", NULL);
 	}
 	char full[96];
-	snprintf(full, sizeof(full), ROOT "/%s/%s", day, file);
+	snprintf(full, sizeof(full), "%s/%s/%s", root, day, file);
 	FILE *f = fopen(full, "rb");
 	if (!f) {
 		return web_send_error(req, "404 Not Found", "NOT_FOUND", NULL);
@@ -333,11 +346,11 @@ static esp_err_t sd_delete_u(const char *day, const char *file)
 		if (!valid_file(file)) {
 			return ESP_ERR_INVALID_ARG;
 		}
-		snprintf(path, sizeof(path), ROOT "/%s/%s", day, file);
+		snprintf(path, sizeof(path), "%s/%s/%s", root, day, file);
 		return unlink(path) == 0 ? ESP_OK : ESP_FAIL;
 	}
 	/* the whole day */
-	snprintf(path, sizeof(path), ROOT "/%s", day);
+	snprintf(path, sizeof(path), "%s/%s", root, day);
 	DIR *d = opendir(path);
 	if (d) {
 		struct dirent *e;
@@ -353,6 +366,9 @@ static esp_err_t sd_delete_u(const char *day, const char *file)
 
 static esp_err_t sd_format_u(void)
 {
+	if (on_stick) {
+		return ESP_ERR_NOT_SUPPORTED; /* format a USB drive on a computer */
+	}
 	if (!mounted) {
 		return ESP_ERR_INVALID_STATE;
 	}
@@ -364,7 +380,7 @@ static esp_err_t sd_format_u(void)
 	return e;
 }
 
-const char *sd_card_name(void) { return card ? card->cid.name : ""; }
+const char *sd_card_name(void) { return on_stick ? "USB drive" : card ? card->cid.name : ""; }
 
 /* ------------------------------------------------------------------ locked entry points, and the USB hand-over */
 
@@ -416,6 +432,37 @@ esp_err_t sd_format(void)
 	return e;
 }
 
+/* A USB stick on the native port (usbhost.c): photos, Playback and Storage use it instead of the card */
+void sd_stick_mounted(const char *mount)
+{
+	if (!lock) {
+		lock = xSemaphoreCreateRecursiveMutex();
+	}
+	sd_lock();
+	base = mount;
+	snprintf(root, sizeof(root), "%s/DCIM", mount);
+	mkdir(root, 0775);
+	on_stick = true;
+	mounted = true;
+	sd_unlock();
+}
+
+/* The stick is gone: back to the card, if there is one */
+void sd_stick_gone(void)
+{
+	if (!lock) {
+		return;
+	}
+	sd_lock();
+	if (on_stick) {
+		on_stick = false;
+		base = MOUNT;
+		strlcpy(root, ROOT, sizeof(root));
+		mounted = card != NULL;
+	}
+	sd_unlock();
+}
+
 /* The computer takes the card: unmount the file system, keep the card initialised for raw sector access */
 void *sd_usb_lend(void)
 {
@@ -424,7 +471,7 @@ void *sd_usb_lend(void)
 	}
 	sd_lock();
 	void *r = NULL;
-	if (mounted) {
+	if (mounted && !on_stick) {
 		esp_vfs_fat_sdcard_unmount(MOUNT, card); /* also stops the SDMMC host */
 		mounted = false;
 		card = NULL;
@@ -476,6 +523,8 @@ esp_err_t sd_delete(const char *day, const char *file) { return ESP_ERR_NOT_SUPP
 esp_err_t sd_format(void) { return ESP_ERR_NOT_SUPPORTED; }
 const char *sd_card_name(void) { return ""; }
 void *sd_usb_lend(void) { return NULL; }
+void sd_stick_mounted(const char *mount) { (void)mount; }
+void sd_stick_gone(void) {}
 void sd_usb_return(void) {}
 
 #endif

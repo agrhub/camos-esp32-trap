@@ -41,3 +41,9 @@ CONFIG_CAMERA_DMA_BUFFER_SIZE_MAX=15360
 # 30-100 ms round trip carried about 60 KB/s (a 640x480 frame took 180 ms to send, the camera 50 ms to take it).
 # 16 segments; the buffers are in PSRAM (SPIRAM_TRY_ALLOCATE_WIFI_LWIP)
 CONFIG_LWIP_TCP_SND_BUF_DEFAULT=23040
+# USB host (usbMode "stick"): give slow USB drives time; their first enumeration failed with the 250/30/30 ms
+# defaults ("Dev 0 EP 0 Error"), and power-cycling the root port to retry races the hub driver (abort in hub.c)
+CONFIG_USB_HOST_DEBOUNCE_DELAY_MS=1000
+CONFIG_USB_HOST_RESET_HOLD_MS=50
+CONFIG_USB_HOST_RESET_RECOVERY_MS=200
+CONFIG_USB_HOST_SET_ADDR_RECOVERY_MS=50

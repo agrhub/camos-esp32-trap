@@ -59,7 +59,8 @@ typedef struct {
 	int motion_sd;        /* 1 = a motion trigger saves the picture to the microSD card */
 	char motion_roi[24];  /* "x,y,w,h" in percent of the picture */
 	char capture_size[12]; /* photo size: "max" (the sensor's largest) or "WxH" (CAPTURE_SIZES) */
-	char usb_mode[8];     /* native USB port at boot: "auto" (drive + webcam, default), "storage", "webcam" or "off" */
+	char usb_mode[8];     /* native USB port at boot: "auto" (a USB drive plugged in: host for it, the photo storage;
+						   else drive + webcam for a computer; default), "storage", "webcam" or "off" */
 	int ip_mode;          /* 0 DHCP, 1 static (Wi-Fi) */
 	char static_ip[16], static_mask[16], static_gw[16], static_dns[16];
 	char ap_pass[65];
@@ -490,12 +491,22 @@ esp_err_t sd_delete(const char *day, const char *file); /* file NULL or "": the 
 esp_err_t sd_format(void);
 void *sd_usb_lend(void);                        /* the card (sdmmc_card_t *) for USB mass storage, unmounted here */
 void sd_usb_return(void);                       /* the computer let go: mount it again */
+void sd_stick_mounted(const char *mount);       /* a USB stick replaces the card as the photo storage */
+void sd_stick_gone(void);                       /* back to the card */
 
 /* ------------------------------------------------------------------ native USB port (usbdev.c) */
 
 void usbdev_start(void);                        /* at boot, per usbMode */
 void usbdev_json(cJSON *parent);                /* status "usb": {mode, setting, connected, cardLent, streaming} */
 bool usb_mode_valid(const char *s);             /* "auto", "storage", "webcam" or "off" */
+/* usbhost.c: what is on the other end of the native port, read from the D+ line while no USB driver has the port */
+typedef enum { USB_PEER_UNKNOWN = -1, USB_PEER_NONE, USB_PEER_STICK, USB_PEER_COMPUTER } usb_peer_t;
+usb_peer_t usbhost_sense(void);
+bool usbhost_stick_on_line(void);               /* device mode, controller disconnected: a stick pulls D+ up */
+bool usbhost_computer_on_line(void);            /* device mode, suspended: a computer still holds D- down */
+void usbhost_start(void);                       /* the port becomes a USB host for the stick (photo storage) */
+bool usbhost_stick_present(void);
+uint64_t usbhost_stick_bytes(void);
 
 /* ------------------------------------------------------------------ motion detection (motion.c) */
 

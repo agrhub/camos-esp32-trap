@@ -69,7 +69,7 @@ Available in normal operation and inside the portal; English. `help` lists the c
 | `time [flybot]` | clock state; `time flybot` asks `GET /api/device/time` |
 | `snap`, `frame [w h [q]]`, `meta` | capture + upload; one JPEG at a size with timings; the snapshot meta JSON |
 | `batt`, `mode auto\|battery\|powered` | battery / solar, power decision; power mode |
-| `usb`, `usb auto\|storage\|webcam\|off` | native USB port state (mode, connected, idle, cardLent, streaming); set `usbMode` for the next boot |
+| `usb`, `usb auto\|storage\|webcam\|off` | native USB port state (mode, connected, idle, cardLent, streaming; mode `stick` with `stick`, `stickMB` while the port is a USB drive's host); set `usbMode` for the next boot |
 | `gps [timeout]`, `at <AT command>` | GPS fix; talk to the modem |
 | `led [state]` | show an LED state (`portal`, `connecting`, `online`, `error`, `ota`, `off`, `capture`, `uploaderr`, `lowbatt`) |
 | `live`, `live start [min]`, `live stop` | cloud live view (ESP32-S3, `CAMOS_LIVE`): status JSON (state, viewer, fps, kbit/s, encode / camera ms, last error); open a window; drop the viewer and end the window. With `CAMOS_LIVE_BENCH_CREDS`: `live key id\|secret\|token <value>` / `live key clear` (bench keys in RAM, see [LIVE_VIEW.md](LIVE_VIEW.md)) |

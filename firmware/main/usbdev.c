@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 /*
  * The native USB port (USB OTG, device mode) of the ESP32-S3 boards, set by the usbMode setting and applied at boot:
- *  - "auto" (default): plugged into a computer, the camera is a drive (the microSD card) and a webcam at once, nothing
- *    to choose; each part behaves as described below;
+ *  - "auto" (default): nothing to choose. Plugged into a computer, the camera is a drive (the microSD card) and a webcam
+ *    at once, each part as described below; with a USB stick on the port instead (read from the D+ line, usbhost.c),
+ *    the port is the stick's host and photos are saved on the stick;
  *  - "off": the port stays the USB serial/JTAG console, as before;
  *  - "storage": the microSD card appears on the computer as a drive (mass storage). While the computer has it, the
  *    camera does not write to the card (photos still upload); it gets the card back when the drive is ejected or the
@@ -16,6 +17,7 @@
 #include <string.h>
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_system.h"
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -54,6 +56,8 @@ bool usb_mode_valid(const char *s)
 #include "sdmmc_cmd.h"
 
 static usb_mode_t mode;
+static bool host_mode; /* the port is a USB host for a stick (usbhost.c) */
+
 static usb_phy_handle_t phy;
 static TaskHandle_t worker;
 static TaskHandle_t video_task_hdl;
@@ -129,10 +133,35 @@ static volatile bool ejected;
  * while a computer is connected */
 static void worker_task(void *arg)
 {
-	int64_t suspended_since = 0;
+	int64_t suspended_since = 0, unused_since = 0;
+	int no_computer = 0;
 	for (;;) {
 		uint32_t req = 0;
 		xTaskNotifyWait(0, UINT32_MAX, &req, pdMS_TO_TICKS(5000));
+		/* "auto" and no computer using the camera for 10 s (never set up, or no SOF since: the cable is out or the
+		 * computer put the idle device to sleep): a stick plugged in later takes the port. A computer still on the
+		 * cable is left alone (D- read without disconnecting; it must be gone on two reads in a row); otherwise the D+
+		 * pull-up is let go for a moment to read the line, and the camera restarts as the stick's host. */
+		if (mode == USB_AUTO && (!tud_mounted() || tud_suspended())) {
+			if (!unused_since) {
+				unused_since = esp_timer_get_time();
+				no_computer = 0;
+			} else if (esp_timer_get_time() - unused_since > 10LL * 1000000 &&
+					   (!tud_mounted() || (no_computer = usbhost_computer_on_line() ? 0 : no_computer + 1) >= 2)) {
+				tud_disconnect();
+				vTaskDelay(pdMS_TO_TICKS(20));
+				bool stick = usbhost_stick_on_line();
+				tud_connect();
+				if (stick) {
+					ESP_LOGI(TAG, "a USB drive on the native USB port: restarting as its host");
+					events_note("usb", "USB drive plugged in: restarting to save photos on it");
+					vTaskDelay(pdMS_TO_TICKS(500));
+					esp_restart();
+				}
+			}
+		} else {
+			unused_since = 0;
+		}
 		if (req & REQ_SUSPENDED) {
 			suspended_since = esp_timer_get_time();
 		}
@@ -362,6 +391,18 @@ void usbdev_start(void)
 	if (mode == USB_OFF) {
 		return;
 	}
+	/* "auto": a USB stick on the port takes it (host mode); a computer or nothing: drive + webcam */
+	const usb_peer_t peer = mode == USB_AUTO ? usbhost_sense() : USB_PEER_UNKNOWN;
+	if (peer != USB_PEER_UNKNOWN) {
+		ESP_LOGI(TAG, "native USB port: %s on the line", peer == USB_PEER_STICK ? "a USB drive" :
+						 peer == USB_PEER_COMPUTER ? "a computer" : "nothing");
+	}
+	if (peer == USB_PEER_STICK) {
+		host_mode = true;
+		ESP_LOGI(TAG, "native USB port: host for a USB drive (photos are saved on it)");
+		usbhost_start();
+		return;
+	}
 	if (HAS_WEBCAM) {
 		uvc_buf = heap_caps_malloc(UVC_BUF_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 		if (!uvc_buf) {
@@ -389,11 +430,15 @@ void usbdev_start(void)
 void usbdev_json(cJSON *parent)
 {
 	cJSON *u = cJSON_AddObjectToObject(parent, "usb");
-	cJSON_AddStringToObject(u, "mode", mode_name(mode));
+	cJSON_AddStringToObject(u, "mode", host_mode ? "stick" : mode_name(mode));
+	if (host_mode) {
+		cJSON_AddBoolToObject(u, "stick", usbhost_stick_present());
+		cJSON_AddNumberToObject(u, "stickMB", (double)(usbhost_stick_bytes() >> 20));
+	}
 	cJSON_AddStringToObject(u, "setting", g_cfg.usb_mode);
-	cJSON_AddBoolToObject(u, "connected", mode != USB_OFF && tud_mounted() && !tud_suspended());
+	cJSON_AddBoolToObject(u, "connected", !host_mode && mode != USB_OFF && tud_mounted() && !tud_suspended());
 	/* configured once, then no bus activity: the computer put the idle device to sleep, or the cable is out */
-	cJSON_AddBoolToObject(u, "idle", mode != USB_OFF && tud_mounted() && tud_suspended());
+	cJSON_AddBoolToObject(u, "idle", !host_mode && mode != USB_OFF && tud_mounted() && tud_suspended());
 	cJSON_AddBoolToObject(u, "cardLent", lent_card != NULL);
 	cJSON_AddBoolToObject(u, "streaming", cam_held);
 	if (cam_held) {
