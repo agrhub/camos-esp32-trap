@@ -743,6 +743,7 @@ static esp_err_t status_get(httpd_req_t *req)
 	cJSON_AddNumberToObject(sj, "avgBytes", ss.avg_bytes);
 	cJSON_AddNumberToObject(sj, "frames", ss.frames);
 	motion_json(o);
+	usbdev_json(o);
 	cJSON *sd = cJSON_AddObjectToObject(o, "sd");
 	uint64_t total = 0, free_b = 0;
 	cJSON_AddBoolToObject(sd, "present", sd_present());

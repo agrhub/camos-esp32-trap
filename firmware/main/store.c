@@ -197,6 +197,7 @@ static const str_field_t fields[] = {
 	{ "uiLang", "ui_lang", g_cfg.ui_lang, sizeof(g_cfg.ui_lang), false, "en", false },
 	{ "motionRoi", "mo_roi", g_cfg.motion_roi, sizeof(g_cfg.motion_roi), false, "0,0,100,100", false },
 	{ "captureSize", "cap_size", g_cfg.capture_size, sizeof(g_cfg.capture_size), false, "max", false },
+	{ "usbMode", "usb_mode", g_cfg.usb_mode, sizeof(g_cfg.usb_mode), false, "auto", false },
 	{ "staticIp", "st_ip", g_cfg.static_ip, sizeof(g_cfg.static_ip), false, "", false },
 	{ "staticMask", "st_mask", g_cfg.static_mask, sizeof(g_cfg.static_mask), false, "255.255.255.0", false },
 	{ "staticGateway", "st_gw", g_cfg.static_gw, sizeof(g_cfg.static_gw), false, "", false },
@@ -487,6 +488,9 @@ bool store_apply_kv(const char *key, const char *value)
 			return false;
 		}
 		if (!strcmp(key, "captureSize") && value[0] && !capture_size_parse(value, NULL, NULL)) {
+			return false;
+		}
+		if (!strcmp(key, "usbMode") && value[0] && !usb_mode_valid(value)) {
 			return false;
 		}
 		if (!strncmp(key, "static", 6) && value[0] && !ip4_ok(value)) {

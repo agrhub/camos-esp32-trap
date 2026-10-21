@@ -62,7 +62,7 @@ function qrSvg(text) {
 
 /* ------------------------------------------------------------------ fake device */
 const config = () => ({
-  serial: SERIAL, model: MODEL, fw: '0.4.0', hostname: 'flybot-000001', ssid: 'Orchard-AP', password: true, apn: '', simPin: false, apiBase: 'https://flybot.agrhub.com',
+  serial: SERIAL, model: MODEL, fw: '0.4.0', hostname: 'flybot-000001', usbMode: 'auto', ssid: 'Orchard-AP', password: true, apn: '', simPin: false, apiBase: 'https://flybot.agrhub.com',
   token: !flags.unclaimed, provisionToken: false, iotHost: 'example-ats.iot.ap-southeast-2.amazonaws.com', thingName: 'cam-' + SERIAL, kvsChannel: 'cam-' + SERIAL,
   kvsRegion: 'ap-southeast-2', roleAlias: '', credHost: '', claimUrl: `https://flybot.agrhub.com/claim?sn=${SERIAL}`, timezone: 'Asia/Ho_Chi_Minh', apPassword: false,
   verifyCode: CODE, uiLang: 'en', motionRoi: '20,15,60,70', staticIp: '', staticMask: '255.255.255.0', staticGateway: '', staticDns: '',
@@ -83,6 +83,7 @@ const status = () => ({
   location: { lat: 10.9712, lng: 106.6503, fixAt: '2026-10-17T00:12:40Z' }, timezone: 'Asia/Ho_Chi_Minh', tzSource: 'farm', clockSource: 'sntp', publicIp: '203.0.113.7',
   claimed: !flags.unclaimed, intervalMin: 30, nextCaptureAt: '2026-10-17T03:30:00Z',
   led: { state: 'online (green blip)', enabled: true }, stream: { active: true, w: 640, h: 480, quality: 12, fps: 11.1, avgBytes: 17480, frames: 1234 },
+  usb: { mode: 'auto', setting: 'auto', connected: true, idle: false, cardLent: false, streaming: true, width: 640, height: 480 },
   motion: { enabled: true, running: true, active: false, count: 3, level: 4, threshold: 13, lastAt: '2026-10-17T02:41:09Z' },
   sd: { present: true, totalMB: 29820, freeMB: 29102, save: true }, features: { modem: true, gps: true, live: false, sd: true },
 });

@@ -201,6 +201,24 @@ ESP32-CAM whose card pins are the flash LED, the button and the battery ADC). Wi
 every capture is written as `/DCIM/YYYYMMDD/HHMMSSx.JPG` (x: `S` schedule, `R` on demand, `B` boot, `M` motion), also
 when the upload fails. Below 5 % free the oldest day is deleted. The card's API: [dev/CONFIG.md](dev/CONFIG.md).
 
+## Native USB port: card reader or webcam
+
+The Freenove board has two USB-C ports. The CH340 port is the serial console and flashing in every mode. The native
+USB port (USB OTG) follows the **USB port** setting on the Storage page (or the serial command
+`usb auto|storage|webcam|off`), applied after a restart. The default, **Automatic**, needs nothing: plug the native port
+into a computer and the camera is both a drive and a webcam.
+
+| Setting | What the computer sees | Notes |
+|---|---|---|
+| Automatic (default) | the drive and the webcam below, together | A USB charger alone changes nothing: only a computer that connects takes the card. |
+| Off | the USB serial/JTAG log console, as before | |
+| Drive | a USB drive "FlyBot Trap camera SD": the microSD card | While the computer has the card the camera does not save photos to it (uploads to FlyBot go on). Eject the drive on the computer before unplugging; the camera takes the card back on eject, unplug, or 10 s without USB activity. |
+| Webcam | a UVC camera "FlyBot trap camera", MJPEG, no driver needed | 640x480 by default, also 800x600, 1280x720, 1920x1080, 2560x1920 (5 MP, the photo size) and 320x240. Measured on 21 Oct 2026: about 6 fps at 640x480, 4 fps at 1280x720, 1.9 fps at 1920x1080 and 1.3 fps at 2560x1920 (the sensor's pace; at the two large sizes full-speed USB too): the large sizes are for stills. While an app streams, scheduled photos and the live view wait; the camera is released 2 s after the app closes. |
+
+The camera does not deep sleep while a computer uses the port. The setup portal does not start the USB port. The
+AI-Thinker ESP32-CAM has no native USB port. Measured with both parts on (21 Oct 2026): the drive wrote 2 MB at about
+650 KB/s while the webcam streamed 640x480 at about 6 fps.
+
 ## Motion detection
 
 Runs while it is enabled **and** the effective power mode is powered (a battery camera deep sleeps; a board without a battery divider

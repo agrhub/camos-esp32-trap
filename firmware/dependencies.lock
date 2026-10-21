@@ -102,6 +102,22 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 0.2.0
+  espressif/tinyusb:
+    component_hash: a40b7f67df6ac254a4afd96c6401cc56f2059ae747d6d7e66b568bca53ad0edc
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32s2
+    - esp32s3
+    - esp32p4
+    - esp32h4
+    - esp32s31
+    version: 0.19.0~3
   idf:
     source:
       type: idf
@@ -115,7 +131,8 @@ direct_dependencies:
 - espressif/led_strip
 - espressif/mdns
 - espressif/qrcode
+- espressif/tinyusb
 - idf
-manifest_hash: 1adb5853a6c67e091c5212494c448aeac1d4555c5cc507bc5c998a99a105e09d
+manifest_hash: eb56727679c7e3ddc986ab9acb1ce3559c25ece7e27daf39d8abd3c6eb327a27
 target: esp32s3
 version: 2.0.0

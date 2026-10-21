@@ -474,6 +474,15 @@ menu "CamOS trap camera"
             default 40
     endmenu
 
+    config CAMOS_USB_OTG
+        bool "Native USB port as a webcam and a card reader (setting usbMode)"
+        depends on SOC_USB_OTG_SUPPORTED
+        default y
+        help
+            The ESP32-S3's native USB port (USB OTG, device mode) becomes a UVC webcam and shows the microSD card
+            to a computer as a drive. The usbMode setting, applied at boot: auto (default, both), storage, webcam,
+            or off (the port stays the USB serial/JTAG console). usbdev.c, docs/WEB_CONSOLE.md.
+
     config CAMOS_LIVE
         bool "Cloud live view: KVS WebRTC MASTER with software H.264 (ESP32-S3 only)"
         depends on IDF_TARGET_ESP32S3

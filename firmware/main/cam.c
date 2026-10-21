@@ -583,7 +583,10 @@ esp_err_t cam_stream_start(int width, int height, int quality)
 {
 	/* the live view's XCLK (12 MHz): a 640x480 frame about every 145 ms instead of 180 ms at the photo XCLK (10 MHz on
 	 * the Freenove board); 16 MHz and up cost the 2.4 GHz Wi-Fi (Kconfig CAMOS_LIVE_XCLK_MHZ) */
-	return stream_start(width, height, quality, PIXFORMAT_JPEG, CAMOS_LIVE_XCLK_MHZ, false);
+	/* above the live view's sizes (the USB webcam's 1920x1080 and 2560x1920) the photo XCLK: at 2560x1920, unscaled,
+	 * the live XCLK gave black frames */
+	return stream_start(width, height, quality, PIXFORMAT_JPEG, width > LIVE_MAX_W ? CONFIG_CAMOS_XCLK_MHZ : CAMOS_LIVE_XCLK_MHZ,
+						false);
 }
 
 /* JPEG frames for the live view's data channel (the live view XCLK) */
