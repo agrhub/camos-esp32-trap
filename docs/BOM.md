@@ -2,7 +2,7 @@
 
 Two builds:
 
-- **Wi-Fi camera**: the camera board, a microSD card, a box and the trap. Powered from a USB charger near a Wi-Fi network.
+- **Wi-Fi camera**: the camera board, a microSD card, a trap housing or a box, and the sticky card. Powered from a USB charger near a Wi-Fi network.
 - **Field camera (4G + GPS + solar)**: adds the 4G modem, the GPS, a LiPo cell, a solar panel and its charger.
 
 Prices are the prices shown on the shop pages on **17 Oct 2026**, in VND unless marked. They change often, and some
@@ -18,7 +18,8 @@ Wiring: [WIRING.md](WIRING.md). Assembly: [ASSEMBLY.md](ASSEMBLY.md).
 | 1 | **Freenove ESP32-S3-WROOM CAM**, kit FNK0085 (ESP32-S3, 8 MB PSRAM, OV5640) | 1 | [store.freenove.com/products/fnk0085](https://store.freenove.com/products/fnk0085) (international) | **US$19.99** | the board this firmware is built and tested on; the 8 MB and 16 MB flash variants both work |
 | 1b | or a generic ESP32-S3 N16R8 CAM board | 1 | [icdayroi.com: Kit ESP32-S3 WROOM N16R8 CAM](https://icdayroi.com/kit-esp32-s3-wroom-n16r8-cam-development) | 380.000 | firmware preset `esp32s3cam` (build from source), no status LED; check the pin map first ([dev/PINPROBE.md](dev/PINPROBE.md)); camera sensor not stated on the page |
 | 2 | microSD card 32 GB, class 10 | 1 | [thegioiic.com: Micro SDHC 32GB Class10](https://thegioiic.com/the-nho-micro-sdhc-32gb-class10-ghi-10mb-s-doc-48mb-s) | 103.740 (*out of stock*) | optional: keeps every photo on the camera too (Playback page). FAT32 |
-| 3 | Waterproof box IP65 150 x 110 x 70 mm | 1 | [thegioiic.com: hộp nhựa chống nước 150x110x70](https://thegioiic.com/hop-nhua-chong-nuoc-150x110x70-co-tai) | 100.320 (*out of stock*) | cut a window for the lens and glue in clear acrylic |
+| 3 | **Hanging solar insect trap housing** (solar wasp / yellow-jacket trap with LED light) | 1 | [amazon.com/dp/B0GV48Z8BG](https://www.amazon.com/dp/B0GV48Z8BG) or [aliexpress.com/item/1005006892558507](https://www.aliexpress.com/item/1005006892558507.html) (international) | US$9.90 (Amazon) or US$3.00 (AliExpress) for one trap | the housing of the trap in the photos: the board, the modules and their wiring are mounted inside the lid ([ASSEMBLY.md](ASSEMBLY.md)); the Amazon listing also sells packs of 4 |
+| 3a | or waterproof box IP65 150 x 110 x 70 mm | 1 | [thegioiic.com: hộp nhựa chống nước 150x110x70](https://thegioiic.com/hop-nhua-chong-nuoc-150x110x70-co-tai) | 100.320 (*out of stock*) | cut a window for the lens and glue in clear acrylic |
 | 3b | or IP65 box 160 x 160 x 90 mm with a clear lid | 1 | [thegioiic.com: hộp nắp trong suốt 160x160x90](https://thegioiic.com/hop-nhua-chong-nuoc-nap-trong-suot-160x160x90) | 90.060 (*out of stock*) | the camera looks through the lid |
 | 4 | Cable gland PG7 (IP68) | 1-3 | [thegioiic.com: PG7](https://thegioiic.com/pg7-oc-siet-cap-nhua-chong-nuoc-ip68-co-dai-oc-mau-den) | 1.368 each | power cable, solar cable, antenna cable |
 | 5 | Yellow sticky cards 15 x 25 cm, pack of 50 | 1 | [gumic.vn: combo 50 miếng bẫy ruồi vàng](https://gumic.vn/combo-50-mieng-bay-ruoi-vang-va-cac-loai-con-trung-gay-hai-dp6454.htm) | 155.000 | the card the camera photographs |
@@ -30,10 +31,10 @@ Wiring: [WIRING.md](WIRING.md). Assembly: [ASSEMBLY.md](ASSEMBLY.md).
 
 | # | Part | Qty | Shop | Price read | Notes |
 |---|---|---|---|---|---|
-| 8 | **4G module SIMCom A7680C, TDM2309 board** (SIM800L-compatible pins) | 1 | [linhkienthuduc.com: A7680C TDM2309](https://linhkienthuduc.com/san-pham/module-4g-simcom-a7680c-tdm2309-giai-phap-thay-the-y-het-chan-cho-2g-sim800-sim800l) | 169.000 ("4G SMS" version; VoLTE version 199.000) | 3.8-4.2 V, 3.3 V / 5 V logic; no antenna mentioned on the page |
+| 8 | **4G module SIMCom A7680C, TDM2309 board** (SIM800L-compatible pins) | 1 | [linhkienthuduc.com: A7680C TDM2309](https://linhkienthuduc.com/san-pham/module-4g-simcom-a7680c-tdm2309-giai-phap-thay-the-y-het-chan-cho-2g-sim800-sim800l) | 169.000 ("4G SMS" version; VoLTE version 199.000) | 3.8-4.2 V, 3.3 V / 5 V logic; no antenna mentioned on the page (the module of the hanging trap came with its antenna, so item 9 is not needed there) |
 | 9 | 4G antenna, FPC 3 dBi, IPEX | 1 | [hshop.vn: anten 4G FPC IPEX](https://hshop.vn/anten-4g-3dbi-53-24mm-fpc-ipex-tx4g-fpc-5324-antenna-ziisor) | 20.000 | 690-960 and 1700-2700 MHz; stick it inside the lid |
 | 9b | or 4G antenna 700-2700 MHz 5 dBi, SMA, 3 m cable | 1 | [nshopvn.com: anten 700-2700MHz](https://nshopvn.com/product/anten-4g-3g-2g-gprs-nb-gsm-bang-tan-700-2700mhz-5dbi/) | 66.000 (*out of stock*) | outside the box; needs an IPEX-to-SMA pigtail if the modem has IPEX |
-| 10 | **GPS module ATGM336H** (GPS + BeiDou) | 1 | [thegioiic.com: ATGM336H](https://thegioiic.com/atgm336h-gps-dual-mode-module) | 173.280 (*out of stock*) | also [icdayroi.com](https://icdayroi.com/module-gps-bds-atgm336h) at 250.000; antenna not mentioned |
+| 10 | **GPS module ATGM336H** (GPS + BeiDou) | 1 | [thegioiic.com: ATGM336H](https://thegioiic.com/atgm336h-gps-dual-mode-module) | 173.280 (*out of stock*) | also [icdayroi.com](https://icdayroi.com/module-gps-bds-atgm336h) at 250.000; antenna not mentioned (the module of the hanging trap came with its antenna, so item 11 is not needed there) |
 | 11 | Active GPS antenna 25 x 25 mm, IPEX | 1 | [linhkienthuduc.com: anten GPS 25x25](https://linhkienthuduc.com/san-pham/anten-gps-25x25mm-active-antenna/) | 65.000 | 3-5 V active patch |
 | 12 | LiPo cell 3.7 V 2000 mAh 103450, with protection | 1 | [thegioiic.com: Lipo 103450 2000mAh](https://thegioiic.com/pin-sac-lipo-103450-2000mah-3-7v) | 49.875 (*out of stock*) | connector not stated |
 | 12b | or 18650 cell 2000 mAh + 1-cell holder | 1 + 1 | [hshop.vn: 18650 2000mAh](https://hshop.vn/pin-sac-18650-li-ion-rechargeable-battery-3-7v-2000mah-10c-sunpower), [icdayroi.com: holder](https://icdayroi.com/hop-de-pin-18650-loai-1-cell) | 35.000 + 4.000 | the cell page does not mention a protection circuit: the charger's DW01 protects it |
@@ -41,6 +42,7 @@ Wiring: [WIRING.md](WIRING.md). Assembly: [ASSEMBLY.md](ASSEMBLY.md).
 | 14 | Charger TP4056 with DW01 protection, USB-C | 1 | [thegioiic.com: TP4056 Type-C có bảo vệ](https://thegioiic.com/tp4056-mach-sac-pin-usb-type-c-1a-co-bao-ve) | 6.270 | works with the 6 V panel (its open-circuit voltage stays under the TP4056's 8 V limit); no MPPT |
 | 14b | or CN3791 MPPT solar charger | 1 | [thegioiic.com: CN3791](https://thegioiic.com/cn3791-mach-sac-pin-nang-luong-mat-troi) | 67.260 (*out of stock*) | **the boards found are the 9 V version: use them with a 9 V panel**, not the 6 V one |
 | 15 | 3.3 V buck-boost TPS63020 (1.8-5.5 V in, 1.3 A) | 1 | [thegioiic.com: TPS63020 3.3V](https://thegioiic.com/tps63020-mach-on-ap-dc-dc-3-3v-1-3a) | 53.000 (*out of stock*) | feeds the board's 3V3 pin from the cell |
+| 15c | or a mini boost board 3.7 V to 5 / 8 / 9 / 12 V (output set by the A/B pads) | 1 | Shopee | 12.900 (from a screenshot of the listing, not a page read) | the hanging trap feeds the board's 5V pin from it: **set and measure 5.0-5.2 V before connecting** |
 | 16 | P-MOSFET AO3401A, SOT-23 | 1-2 | [thegioiic.com: AO3401A](https://thegioiic.com/ao3401a-mosfet-kenh-p-30v-4a-sot23) | 2.772 each | GPS power switch (a second one for an optional modem rail switch) |
 | 17 | NPN transistor MMBT3904 (or S8050), SOT-23 | 1 | [thegioiic.com: MMBT3904](https://thegioiic.com/mmbt3904-1am-transistor-npn-40v-0-2a-3-chan-sot-23) | 399 | drives the modem's PWRKEY |
 | 18 | Resistor kit 1/4 W 1 %, 600 pieces (30 values) | 1 | [thegioiic.com: bộ 600 điện trở](https://thegioiic.com/bo-600-dien-tro-1-4w-1-5-vong-mau) | 39.900 | needs 100k x4, 33k x1, 1k x2; check the kit's value list (not confirmed on the page) |
@@ -54,8 +56,10 @@ Wiring: [WIRING.md](WIRING.md). Assembly: [ASSEMBLY.md](ASSEMBLY.md).
 
 | Build | Parts priced in VND | Plus |
 |---|---|---|
-| **Wi-Fi camera** (items 2, 3, 4 x1, 5, 6) | **430.428 ₫** | the board: US$19.99 (Freenove), or 380.000 ₫ for the generic board (item 1b; total 810.428 ₫); a USB charger and cable (not read) |
-| **Field camera, 4G + GPS + solar** (the Wi-Fi items + 8, 9, 10, 11, 12, 13, 14, 15, 16 x1, 17, 18, 19, 20, 21, 22 and 2 more PG7) | **1.132.090 ₫** (430.428 + 701.662) | the board as above (with the generic board: 1.512.090 ₫); SIM and data plan (not read) |
+| **Field camera as built: the hanging solar trap in the photos** (items 3, 8, 10, 12b, 14, 15c, 18, 19, 20 and 3 x item 4) | **448.954 ₫** | the Freenove board US$19.99 and the trap housing US$3.00 (item 3); SIM and data plan (not read); optional: microSD, the 6 V 2 W panel, PG9 and AO3401 (items 2, 13, 21, 16) +191.442 ₫. The 4G and GPS modules came with their antennas; no sticky card or lure holder: the housing is the trap |
+| **Wi-Fi camera in the same housing** (item 4 x1) | **1.368 ₫** | the board US$19.99 and the housing US$3.00; a USB charger and cable (not read); optional microSD (item 2) 103.740 ₫ |
+| Reference Wi-Fi camera of [WIRING.md](WIRING.md) (items 2, 3a, 4 x1, 5, 6) | 430.428 ₫ | the board: US$19.99 (Freenove), or 380.000 ₫ for the generic board (item 1b; total 810.428 ₫); a USB charger and cable (not read) |
+| Reference field camera of [WIRING.md](WIRING.md), IP65 box, 3.3 V buck-boost (the Wi-Fi items + 8, 9, 10, 11, 12, 13, 14, 15, 16 x1, 17, 18, 19, 20, 21, 22 and 2 more PG7) | 1.132.090 ₫ (430.428 + 701.662) | the board as above (with the generic board: 1.512.090 ₫); SIM and data plan (not read) |
 
 The totals take the first option of each row, one pack where parts come in packs, and the prices as shown, including
 items that were out of stock that day.

@@ -16,9 +16,11 @@ will follow in `docs/img/trap-assembled.jpg`.)*
 
 ## 1. What you need
 
-- The camera board **Freenove ESP32-S3 CAM (FNK0085)**, a microSD card and a waterproof box: about 430.000 ₫ + the board
-  (US$19.99) for a Wi-Fi camera.
-- For the field: a 4G module, a GPS module, a LiPo cell, a solar panel and its charger: about 1.130.000 ₫ + the board.
+- The camera board **Freenove ESP32-S3 CAM (FNK0085)** (US$19.99) and a trap housing: the hanging solar trap in the
+  photos costs US$3.00. That is a Wi-Fi camera.
+- For the field, as built in the photos: a 4G module and a GPS module (both with their antennas), an 18650 cell, a
+  charger and a 5 V boost board: about 449.000 ₫ + the board + the housing. The reference build of the wiring page (IP65
+  box, 3.3 V buck-boost, sticky card): about 1.130.000 ₫ + the board.
 - The full list with shop links and the prices read on 17 Oct 2026: [docs/BOM.md](docs/BOM.md).
 - Wiring diagrams for the field camera: [docs/WIRING.md](docs/WIRING.md). Putting it in the box and on the post:
   [docs/ASSEMBLY.md](docs/ASSEMBLY.md).
