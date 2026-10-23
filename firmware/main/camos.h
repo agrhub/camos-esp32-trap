@@ -232,6 +232,8 @@ int shadow_version(void);
 int shadow_interval_min(void);                  /* effective capture interval: shadow > portal > Kconfig */
 power_mode_t shadow_power_mode(void);           /* configured mode (not the effective one, see power.c) */
 void shadow_clear_live_request(void);           /* live.requested handled */
+bool shadow_take_capture_request(int64_t *ms);  /* capture.requestNow not handled yet (taken once) */
+void shadow_capture_request_done(int64_t ms);   /* remembered, and reported as capture.requestNow */
 void shadow_reload(void);                       /* back to the saved settings (the console's image preview) */
 bool shadow_claimed(void);                      /* CONTRACTS 2a: false = unclaimed mode (1 snapshot per nextWakeAt) */
 /* Paused by a FlyBot administrator: the shadow's `disabled`, or a snapshot upload answered 403 "disabled" (kept in

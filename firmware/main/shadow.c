@@ -344,6 +344,25 @@ static void apply_image(const cJSON *img, settings_t *s, cJSON *errors)
 	}
 }
 
+/* capture.requestNow: the newest request not handled yet (0 none); the handled one is the NVS flag req_now_s
+ * (seconds, so it fits the flag) and goes back in reported.capture.requestNow */
+static volatile int64_t req_pending_ms;
+
+bool shadow_take_capture_request(int64_t *ms)
+{
+	int64_t v = req_pending_ms;
+	req_pending_ms = 0;
+	if (v && ms) {
+		*ms = v;
+	}
+	return v != 0;
+}
+
+void shadow_capture_request_done(int64_t ms)
+{
+	store_set_flag("req_now_s", (int)(ms / 1000));
+}
+
 static void apply_capture(const cJSON *item, settings_t *s, cJSON *errors)
 {
 	const cJSON *c;
@@ -378,6 +397,16 @@ static void apply_capture(const cJSON *item, settings_t *s, cJSON *errors)
 				s->interval_min = 0; /* back to the portal / default value */
 			} else if (!get_int(c, 1, 1440, &s->interval_min)) {
 				add_error(errors, "capture.intervalMin", "BAD_VALUE");
+			}
+		} else if (!strcmp(c->string, "requestNow")) {
+			/* "Capture now" for a camera that was asleep: a ms epoch, acted on once (proto.c takes the photo) */
+			if (cJSON_IsNumber(c)) {
+				int64_t ms = (int64_t)c->valuedouble;
+				if (ms / 1000 > (int64_t)store_get_flag_default("req_now_s", 0)) {
+					req_pending_ms = ms;
+				}
+			} else if (!cJSON_IsNull(c)) {
+				add_error(errors, "capture.requestNow", "BAD_VALUE");
 			}
 		} else {
 			char path[48];
@@ -662,6 +691,10 @@ void shadow_image_json(cJSON *parent)
 	} else {
 		cJSON_AddNullToObject(cap, "w"); /* known after the first capture */
 		cJSON_AddNullToObject(cap, "h");
+	}
+	int done_s = store_get_flag_default("req_now_s", 0);
+	if (done_s > 0) {
+		cJSON_AddNumberToObject(cap, "requestNow", (double)done_s * 1000); /* the last request handled */
 	}
 }
 

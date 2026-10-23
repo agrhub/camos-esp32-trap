@@ -46,6 +46,7 @@ list, with the web console settings FlyBot can set (`capture.window`, `capture.r
 | Key | Values | Effect |
 |---|---|---|
 | `capture.intervalMin` | 1..1440, or `null` | all-day capture interval. Used when no `detections[]` schedule is set. `null` = back to the portal value / Kconfig default (60). |
+| `capture.requestNow` | epoch ms, or `null` | "Capture now" for a camera that may be asleep: a value newer than the last one handled takes one on-demand photo (trigger `rpc`) right after the shadow is applied, the camera staying awake for it. A request older than 6 hours by the camera clock is marked handled without a photo. The handled value is kept in NVS and reported as `capture.requestNow`. |
 | `power.mode` | `"auto"` \| `"battery"` \| `"powered"`, or `null` | see section 6. `null` = the portal value. |
 | `power.highMv`, `power.lowMv` | 3000..4400 | auto-mode hysteresis thresholds (defaults from Kconfig: 4050 / 3850). |
 | `live.requested` | bool | `true`: the camera starts a live session (5 min) at the next wake / shadow delivery, then clears it. |

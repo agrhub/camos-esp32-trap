@@ -12,6 +12,7 @@
  */
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 #include "mqtt_client.h"
 #include "esp_system.h"
 #include "esp_random.h"
@@ -458,6 +459,33 @@ static void rpc_handle(const char *json, TickType_t received)
 	cJSON_Delete(req);
 }
 
+/* capture.requestNow from the shadow ("Capture now" while the camera slept): one photo, unless the request is
+ * stale (older than 6 h by the camera clock: a value left in desired from long ago) */
+#define REQUEST_NOW_MAX_AGE_S (6 * 3600)
+
+static void capture_request_task(void *arg)
+{
+	int64_t ms = *(int64_t *)arg;
+	free(arg);
+	for (int i = 0; i < 30 && !clock_synced(); i++) {
+		vTaskDelay(pdMS_TO_TICKS(1000));
+	}
+	int64_t age_s = clock_synced() ? (int64_t)time(NULL) - ms / 1000 : 0;
+	if (age_s > REQUEST_NOW_MAX_AGE_S) {
+		ESP_LOGI(TAG, "capture.requestNow from %lld s ago: stale, not taken", (long long)age_s);
+	} else {
+		ESP_LOGI(TAG, "capture.requestNow: taking the photo");
+		upload_t up;
+		esp_err_t e = capture_now("rpc", &up); /* an on-demand photo, like the capture RPC */
+		if (e != ESP_OK) {
+			ESP_LOGW(TAG, "capture.requestNow: %s", up.error[0] ? up.error : esp_err_to_name(e));
+		}
+	}
+	shadow_capture_request_done(ms);
+	proto_publish_reported_now();
+	vTaskDelete(NULL);
+}
+
 static void rpc_task(void *arg)
 {
 	rpc_item_t it;
@@ -483,6 +511,17 @@ static void on_message(const char *topic, const char *data, int len)
 		if (reported) {
 			proto_publish_reported(reported);
 			free(reported);
+		}
+		int64_t req_ms;
+		if (shadow_take_capture_request(&req_ms)) {
+			int64_t *arg = malloc(sizeof(*arg));
+			if (arg) {
+				*arg = req_ms;
+				sched_keep_awake(90); /* a camera that woke for this must not sleep before the photo */
+				if (xTaskCreate(capture_request_task, "req-cap", 12288, arg, 5, NULL) != pdPASS) {
+					free(arg);
+				}
+			}
 		}
 		settings_t s;
 		shadow_get(&s);
