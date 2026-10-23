@@ -56,9 +56,10 @@ static int cmd_info(int argc, char **argv)
 	printf("net %s %s ip %s rssi %d  mqtt %s\n", net_type_name(), net_up() ? "up" : "down", ip, net_rssi(),
 		   proto_connected() ? "connected" : "down");
 	printf("local name %s.local  (web console http://%s.local/ on the same Wi-Fi)\n", local_hostname(), local_hostname());
-	printf("clock %s  uptime %lld s  free heap %u (min %u)  free PSRAM %u\n", ts, (long long)(esp_timer_get_time() / 1000000),
-		   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL), (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
-		   (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+	printf("clock %s  uptime %lld s  free heap %u (min %u, largest block %u)  free PSRAM %u\n", ts,
+		   (long long)(esp_timer_get_time() / 1000000), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+		   (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+		   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 	printf("timezone %s (from %s), clock from %s, public IP %s, claimed %s\n", tz_effective_iana(), tz_effective_source(),
 		   clock_source(), g_public_ip[0] ? g_public_ip : "?", shadow_claimed() ? "yes" : "no");
 	printf("battery %d mV %d %%  solar %d mV  charging %s  power.mode %s -> effective %s\n", battery_mv(), battery_pct(),

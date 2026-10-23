@@ -1298,6 +1298,16 @@ void web_start(void)
 	}
 }
 
+/* 4G took over from the Wi-Fi: nobody can reach the console, and its 10 KB task stack is internal RAM */
+void web_stop(void)
+{
+	if (srv) {
+		httpd_stop(srv);
+		srv = NULL;
+	}
+}
+
 #else
 void web_start(void) {}
+void web_stop(void) {}
 #endif

@@ -37,6 +37,18 @@ empty field means "use the default".
 | FlyBot | the FlyBot address; a provisioning token (only for a farm team that pre-registers cameras: leave it empty) |
 | AWS IoT Core | the endpoint and a device certificate + key (only for pre-provisioned cameras: [dev/FACTORY.md](dev/FACTORY.md)) |
 
+With both a Wi-Fi and a SIM, the camera takes the Wi-Fi (it costs the battery less) and keeps 4G as the backup:
+- the Wi-Fi gives no address within 20 s (3 tries): 4G for this boot;
+- the Wi-Fi has an address but the camera cannot reach the cloud for 90 s (no internet behind the router, or the
+  Wi-Fi went): 4G;
+- on 4G, the camera looks for the Wi-Fi every 10 minutes and restarts onto it once it is back (not during a live view;
+  after a Wi-Fi without internet it waits 20, 40, 80, then 160 minutes);
+- 4G that carries no data for 3 minutes: back to the Wi-Fi when it is in range, else the 4G radio is switched off
+  and on and the camera dials again; the second time the module is reset; only the third time does the camera restart.
+On Wi-Fi the camera also asks the public resolvers 8.8.8.8 and 1.1.1.1 when the router's DNS does not answer.
+While the Wi-Fi is in use, a 4G module that is always powered (no PWRKEY wired) has its radio switched off. A camera
+on battery chooses again at every wake.
+
 After **Connect**, the page names the address of the camera's web page on your Wi-Fi: `http://flybot-xxxxxx.local/` (see the README, section 5).
 
 Developers: the page's JSON API and the serial console are in [dev/CONFIG.md](dev/CONFIG.md).

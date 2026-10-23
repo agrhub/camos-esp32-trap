@@ -122,7 +122,7 @@ const char *tz_lookup(const char *name);
 
 typedef enum { NET_NONE = 0, NET_WIFI, NET_4G } net_type_t;
 
-void net_start(void);              /* decide 4G or Wi-Fi and bring it up (asynchronous) */
+void net_start(void);              /* Wi-Fi first when one is set, else (or when it gives no IP) 4G; asynchronous */
 void net_ensure(void);             /* start the network if it is not running yet (battery mode keeps it off until a capture) */
 bool net_started(void);
 bool net_up(void);                 /* has an IP */
@@ -135,6 +135,7 @@ bool net_wait_up(int timeout_s);   /* wait for IP and a valid clock */
 void net_sleep_prepare(void);      /* modem off (PWRKEY), Wi-Fi stop, before deep sleep */
 void net_set_up_cb(void (*cb)(void)); /* called on every GOT_IP (Wi-Fi or PPP) */
 void time_sync_start(void);        /* SNTP, with GET /api/device/time as the fallback */
+void net_4g_restarted(void);       /* modem.c recovered 4G in place: MQTT and the clock follow */
 
 void wifi_start_sta(void);
 bool wifi_started(void);
@@ -143,6 +144,9 @@ int wifi_rssi(void);
 void wifi_ip(char *out, size_t n);
 void wifi_set_up_cb(void (*cb)(void));
 void wifi_stop(void);
+int wifi_failures(void);           /* failed join attempts since the start or the last IP */
+bool wifi_probe(int *rssi);        /* after wifi_stop (4G in use): one scan for the configured network */
+void wifi_release(void);           /* 4G took over: stop and free the driver (wifi_probe starts it for its scan) */
 
 /* hostname.c: flybot-<last 6 of the serial>, the DHCP host name and <name>.local over mDNS */
 const char *local_hostname(void);              /* "flybot-a1b2c3" */
@@ -157,7 +161,9 @@ modem_fail_t modem_last_failure(void);
 const char *modem_apn(void);       /* the APN in use (the user's or auto from the IMSI) */
 bool modem_start(void);            /* power on, AT sync, PPP; returns false when no modem answers or no SIM */
 void modem_stop(void);             /* PPP down, AT+CPOF, PWRKEY, power rail off */
+void modem_park(void);             /* always-on module unused (Wi-Fi): its radio off, AT+CFUN=0 */
 bool modem_up(void);
+bool modem_cell_location(double *lat, double *lng, int *acc_m); /* AT+CLBS: the 4G cell's position */
 int modem_rssi(void);
 void modem_cell_json(cJSON *net);
 /* The modem's IMEI / ICCID from the last time it answered (kept in NVS), empty when never read */
@@ -427,6 +433,7 @@ esp_err_t web_cert_post(httpd_req_t *req);                    /* POST /api/cert 
 esp_err_t web_scan_get(httpd_req_t *req);                     /* GET /api/wifi/scan[?refresh=1] */
 void web_scan_cache_set(const wifi_net_t *nets, int n);
 void web_start(void);                                         /* station-mode console (CAMOS_WEB_CONSOLE) */
+void web_stop(void);                                          /* 4G took over: the console server goes */
 esp_err_t web_qr_get(httpd_req_t *req);                       /* GET /api/qr.svg?what=claim|label (qr.c) */
 char *qr_svg(const char *text);                               /* caller frees */
 void qr_print(const char *text);                              /* to the serial console */

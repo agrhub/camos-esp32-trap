@@ -311,6 +311,15 @@ menu "CamOS trap camera"
             int "Baud rate (A7680C default 115200)"
             depends on CAMOS_MODEM
             default 115200
+        config CAMOS_MODEM_FAST_BAUD
+            int "Baud rate once the module answers (0 = keep the one above)"
+            depends on CAMOS_MODEM
+            default 921600
+            help
+                The UART carries all 4G data. 115200 baud is about 11 KB/s: a 13 KB live JPEG needs over a second on
+                the wire. After the first AT the module is moved to this rate (AT+IPR); when the wires do not carry
+                it, the firmware goes back to CAMOS_MODEM_BAUD. A module that kept the fast rate from an earlier
+                boot is found at either rate.
         config CAMOS_MODEM_PWRKEY_GPIO
             int "PWRKEY GPIO (-1 = modem is always on)"
             depends on CAMOS_MODEM

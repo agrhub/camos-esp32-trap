@@ -1,16 +1,20 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 /*
- * Network manager: 4G (SIM present and APN set, esp_modem PPP) else Wi-Fi. MQTT to IoT Core and HTTPS to FlyBot
- * run on whichever is up. Time: SNTP first; when nothing answers within TIME_SNTP_WAIT_S (some carriers block UDP
+ * Network manager: Wi-Fi when one is set and it gives an IP, else 4G (esp_modem PPP). Wi-Fi first because it costs
+ * the battery less: a wake on a good Wi-Fi is online in 2-5 s with the ESP32-S3 alone, 4G needs 7-15 s plus the
+ * module's own transmit current (peaks of 2 A). MQTT to IoT Core and HTTPS to FlyBot run on whichever is up. Time: SNTP first; when nothing answers within TIME_SNTP_WAIT_S (some carriers block UDP
  * 123 on 4G) the firmware asks FlyBot (GET /api/device/time).
  *
- * The choice is made once per boot: a modem that does not answer (no module, no SIM, no registration within the
- * modem's own timeout) falls back to Wi-Fi for this boot. A `network_switch` event is published when that happens.
+ * The choice is made at each boot (each deep-sleep wake in battery mode) and watched afterwards (watch_tick):
+ * Wi-Fi without an IP or without internet hands over to 4G, and on 4G the camera restarts onto the Wi-Fi once it
+ * is in range again. With Wi-Fi in use an always-on 4G module has its radio switched off (modem_park).
  */
 #include <string.h>
 #include "esp_log.h"
 #include "esp_netif_sntp.h"
 #include "esp_sntp.h"
+#include "esp_attr.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "camos.h"
@@ -19,7 +23,7 @@ static const char *TAG = "net";
 #define TIME_SNTP_WAIT_S 15
 
 static net_type_t chosen = NET_NONE;
-static bool started, sntp_started, fallback_wifi;
+static bool started, sntp_started;
 static void (*up_cb)(void);
 
 void net_set_up_cb(void (*cb)(void)) { up_cb = cb; }
@@ -75,6 +79,13 @@ static void on_up(void)
 	time_sync_start();
 	if (up_cb) {
 		up_cb();
+	}
+}
+
+void net_4g_restarted(void)
+{
+	if (chosen == NET_4G) {
+		on_up();
 	}
 }
 
@@ -150,18 +161,20 @@ void time_sync_start(void)
 
 /* ------------------------------------------------------------------ start */
 
-static void modem_task(void *arg)
+/* 4G for this boot; false when it does not come up either */
+static bool start_4g(void)
 {
 	led_set(LED_CONNECTING);
+	chosen = NET_4G;
 	if (modem_start()) {
-		chosen = NET_4G;
 		on_up();
-	} else if (g_cfg.wifi_ssid[0]) {
-		ESP_LOGW(TAG, "4G not available, falling back to Wi-Fi %s", g_cfg.wifi_ssid);
-		fallback_wifi = true;
-		chosen = NET_WIFI;
-		wifi_set_up_cb(on_up);
-		wifi_start_sta();
+		return true;
+	}
+	if (g_cfg.wifi_ssid[0]) {
+		/* Wi-Fi came first and failed too: nothing left for this boot (battery mode tries again at the next wake,
+		 * powered mode when the Wi-Fi probe below sees the network) */
+		ESP_LOGE(TAG, "neither Wi-Fi %s nor 4G is available", g_cfg.wifi_ssid);
+		led_set(LED_ERROR);
 	} else {
 		ESP_LOGE(TAG, "4G not available and no Wi-Fi configured");
 		led_set(LED_ERROR);
@@ -173,9 +186,161 @@ static void modem_task(void *arg)
 			vTaskDelay(pdMS_TO_TICKS(1500));
 			esp_restart();
 		}
-		chosen = NET_NONE;
 	}
+	chosen = NET_NONE;
+	return false;
+}
+
+static void modem_task(void *arg)
+{
+	start_4g();
 	vTaskDelete(NULL);
+}
+
+#define WIFI_FIRST_WAIT_S 20     /* no IP within this: 4G */
+#define WIFI_FIRST_TRIES 3       /* or after this many failed joins (wrong password, network not in range) */
+#define WIFI_NO_CLOUD_S 90       /* an IP but no MQTT for this long (no internet behind the router, or it went): 4G */
+#define WIFI_PROBE_MIN 10        /* on 4G: look for the Wi-Fi every 10 min, doubled per no-internet fallback, max x16 */
+
+/* Wi-Fi fallbacks for "no internet" in a row, kept through restarts and deep sleep: the probe waits longer each
+ * time, so a router that keeps its Wi-Fi up without internet does not pull the camera back every 10 minutes */
+#define NO_CLOUD_MAGIC 0x4e4f4331
+static RTC_NOINIT_ATTR uint32_t no_cloud_magic;
+static RTC_NOINIT_ATTR int no_cloud_count;
+
+static int no_cloud(void)
+{
+	return no_cloud_magic == NO_CLOUD_MAGIC ? no_cloud_count : 0;
+}
+
+static void set_no_cloud(int n)
+{
+	no_cloud_magic = NO_CLOUD_MAGIC;
+	no_cloud_count = n;
+}
+
+/* Keeps the network that works, checked every second by an esp_timer (no task of its own: internal RAM is for
+ * the live encoder's stack); what takes time runs in a short-lived task:
+ *  - Wi-Fi joining: no IP within WIFI_FIRST_WAIT_S / WIFI_FIRST_TRIES -> 4G;
+ *  - Wi-Fi with an IP: the always-on 4G module's radio goes off (modem_park); no MQTT for WIFI_NO_CLOUD_S (no
+ *    internet behind the router, the router went, the line went) -> 4G;
+ *  - 4G with a Wi-Fi set: every WIFI_PROBE_MIN a scan for it; seen -> restart, and the boot takes Wi-Fi first
+ *    (not while a live viewer watches). 4G that loses its signal is modem.c's watchdog: a restart after 180 s.
+ * A network just set in the portal (wifi_new) never falls back: wifi.c sends the user back to the portal. */
+static esp_timer_handle_t watch_timer;
+static volatile bool watch_busy; /* a worker below is running */
+static bool joined;
+static int watch_s, down_s;
+static int64_t next_probe;
+static bool has_4g, wifi_new; /* read once at the start: the timer task has a small stack for NVS */
+static const char *fallback_why;
+
+static void park_worker(void *arg)
+{
+	modem_park();
+	watch_busy = false;
+	vTaskDelete(NULL);
+}
+
+static void fallback_worker(void *arg)
+{
+	events_note("net", fallback_why);
+	web_stop();
+	wifi_release();
+	start_4g();
+	watch_busy = false;
+	vTaskDelete(NULL);
+}
+
+static void probe_worker(void *arg)
+{
+	int rssi = 0;
+	if (wifi_probe(&rssi)) {
+		ESP_LOGW(TAG, "Wi-Fi %s is back (%d dBm): restarting onto it", g_cfg.wifi_ssid, rssi);
+		events_note("net", "Wi-Fi is back: restarting onto it");
+		vTaskDelay(pdMS_TO_TICKS(1000));
+		esp_restart();
+	}
+	ESP_LOGI(TAG, "Wi-Fi %s not in range", g_cfg.wifi_ssid);
+	watch_busy = false;
+	vTaskDelete(NULL);
+}
+
+static void run_worker(TaskFunction_t fn, const char *name, uint32_t stack)
+{
+	watch_busy = true;
+	if (xTaskCreate(fn, name, stack, NULL, 4, NULL) != pdPASS) {
+		watch_busy = false; /* no memory now: the next tick tries again */
+	}
+}
+
+static void to_4g(const char *why)
+{
+	fallback_why = why;
+	chosen = NET_4G;
+	run_worker(fallback_worker, "net-4g", 6144); /* the PPP bring-up, as modem_task */
+	if (!watch_busy) {
+		chosen = NET_WIFI;
+	}
+}
+
+static void watch_tick(void *arg)
+{
+	watch_s++;
+	if (watch_busy) {
+		return;
+	}
+	if (chosen == NET_WIFI) {
+		bool can_4g = has_4g && (joined || !wifi_new); /* wifi.c clears wifi_new at the first IP */
+		if (!joined) {
+			if (wifi_up()) {
+				joined = true;
+				run_worker(park_worker, "net-park", 4096);
+			} else if (can_4g && (watch_s >= WIFI_FIRST_WAIT_S || wifi_failures() >= WIFI_FIRST_TRIES)) {
+				ESP_LOGW(TAG, "Wi-Fi %s gave no IP (%d attempts, %d s): 4G instead", g_cfg.wifi_ssid, wifi_failures(),
+						 watch_s);
+				to_4g("Wi-Fi gave no IP: 4G instead");
+			}
+			return;
+		}
+		if (proto_connected()) {
+			down_s = 0;
+			if (no_cloud()) {
+				set_no_cloud(0);
+			}
+		} else if (proto_provisioned() && ++down_s >= WIFI_NO_CLOUD_S && can_4g) {
+			ESP_LOGW(TAG, "Wi-Fi %s: no cloud connection for %d s (%s): 4G instead", g_cfg.wifi_ssid, down_s,
+					 wifi_up() ? "an IP but no internet" : "Wi-Fi lost");
+			if (wifi_up()) {
+				set_no_cloud(no_cloud() + 1); /* the probe waits longer only for a Wi-Fi without internet */
+			}
+			to_4g("Wi-Fi without internet: 4G instead");
+		}
+	} else if (chosen == NET_4G && g_cfg.wifi_ssid[0] && wifi_started()) {
+		int64_t now = esp_timer_get_time() / 1000000;
+		if (!next_probe) {
+			int n = no_cloud() > 4 ? 4 : no_cloud();
+			next_probe = now + (int64_t)WIFI_PROBE_MIN * 60 * (1 << n);
+			ESP_LOGI(TAG, "on 4G: looking for Wi-Fi %s again in %d min", g_cfg.wifi_ssid, WIFI_PROBE_MIN << n);
+		} else if (now >= next_probe) {
+			next_probe = 0;
+			if (live_streaming()) {
+				ESP_LOGI(TAG, "live viewer: Wi-Fi probe later");
+			} else {
+				run_worker(probe_worker, "net-probe", 4096);
+			}
+		}
+	}
+}
+
+static void watch_start(void)
+{
+	has_4g = modem_available();
+	wifi_new = store_get_flag("wifi_new");
+	const esp_timer_create_args_t args = { .callback = watch_tick, .name = "net-watch" };
+	if (esp_timer_create(&args, &watch_timer) == ESP_OK) {
+		esp_timer_start_periodic(watch_timer, 1000000);
+	}
 }
 
 void net_start(void)
@@ -184,14 +349,16 @@ void net_start(void)
 		return;
 	}
 	started = true;
-	if (modem_available()) {
-		chosen = NET_4G;
-		ESP_LOGI(TAG, "4G on (APN %s): trying the modem first", g_cfg.apn[0] ? g_cfg.apn : "auto from the SIM");
-		xTaskCreate(modem_task, "modem-up", 6144, NULL, 4, NULL); /* PPP bring-up takes 10-30 s */
-	} else if (g_cfg.wifi_ssid[0]) {
+	if (g_cfg.wifi_ssid[0]) {
 		chosen = NET_WIFI;
+		ESP_LOGI(TAG, "Wi-Fi %s first%s", g_cfg.wifi_ssid, modem_available() ? ", 4G if it gives no IP" : "");
 		wifi_set_up_cb(on_up);
 		wifi_start_sta();
+		watch_start();
+	} else if (modem_available()) {
+		chosen = NET_4G;
+		ESP_LOGI(TAG, "4G on (APN %s)", g_cfg.apn[0] ? g_cfg.apn : "auto from the SIM");
+		xTaskCreate(modem_task, "modem-up", 6144, NULL, 4, NULL); /* PPP bring-up takes 10-30 s */
 	} else {
 		ESP_LOGE(TAG, "no network configured (portal: Wi-Fi or APN)");
 	}
