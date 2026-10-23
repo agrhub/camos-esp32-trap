@@ -834,6 +834,14 @@ static const live_quality_t default_quality = { LIVE_MODE_H264, LIVE_W, LIVE_H, 
 static const live_quality_t jpeg_quality = { LIVE_MODE_JPEG, 640, 480, 12, 15 };
 #define WEAK_LINK_MS 6000 /* JPEG frames go out but no ack comes back for this long: H.264 on the video track */
 
+/* The weak-link wait: WEAK_LINK_MS, or four round trips when the link is slower (4G through a TURN relay: one late
+ * ack must not end a JPEG stream that gets through) */
+static int weak_link_ms(void)
+{
+	int rtt4 = k.flow.last_rtt_ms > 0 ? 4 * (int)k.flow.last_rtt_ms : 0;
+	return rtt4 > 15000 ? 15000 : rtt4 > WEAK_LINK_MS ? rtt4 : WEAK_LINK_MS;
+}
+
 /* A capture wants the camera: stop the pipeline, give the camera lock to the scheduler, wait until the capture is
  * done with the sensor, then start again in the same mode. False when the camera does not come back. */
 static bool pause_cycle(pipe_t *p, live_quality_t *cur, bool *cam_held)
@@ -911,8 +919,11 @@ static void venc_task(void *arg)
 		if (k.dc_hello) {
 			k.dc_hello = false;
 			dc_send_hello(&cur);
-			if (!k.req_pending && !k.viewer_chose) {
-				k.req = jpeg_quality; /* JPEG by default; the viewer's own choice, when it sends one, wins */
+			/* JPEG by default on Wi-Fi; the viewer's own choice, when it sends one, wins. Over 4G a JPEG frame needs
+			 * more than a second to get through (one round trip is 1.5-1.8 s via the TURN relay, measured 22 Oct
+			 * 2026), so the start stays on H.264 there instead of switching to JPEG and back. */
+			if (!k.req_pending && !k.viewer_chose && net_type() != NET_4G) {
+				k.req = jpeg_quality;
 				k.req_pending = true;
 			}
 		}
@@ -941,10 +952,10 @@ static void venc_task(void *arg)
 		} else if (capture_busy()) {
 			k.last_ack_ms = clock_ms(); /* a photo upload fills the uplink and acks get lost: not a weak link */
 		} else if (cur.mode == LIVE_MODE_JPEG && want.mode == LIVE_MODE_JPEG && seq > 0 &&
-				   clock_ms() - k.last_ack_ms > WEAK_LINK_MS) {
+				   clock_ms() - k.last_ack_ms > weak_link_ms()) {
 			want = default_quality; /* nothing arrives: the small H.264 stream copes with a weak link */
 			why = "weak_link";
-			ESP_LOGW(TAG, "no JPEG ack for %d s: H.264 %dx%d", WEAK_LINK_MS / 1000, LIVE_W, LIVE_H);
+			ESP_LOGW(TAG, "no JPEG ack for %d s: H.264 %dx%d", weak_link_ms() / 1000, LIVE_W, LIVE_H);
 		}
 		if (memcmp(&want, &cur, sizeof(want))) {
 			pipe_stop(&p);
