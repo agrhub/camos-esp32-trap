@@ -24,17 +24,25 @@ The token is only ever sent to `apiBase` (protocol 11.4).
 | `GET /api/device/time` | when SNTP gets no answer within 15 s of the network coming up (4G carriers that block UDP 123); retried with SNTP until the clock is set. `epoch` is preferred, `now` parsed otherwise. |
 | `GET /api/device/ota` | on RPC `ota.apply` and the console `ota` command. 204 = nothing to do. The image `url` may carry a query (FlyBot's signed link); the token goes along when it starts with `apiBase`. |
 
-`meta` as sent (CONTRACTS shape plus two additive fields):
+`meta` as sent (CONTRACTS shape plus additive fields):
 
 ```json
 {"v":1,"serial":"ESP000000000002","capturedAt":"2026-10-16T08:00:00Z","trigger":"schedule",
  "battery":{"mv":3900,"pct":65,"charging":true,"solarMv":5800},"net":"wifi","rssi":-61,
- "location":{"lat":10.971200,"lng":106.650300,"fixAt":"2026-10-16T05:00:12Z"},
+ "location":{"lat":10.971200,"lng":106.650300,"fixAt":"2026-10-16T05:00:12Z","source":"gps","accuracyM":6},
+ "quality":{"brightness":190,"contrast":24.2,"sharpness":47,"edgeRatio":0.08,"clipped":0,"change":3,"ms":856},
  "fw":"0.2.0","model":"AIC-FREENOVE-S3CAM"}
 ```
 
 `battery` is absent without a battery monitor, `location` without a GPS fix, `solarMv` without a solar ADC.
 `trigger` is `schedule` | `rpc` | `boot`. `rssi` is dBm (Wi-Fi) or `-113 + 2 * CSQ` (4G), 0 when unknown.
+`quality` is measured on the camera before the upload (firmware/main/quality.c), the same numbers FlyBot's
+imageQuality.js computes on a grey copy about 320 wide: `brightness` (mean, 0-255), `contrast` (standard deviation),
+`sharpness` (variance of the Laplacian), `edgeRatio` (sharpness / contrast², low = blurry), `clipped` (share of pure
+white). `change` is the per mille of a 40x30 thumbnail that differs from the previous photo's by more than 16 grey
+levels once the brightness shift is taken out; it is absent after a power-on. `ms` is the time the camera spent (on
+the ESP32-S3, about 850 ms for a 2560x1920 photo, 800 of them decoding the JPEG). `quality` is absent when the photo
+cannot be decoded.
 
 ## 3. Shadow (protocol 8) additions
 
@@ -46,6 +54,7 @@ list, with the web console settings FlyBot can set (`capture.window`, `capture.r
 | Key | Values | Effect |
 |---|---|---|
 | `capture.intervalMin` | 1..1440, or `null` | all-day capture interval. Used when no `detections[]` schedule is set. `null` = back to the portal value / Kconfig default (60). |
+| `capture.requestNow` | epoch ms, or `null` | "Capture now" for a camera that may be asleep: a value newer than the last one handled takes one on-demand photo (trigger `rpc`) right after the shadow is applied, the camera staying awake for it. A request older than 6 hours by the camera clock is marked handled without a photo. The handled value is kept in NVS and reported as `capture.requestNow`. |
 | `power.mode` | `"auto"` \| `"battery"` \| `"powered"`, or `null` | see section 6. `null` = the portal value. |
 | `power.highMv`, `power.lowMv` | 3000..4400 | auto-mode hysteresis thresholds (defaults from Kconfig: 4050 / 3850). |
 | `live.requested` | bool | `true`: the camera starts a live session (5 min) at the next wake / shadow delivery, then clears it. |
@@ -85,7 +94,7 @@ FlyBot's fleet page. `reported` carries `disabled`.
  "power":{"mode":"auto","effective":"battery","highMv":4050,"lowMv":3850},
  "live":{"requested":false,"supported":false,"active":false},
  "kvs":{"channelName":"cam-ESP000000000002","region":"ap-southeast-2"},
- "location":{"lat":10.971200,"lng":106.650300,"fixAt":"2026-10-16T05:00:12Z"},
+ "location":{"lat":10.971200,"lng":106.650300,"fixAt":"2026-10-16T05:00:12Z","source":"gps","accuracyM":6},
  "net":"wifi",
  "battery":{"voltage":3.9,"percent":65,"mv":3900,"pct":65,"charging":true,"solarMv":5800},
  "nextCaptureAt":"2026-10-16T09:00:00Z"}
@@ -93,7 +102,12 @@ FlyBot's fleet page. `reported` carries `disabled`.
 
 `battery.voltage` / `percent` are the fields of the reference firmware (kept); `mv`, `pct`, `charging`, `solarMv` are the
 CONTRACTS fields. `state` also has `thingName`, `net.cell {imei, iccid, operator, csq, registered}` on 4G (protocol 4 shape)
-and `gps {lat, lon, fix, ts}` (protocol 4) when the build has GPS.
+and `gps {lat, lon, fix, ts, source}` (protocol 4) when the build has GPS.
+
+`location.source` is `gps`, or `cell` when the GPS found no fix and the 4G module gave the position of its cell
+(`AT+CLBS`, SIMCom's location service; measured 254 m from the GPS fix on 22 Oct 2026, reported accuracy 550 m).
+`accuracyM` is the radius in metres: the module's figure for `cell`, about HDOP x 5 m for `gps` (absent when
+unknown). A cell position never replaces a GPS fix; after one the GPS is tried again 6 h later instead of 24 h.
 
 `live.supported` is true when the build has the cloud live view (`CAMOS_LIVE`), the camera is paired (KVS channel and
 region) and it has a way to get KVS credentials (credential provider host and role alias); `live.active` is true while
@@ -107,7 +121,7 @@ channel without a window (LIVE_VIEW.md).
 | `snapshot.now` | — | `{"snapshotId","image":{"key","w","h","bytes"},"bytes"}` (`image.key` = `snapshotId`, so the protocol 9 `capture` shape still holds). Errors `UPLOAD_FAILED`, `INTERNAL`, `BUSY` (live view running). `capture` is an alias. |
 | `live.start` | `{"minutes": 1..60}` (default 5) | `{"channelName","seconds"}`; `NOT_SUPPORTED` when the build has no live view (ESP32-CAM, or CAMOS_LIVE off) or the camera has no KVS channel or credential provider settings (see LIVE_VIEW.md), `BAD_PARAMS`, `BUSY`. Repeating it extends the session. The camera joins the channel within a few seconds of the answer (credentials, endpoints, WebSocket); a viewer offer sent before that is lost and the viewer offers again. |
 | `live.stop` | — | — (drops the viewer and ends the window; a powered camera stays on the channel) |
-| `gps.fix` | `{"timeoutS"?}` (default 120) | `{"location":{lat,lng,fixAt},"sats"}`; `TIMEOUT` when no fix, `NOT_SUPPORTED` without GPS. Blocks the RPC queue for up to `timeoutS`. |
+| `gps.fix` | `{"timeoutS"?}` (default 120) | `{"location":{lat,lng,fixAt,source,accuracyM},"sats"}` (a 4G cell position when the GPS finds none); `TIMEOUT` when neither, `NOT_SUPPORTED` without GPS. Runs in its own task: the reply comes up to `timeoutS` later, other RPCs go on. |
 | `ota.apply` | — | `{"version"}` at once, then `ota_progress` events and the event `ota_result` (`stage: "installed"` + restart, or `ok:false` with `DOWNLOAD_FAILED` / `SIGNATURE_INVALID` for a SHA-256 mismatch). `NOT_FOUND` when `GET /api/device/ota` gives 204, `OLD_VERSION` when it offers the running version, `LOW_BATTERY` (0.7.0) on battery without the charger below `CAMOS_OTA_MIN_MV` (3700 mV): FlyBot tries again at a later wake. |
 | `reboot` | — | as before |
 | `net.set` | `wifi {ssid, password}`, `cellular {apn}` | stored, effective at the next boot (protocol 9 method, now supported) |

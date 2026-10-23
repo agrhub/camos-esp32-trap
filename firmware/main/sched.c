@@ -31,6 +31,7 @@ static const char *TAG = "sched";
 static SemaphoreHandle_t cam_mutex;
 static void stop_preview_locked(void);
 static TaskHandle_t sched_task_handle;
+static void (*volatile job)(void); /* sched_run: a capture another task asked for, run between the schedule's */
 static volatile int64_t last_activity_s; /* uptime second of the last capture end */
 static volatile int64_t keep_awake_until_s;
 static volatile time_t wake_hint;        /* nextWakeAt from FlyBot */
@@ -519,11 +520,39 @@ static void deep_sleep_until(time_t until, time_t now, bool with_lead)
 
 /* ------------------------------------------------------------------ task */
 
+/* The daily GPS fix in powered mode, in a task of its own: a fix takes up to minutes, and this task runs the motion
+ * photos (sched_run) meanwhile */
+static volatile bool gps_task_running;
+
+static void gps_fix_task(void *arg)
+{
+	gps_fix(CONFIG_CAMOS_GPS_FIX_TIMEOUT_S, NULL);
+	proto_publish_reported_now();
+	gps_task_running = false;
+	vTaskDelete(NULL);
+}
+
+bool sched_run(void (*fn)(void))
+{
+	if (job || !sched_task_handle) {
+		return false;
+	}
+	job = fn;
+	xTaskNotifyGive(sched_task_handle);
+	return true;
+}
+
 static void sched_task(void *arg)
 {
 	time_t last[MAX_SCHED] = { 0 };
 	static bool boot_capture_done;
 	for (;;) {
+		if (job) {
+			void (*fn)(void) = job;
+			fn();
+			job = NULL;
+			continue;
+		}
 		if (!clock_synced()) {
 			ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000));
 			continue;
@@ -595,9 +624,13 @@ static void sched_task(void *arg)
 			}
 		}
 #endif
-		if (!deep && gps_fix_due() && proto_connected() && !live_active()) {
-			gps_fix(CONFIG_CAMOS_GPS_FIX_TIMEOUT_S, NULL);
-			proto_publish_reported_now();
+		if (!deep && gps_fix_due() && proto_connected() && !live_active() && !gps_task_running) {
+			gps_task_running = true;
+			if (xTaskCreate(gps_fix_task, "gps-fix", 6144, NULL, 3, NULL) != pdPASS) {
+				gps_fix(CONFIG_CAMOS_GPS_FIX_TIMEOUT_S, NULL); /* no memory for the task: here, as before */
+				proto_publish_reported_now();
+				gps_task_running = false;
+			}
 		}
 		/* re-check often when a sleep decision or the boot photo (MQTT does not notify this task) is pending */
 		int wait_max = !boot_capture_done ? 1 : deep ? 5 : 60;

@@ -77,10 +77,12 @@ static bool decode_grey(const camera_fb_t *fb, int fw, int *gw, int *gh)
 }
 
 /* Capture + upload of a motion trigger (motion.upload): a TLS upload needs more stack than the motion task has
- * (6 KB overflowed and restarted the camera), so it runs in a short-lived task of its own, one at a time */
+ * (6 KB overflowed and restarted the camera), and a 12 KB task of its own often found no internal block that large
+ * on Wi-Fi ("no memory for the motion photo upload", 23 Oct 2026). The scheduler's task, which has that stack and
+ * waits most of the time, runs it (sched_run), one at a time. */
 static volatile bool uploading;
 
-static void upload_task(void *arg)
+static void upload_job(void)
 {
 	upload_t up;
 	char cid[27];
@@ -99,7 +101,6 @@ static void upload_task(void *arg)
 	}
 	proto_publish_event(c);
 	uploading = false;
-	vTaskDelete(NULL);
 }
 
 static void trigger(const motion_result_t *r, const char *sd_name)
@@ -125,9 +126,9 @@ static void trigger(const motion_result_t *r, const char *sd_name)
 	proto_publish_event(e);
 	if (g_cfg.motion_upload && !uploading) {
 		uploading = true;
-		if (xTaskCreate(upload_task, "motion-up", 12288, NULL, 3, NULL) != pdPASS) {
+		if (!sched_run(upload_job)) {
 			uploading = false;
-			ESP_LOGW(TAG, "no memory for the motion photo upload");
+			ESP_LOGW(TAG, "the scheduler has a job already: no motion photo");
 		}
 	}
 }

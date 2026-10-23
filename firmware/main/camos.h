@@ -59,7 +59,15 @@ typedef struct {
 	int motion_sd;        /* 1 = a motion trigger saves the picture to the microSD card */
 	char motion_roi[24];  /* "x,y,w,h" in percent of the picture */
 	char capture_size[12]; /* photo size: "max" (the sensor's largest) or "WxH" (CAPTURE_SIZES) */
+	char usb_mode[8];     /* native USB port at boot: "auto" (a USB drive plugged in: host for it, the photo storage;
+						   else drive + webcam for a computer; default), "storage", "webcam" or "off" */
 	int ip_mode;          /* 0 DHCP, 1 static (Wi-Fi) */
+	/* board wiring: Kconfig gives the defaults, NVS keeps what this board has through an OTA and a factory reset */
+	int modem_pwrkey;     /* PWRKEY GPIO, -1 = not wired (the module is always on, AT+CFUN switches the radio) */
+	int modem_fast_baud;  /* UART rate after the first AT (0 = keep CAMOS_MODEM_BAUD) */
+	int gps_pwr_low;      /* 1 = the GPS switch is on when its pin is low (P-MOSFET), 0 = high (NPN / direct) */
+	int batt_div;         /* battery divider ratio x 100: (Rtop + Rbottom) / Rbottom, 200 = 100k/100k */
+	int solar_div;        /* solar / charger input divider ratio x 100, 500 = the 30k/7.5k "voltage sensor" module */
 	char static_ip[16], static_mask[16], static_gw[16], static_dns[16];
 	char ap_pass[65];
 	char *cert;           /* device certificate PEM (malloc, lives forever: esp-mqtt keeps the pointer) */
@@ -114,7 +122,7 @@ const char *tz_lookup(const char *name);
 
 typedef enum { NET_NONE = 0, NET_WIFI, NET_4G } net_type_t;
 
-void net_start(void);              /* decide 4G or Wi-Fi and bring it up (asynchronous) */
+void net_start(void);              /* Wi-Fi first when one is set, else (or when it gives no IP) 4G; asynchronous */
 void net_ensure(void);             /* start the network if it is not running yet (battery mode keeps it off until a capture) */
 bool net_started(void);
 bool net_up(void);                 /* has an IP */
@@ -127,6 +135,7 @@ bool net_wait_up(int timeout_s);   /* wait for IP and a valid clock */
 void net_sleep_prepare(void);      /* modem off (PWRKEY), Wi-Fi stop, before deep sleep */
 void net_set_up_cb(void (*cb)(void)); /* called on every GOT_IP (Wi-Fi or PPP) */
 void time_sync_start(void);        /* SNTP, with GET /api/device/time as the fallback */
+void net_4g_restarted(void);       /* modem.c recovered 4G in place: MQTT and the clock follow */
 
 void wifi_start_sta(void);
 bool wifi_started(void);
@@ -135,6 +144,9 @@ int wifi_rssi(void);
 void wifi_ip(char *out, size_t n);
 void wifi_set_up_cb(void (*cb)(void));
 void wifi_stop(void);
+int wifi_failures(void);           /* failed join attempts since the start or the last IP */
+bool wifi_probe(int *rssi);        /* after wifi_stop (4G in use): one scan for the configured network */
+void wifi_release(void);           /* 4G took over: stop and free the driver (wifi_probe starts it for its scan) */
 
 /* hostname.c: flybot-<last 6 of the serial>, the DHCP host name and <name>.local over mDNS */
 const char *local_hostname(void);              /* "flybot-a1b2c3" */
@@ -149,7 +161,9 @@ modem_fail_t modem_last_failure(void);
 const char *modem_apn(void);       /* the APN in use (the user's or auto from the IMSI) */
 bool modem_start(void);            /* power on, AT sync, PPP; returns false when no modem answers or no SIM */
 void modem_stop(void);             /* PPP down, AT+CPOF, PWRKEY, power rail off */
+void modem_park(void);             /* always-on module unused (Wi-Fi): its radio off, AT+CFUN=0 */
 bool modem_up(void);
+bool modem_cell_location(double *lat, double *lng, int *acc_m); /* AT+CLBS: the 4G cell's position */
 int modem_rssi(void);
 void modem_cell_json(cJSON *net);
 /* The modem's IMEI / ICCID from the last time it answered (kept in NVS), empty when never read */
@@ -224,6 +238,8 @@ int shadow_version(void);
 int shadow_interval_min(void);                  /* effective capture interval: shadow > portal > Kconfig */
 power_mode_t shadow_power_mode(void);           /* configured mode (not the effective one, see power.c) */
 void shadow_clear_live_request(void);           /* live.requested handled */
+bool shadow_take_capture_request(int64_t *ms);  /* capture.requestNow not handled yet (taken once) */
+void shadow_capture_request_done(int64_t ms);   /* remembered, and reported as capture.requestNow */
 void shadow_reload(void);                       /* back to the saved settings (the console's image preview) */
 bool shadow_claimed(void);                      /* CONTRACTS 2a: false = unclaimed mode (1 snapshot per nextWakeAt) */
 /* Paused by a FlyBot administrator: the shadow's `disabled`, or a snapshot upload answered 403 "disabled" (kept in
@@ -296,6 +312,15 @@ bool flybot_ota_check(char *fw, size_t fwn, char *url, size_t urln, char *sha256
 /* the `meta` JSON of a snapshot (also shown by the console) */
 cJSON *flybot_meta_json(const char *trigger, time_t captured_at);
 
+/* quality.c: the photo's quality, measured before the upload (FlyBot's imageQuality.js numbers) */
+typedef struct {
+	float brightness, contrast, sharpness, edge_ratio, clipped;
+	int change;    /* per mille of the thumbnail changed since the last photo, -1 = no earlier photo */
+	int ms, decode_ms;
+} photo_quality_t;
+bool photo_quality(const uint8_t *jpg, size_t len, int w, photo_quality_t *q);
+void photo_quality_json(cJSON *parent, const photo_quality_t *q); /* adds quality {...} */
+
 /* ------------------------------------------------------------------ OTA (ota.c) */
 
 /* Downloads url into the other OTA slot, checks the SHA-256 (hex) before it is made bootable. Restarts on success. */
@@ -327,6 +352,7 @@ esp_err_t capture_now(const char *trigger, upload_t *out);
 void sched_start(void);
 void sched_init_lock(void);                     /* the camera lock alone (portal mode console) */
 void sched_changed(void);                       /* settings changed: recompute the next capture */
+bool sched_run(void (*fn)(void));              /* run fn on the scheduler's task (12 KB stack) soon; false if busy */
 void sched_keep_awake(int seconds);             /* live view / console: no deep sleep for this long */
 time_t sched_next_capture(void);                /* 0 when none */
 void sched_wake_hint(time_t at);                /* nextWakeAt from the FlyBot snapshot response */
@@ -355,6 +381,8 @@ typedef struct {
 	double lat, lng;
 	int sats;
 	time_t fix_at;      /* 0 = no fix yet */
+	int acc_m;          /* accuracy radius in metres, 0 unknown */
+	bool cell;          /* from the 4G cell (AT+CLBS), not the GPS: a few hundred metres to a few km */
 } gps_fix_t;
 
 bool gps_available(void);
@@ -370,6 +398,8 @@ void live_init(void);                           /* boot: the KVS task (powered m
 bool live_supported(void);                      /* built in, paired (kvs channel + region) and with a credential source */
 esp_err_t live_start(int minutes, char *err, size_t errn);
 void live_stop(void);
+void live_stack_lend(void);                     /* the encoder's idle 16 KB stack to the camera's JPEG DMA buffer */
+void live_stack_reserve(void);                  /* and back, once the camera stopped */
 bool live_active(void);                         /* a live.start / live.requested window is open */
 bool live_streaming(void);                      /* a VIEWER is connected: the camera belongs to the encoder */
 int live_pause(int timeout_ms);                 /* a capture needs the camera: 1 paused, 0 no live stream, -1 timeout */
@@ -417,6 +447,7 @@ esp_err_t web_cert_post(httpd_req_t *req);                    /* POST /api/cert 
 esp_err_t web_scan_get(httpd_req_t *req);                     /* GET /api/wifi/scan[?refresh=1] */
 void web_scan_cache_set(const wifi_net_t *nets, int n);
 void web_start(void);                                         /* station-mode console (CAMOS_WEB_CONSOLE) */
+void web_stop(void);                                          /* 4G took over: the console server goes */
 esp_err_t web_qr_get(httpd_req_t *req);                       /* GET /api/qr.svg?what=claim|label (qr.c) */
 char *qr_svg(const char *text);                               /* caller frees */
 void qr_print(const char *text);                              /* to the serial console */
@@ -487,6 +518,24 @@ cJSON *sd_list_files(const char *day);          /* [{name, bytes, trigger}] */
 esp_err_t sd_serve(httpd_req_t *req, const char *day, const char *file, bool download);
 esp_err_t sd_delete(const char *day, const char *file); /* file NULL or "": the whole day */
 esp_err_t sd_format(void);
+void *sd_usb_lend(void);                        /* the card (sdmmc_card_t *) for USB mass storage, unmounted here */
+void sd_usb_return(void);                       /* the computer let go: mount it again */
+void sd_stick_mounted(const char *mount);       /* a USB stick replaces the card as the photo storage */
+void sd_stick_gone(void);                       /* back to the card */
+
+/* ------------------------------------------------------------------ native USB port (usbdev.c) */
+
+void usbdev_start(void);                        /* at boot, per usbMode */
+void usbdev_json(cJSON *parent);                /* status "usb": {mode, setting, connected, cardLent, streaming} */
+bool usb_mode_valid(const char *s);             /* "auto", "storage", "webcam" or "off" */
+/* usbhost.c: what is on the other end of the native port, read from the D+ line while no USB driver has the port */
+typedef enum { USB_PEER_UNKNOWN = -1, USB_PEER_NONE, USB_PEER_STICK, USB_PEER_COMPUTER } usb_peer_t;
+usb_peer_t usbhost_sense(void);
+bool usbhost_stick_on_line(void);               /* device mode, controller disconnected: a stick pulls D+ up */
+bool usbhost_computer_on_line(void);            /* device mode, suspended: a computer still holds D- down */
+void usbhost_start(void);                       /* the port becomes a USB host for the stick (photo storage) */
+bool usbhost_stick_present(void);
+uint64_t usbhost_stick_bytes(void);
 
 /* ------------------------------------------------------------------ motion detection (motion.c) */
 

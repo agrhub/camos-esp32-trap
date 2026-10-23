@@ -743,6 +743,7 @@ static esp_err_t status_get(httpd_req_t *req)
 	cJSON_AddNumberToObject(sj, "avgBytes", ss.avg_bytes);
 	cJSON_AddNumberToObject(sj, "frames", ss.frames);
 	motion_json(o);
+	usbdev_json(o);
 	cJSON *sd = cJSON_AddObjectToObject(o, "sd");
 	uint64_t total = 0, free_b = 0;
 	cJSON_AddBoolToObject(sd, "present", sd_present());
@@ -1297,6 +1298,16 @@ void web_start(void)
 	}
 }
 
+/* 4G took over from the Wi-Fi: nobody can reach the console, and its 10 KB task stack is internal RAM */
+void web_stop(void)
+{
+	if (srv) {
+		httpd_stop(srv);
+		srv = NULL;
+	}
+}
+
 #else
 void web_start(void) {}
+void web_stop(void) {}
 #endif

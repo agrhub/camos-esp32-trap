@@ -127,6 +127,8 @@ static void cam_off(void)
 #endif
 	cam_power(false);
 	cam_pm(false);
+	/* the encoder's stack first: without it no live view at all, without the JPEG reserve only the JPEG mode (H.264 then) */
+	live_stack_reserve();
 	reserve_take(); /* a live session: the block the JPEG DMA buffer just gave back */
 }
 
@@ -195,9 +197,13 @@ static esp_err_t cam_up(framesize_t fs, int quality, int fb_count, pixformat_t f
 		.grab_mode = CAMERA_GRAB_LATEST, /* after the warm-up, the newest frame */
 	};
 	esp_camera_set_psram_mode(up_psram_dma);
-	if (fmt == PIXFORMAT_JPEG && !up_psram_dma && dma_reserve) {
-		heap_caps_free(dma_reserve); /* the JPEG DMA buffer goes into this hole */
-		dma_reserve = NULL;
+	if (fmt == PIXFORMAT_JPEG && !up_psram_dma) {
+		if (dma_reserve) {
+			heap_caps_free(dma_reserve); /* the JPEG DMA buffer goes into this hole */
+			dma_reserve = NULL;
+		} else {
+			live_stack_lend(); /* no reserve (taken back too late after a live session): the idle encoder's block */
+		}
 	}
 	return esp_camera_init(&c);
 }
@@ -583,7 +589,10 @@ esp_err_t cam_stream_start(int width, int height, int quality)
 {
 	/* the live view's XCLK (12 MHz): a 640x480 frame about every 145 ms instead of 180 ms at the photo XCLK (10 MHz on
 	 * the Freenove board); 16 MHz and up cost the 2.4 GHz Wi-Fi (Kconfig CAMOS_LIVE_XCLK_MHZ) */
-	return stream_start(width, height, quality, PIXFORMAT_JPEG, CAMOS_LIVE_XCLK_MHZ, false);
+	/* above the live view's sizes (the USB webcam's 1920x1080 and 2560x1920) the photo XCLK: at 2560x1920, unscaled,
+	 * the live XCLK gave black frames */
+	return stream_start(width, height, quality, PIXFORMAT_JPEG, width > LIVE_MAX_W ? CONFIG_CAMOS_XCLK_MHZ : CAMOS_LIVE_XCLK_MHZ,
+						false);
 }
 
 /* JPEG frames for the live view's data channel (the live view XCLK) */
@@ -595,7 +604,16 @@ esp_err_t cam_stream_start_live_jpeg(int width, int height, int quality)
 /* Raw YUV422 (Y U Y V per pixel pair, 2 bytes per pixel) for the H.264 encoder; stop with cam_stream_stop */
 esp_err_t cam_stream_start_yuv(int width, int height)
 {
-	return stream_start(width, height, 12, PIXFORMAT_YUV422, CAMOS_LIVE_XCLK_MHZ, true);
+	esp_err_t e = stream_start(width, height, 12, PIXFORMAT_YUV422, CAMOS_LIVE_XCLK_MHZ, true);
+#ifdef CONFIG_CAMOS_LIVE_YUV_PLL_MUL
+	/* the sensor's frame rate follows its PLL (Kconfig CAMOS_LIVE_YUV_PLL_MUL): the same XCLK, more frames */
+	int mul = CONFIG_CAMOS_LIVE_YUV_PLL_MUL;
+	sensor_t *sn = esp_camera_sensor_get();
+	if (e == ESP_OK && mul > 0 && sn && sn->id.PID == OV5640_PID && sn->set_pll) {
+		sn->set_pll(sn, 0, mul, 1, 0, 1, 1, 1, 4);
+	}
+#endif
+	return e;
 }
 
 void cam_stream_stop(void)

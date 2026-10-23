@@ -3,10 +3,13 @@
  * microSD card (Freenove ESP32-S3 CAM: SD_MMC 1-bit, CLK 39, CMD 38, D0 40). Every capture is also saved to the card
  * (when "save photos to SD" is on) as /sdcard/DCIM/YYYYMMDD/HHMMSSx.JPG (8.3 names, x = S schedule, R rpc / console,
  * B boot, M motion, W web). Below SD_MIN_FREE_PCT free, the oldest day is deleted. The web console's Playback and
- * Storage pages list, show, download and delete the files and format the card.
+ * Storage pages list, show, download and delete the files and format the card. With usbMode "storage" the card can be
+ * lent to a computer on the native USB port (usbdev.c): its file system is unmounted from the camera meanwhile, and a
+ * lock keeps a save, a listing or a download from running across the hand-over.
  * The AI-Thinker ESP32-CAM preset has no SD support here: its card pins are the flash LED, the button and the battery ADC.
  */
 #include <string.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <dirent.h>
@@ -14,6 +17,8 @@
 #include <unistd.h>
 #include <time.h>
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "camos.h"
 
 static const char *TAG = "sd";
@@ -32,20 +37,47 @@ static bool mounted;
 
 bool sd_present(void) { return mounted; }
 
+static SemaphoreHandle_t lock; /* recursive: sd_format remounts */
+static const char *base = MOUNT; /* where photos go: the card, or a USB stick (sd_stick_mounted) */
+static char root[24] = ROOT;
+static bool on_stick;
+static bool lent;              /* the card is with the computer (usbMode storage) */
+static sdmmc_card_t raw_card;  /* the lent card: initialised, no file system */
+
+static void sd_lock(void)
+{
+	xSemaphoreTakeRecursive(lock, portMAX_DELAY);
+}
+
+static void sd_unlock(void)
+{
+	xSemaphoreGiveRecursive(lock);
+}
+
+static void sd_config(sdmmc_host_t *host, sdmmc_slot_config_t *slot)
+{
+	*host = (sdmmc_host_t)SDMMC_HOST_DEFAULT();
+	host->flags = SDMMC_HOST_FLAG_1BIT;
+	host->max_freq_khz = SDMMC_FREQ_DEFAULT;
+	*slot = (sdmmc_slot_config_t)SDMMC_SLOT_CONFIG_DEFAULT();
+	slot->width = 1;
+	slot->clk = CONFIG_CAMOS_SD_CLK;
+	slot->cmd = CONFIG_CAMOS_SD_CMD;
+	slot->d0 = CONFIG_CAMOS_SD_D0;
+	slot->flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
+}
+
 bool sd_mount(void)
 {
-	if (mounted) {
-		return true;
+	if (!lock) {
+		lock = xSemaphoreCreateRecursiveMutex();
 	}
-	sdmmc_host_t host = SDMMC_HOST_DEFAULT();
-	host.flags = SDMMC_HOST_FLAG_1BIT;
-	host.max_freq_khz = SDMMC_FREQ_DEFAULT;
-	sdmmc_slot_config_t slot = SDMMC_SLOT_CONFIG_DEFAULT();
-	slot.width = 1;
-	slot.clk = CONFIG_CAMOS_SD_CLK;
-	slot.cmd = CONFIG_CAMOS_SD_CMD;
-	slot.d0 = CONFIG_CAMOS_SD_D0;
-	slot.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
+	if (mounted || lent) {
+		return mounted;
+	}
+	sdmmc_host_t host;
+	sdmmc_slot_config_t slot;
+	sd_config(&host, &slot);
 	esp_vfs_fat_sdmmc_mount_config_t mc = { .format_if_mount_failed = false, .max_files = 4, .allocation_unit_size = 16 * 1024 };
 	esp_err_t e = esp_vfs_fat_sdmmc_mount(MOUNT, &host, &slot, &mc, &card);
 	if (e != ESP_OK) {
@@ -76,7 +108,7 @@ bool sd_usage(uint64_t *total, uint64_t *free_bytes)
 	if (!mounted) {
 		return false;
 	}
-	return esp_vfs_fat_info(MOUNT, total, free_bytes) == ESP_OK;
+	return esp_vfs_fat_info(base, total, free_bytes) == ESP_OK;
 }
 
 static bool valid_day(const char *d)
@@ -109,7 +141,7 @@ static bool valid_file(const char *f)
 /* Delete the oldest day directory (files first) */
 static void delete_oldest_day(void)
 {
-	DIR *dir = opendir(ROOT);
+	DIR *dir = opendir(root);
 	if (!dir) {
 		return;
 	}
@@ -125,7 +157,7 @@ static void delete_oldest_day(void)
 		return;
 	}
 	char path[64];
-	snprintf(path, sizeof(path), ROOT "/%s", oldest);
+	snprintf(path, sizeof(path), "%s/%s", root, oldest);
 	DIR *d = opendir(path);
 	int n = 0;
 	if (d) {
@@ -142,7 +174,7 @@ static void delete_oldest_day(void)
 	ESP_LOGW(TAG, "card nearly full: deleted day %s (%d files)", oldest, n);
 }
 
-esp_err_t sd_save_jpeg(const uint8_t *buf, size_t len, const char *trigger, char *name_out, size_t name_n)
+static esp_err_t sd_save_jpeg_u(const uint8_t *buf, size_t len, const char *trigger, char *name_out, size_t name_n)
 {
 	if (!mounted) {
 		return ESP_ERR_INVALID_STATE;
@@ -160,8 +192,10 @@ esp_err_t sd_save_jpeg(const uint8_t *buf, size_t len, const char *trigger, char
 	} else {
 		strlcpy(day, "19700101", sizeof(day)); /* no clock yet: still kept, sorted first */
 	}
-	snprintf(path, sizeof(path), ROOT "/%s", day);
-	mkdir(path, 0775);
+	snprintf(path, sizeof(path), "%s/%s", root, day);
+	if (mkdir(path, 0775) != 0 && errno != EEXIST) {
+		ESP_LOGW(TAG, "cannot create %s (errno %d %s)", path, errno, strerror(errno));
+	}
 	char letter = 'R';
 	if (!strcmp(trigger, "schedule")) {
 		letter = 'S';
@@ -178,10 +212,20 @@ esp_err_t sd_save_jpeg(const uint8_t *buf, size_t len, const char *trigger, char
 	snprintf(full, sizeof(full), "%s/%s", path, file);
 	FILE *f = fopen(full, "wb");
 	if (!f) {
-		ESP_LOGW(TAG, "cannot write %s", full);
+		ESP_LOGW(TAG, "cannot write %s (errno %d %s)", full, errno, strerror(errno));
 		return ESP_FAIL;
 	}
-	size_t w = fwrite(buf, 1, len, f);
+	/* 4 KB at a time: a USB drive (usbhost.c) turns each write into one bulk transfer whose buffer must be internal
+	 * DMA memory, and usb_host_msc 1.3.0 frees its old buffer before allocating a larger one (a failed allocation then
+	 * ends in a double free); small writes never need the larger buffer */
+	size_t w = 0;
+	while (w < len) {
+		size_t n = len - w > 4096 ? 4096 : len - w;
+		if (fwrite(buf + w, 1, n, f) != n) {
+			break;
+		}
+		w += n;
+	}
 	fclose(f);
 	if (w != len) {
 		unlink(full);
@@ -195,10 +239,10 @@ esp_err_t sd_save_jpeg(const uint8_t *buf, size_t len, const char *trigger, char
 	return ESP_OK;
 }
 
-cJSON *sd_list_days(void)
+static cJSON *sd_list_days_u(void)
 {
 	cJSON *arr = cJSON_CreateArray();
-	DIR *dir = mounted ? opendir(ROOT) : NULL;
+	DIR *dir = mounted ? opendir(root) : NULL;
 	if (!dir) {
 		return arr;
 	}
@@ -208,7 +252,7 @@ cJSON *sd_list_days(void)
 			continue;
 		}
 		char path[64];
-		snprintf(path, sizeof(path), ROOT "/%.15s", e->d_name);
+		snprintf(path, sizeof(path), "%s/%.15s", root, e->d_name);
 		int n = 0;
 		DIR *d = opendir(path);
 		if (d) {
@@ -227,14 +271,14 @@ cJSON *sd_list_days(void)
 	return arr;
 }
 
-cJSON *sd_list_files(const char *day)
+static cJSON *sd_list_files_u(const char *day)
 {
 	cJSON *arr = cJSON_CreateArray();
 	if (!mounted || !valid_day(day)) {
 		return arr;
 	}
 	char path[64];
-	snprintf(path, sizeof(path), ROOT "/%s", day);
+	snprintf(path, sizeof(path), "%s/%s", root, day);
 	DIR *d = opendir(path);
 	if (!d) {
 		return arr;
@@ -258,13 +302,13 @@ cJSON *sd_list_files(const char *day)
 	return arr;
 }
 
-esp_err_t sd_serve(httpd_req_t *req, const char *day, const char *file, bool download)
+static esp_err_t sd_serve_u(httpd_req_t *req, const char *day, const char *file, bool download)
 {
 	if (!mounted || !valid_day(day) || !valid_file(file)) {
 		return web_send_error(req, "404 Not Found", "NOT_FOUND", NULL);
 	}
 	char full[96];
-	snprintf(full, sizeof(full), ROOT "/%s/%s", day, file);
+	snprintf(full, sizeof(full), "%s/%s/%s", root, day, file);
 	FILE *f = fopen(full, "rb");
 	if (!f) {
 		return web_send_error(req, "404 Not Found", "NOT_FOUND", NULL);
@@ -292,7 +336,7 @@ esp_err_t sd_serve(httpd_req_t *req, const char *day, const char *file, bool dow
 	return e;
 }
 
-esp_err_t sd_delete(const char *day, const char *file)
+static esp_err_t sd_delete_u(const char *day, const char *file)
 {
 	if (!mounted || !valid_day(day)) {
 		return ESP_ERR_INVALID_ARG;
@@ -302,11 +346,11 @@ esp_err_t sd_delete(const char *day, const char *file)
 		if (!valid_file(file)) {
 			return ESP_ERR_INVALID_ARG;
 		}
-		snprintf(path, sizeof(path), ROOT "/%s/%s", day, file);
+		snprintf(path, sizeof(path), "%s/%s/%s", root, day, file);
 		return unlink(path) == 0 ? ESP_OK : ESP_FAIL;
 	}
 	/* the whole day */
-	snprintf(path, sizeof(path), ROOT "/%s", day);
+	snprintf(path, sizeof(path), "%s/%s", root, day);
 	DIR *d = opendir(path);
 	if (d) {
 		struct dirent *e;
@@ -320,8 +364,11 @@ esp_err_t sd_delete(const char *day, const char *file)
 	return rmdir(path) == 0 ? ESP_OK : ESP_FAIL;
 }
 
-esp_err_t sd_format(void)
+static esp_err_t sd_format_u(void)
 {
+	if (on_stick) {
+		return ESP_ERR_NOT_SUPPORTED; /* format a USB drive on a computer */
+	}
 	if (!mounted) {
 		return ESP_ERR_INVALID_STATE;
 	}
@@ -333,7 +380,134 @@ esp_err_t sd_format(void)
 	return e;
 }
 
-const char *sd_card_name(void) { return card ? card->cid.name : ""; }
+const char *sd_card_name(void) { return on_stick ? "USB drive" : card ? card->cid.name : ""; }
+
+/* ------------------------------------------------------------------ locked entry points, and the USB hand-over */
+
+esp_err_t sd_save_jpeg(const uint8_t *buf, size_t len, const char *trigger, char *name_out, size_t name_n)
+{
+	sd_lock();
+	esp_err_t e = sd_save_jpeg_u(buf, len, trigger, name_out, name_n);
+	sd_unlock();
+	return e;
+}
+
+cJSON *sd_list_days(void)
+{
+	sd_lock();
+	cJSON *a = sd_list_days_u();
+	sd_unlock();
+	return a;
+}
+
+cJSON *sd_list_files(const char *day)
+{
+	sd_lock();
+	cJSON *a = sd_list_files_u(day);
+	sd_unlock();
+	return a;
+}
+
+esp_err_t sd_serve(httpd_req_t *req, const char *day, const char *file, bool download)
+{
+	sd_lock();
+	esp_err_t e = sd_serve_u(req, day, file, download);
+	sd_unlock();
+	return e;
+}
+
+esp_err_t sd_delete(const char *day, const char *file)
+{
+	sd_lock();
+	esp_err_t e = sd_delete_u(day, file);
+	sd_unlock();
+	return e;
+}
+
+esp_err_t sd_format(void)
+{
+	sd_lock();
+	esp_err_t e = sd_format_u();
+	sd_unlock();
+	return e;
+}
+
+/* A USB stick on the native port (usbhost.c): photos, Playback and Storage use it instead of the card */
+void sd_stick_mounted(const char *mount)
+{
+	if (!lock) {
+		lock = xSemaphoreCreateRecursiveMutex();
+	}
+	sd_lock();
+	base = mount;
+	snprintf(root, sizeof(root), "%s/DCIM", mount);
+	mkdir(root, 0775);
+	on_stick = true;
+	mounted = true;
+	sd_unlock();
+}
+
+/* The stick is gone: back to the card, if there is one */
+void sd_stick_gone(void)
+{
+	if (!lock) {
+		return;
+	}
+	sd_lock();
+	if (on_stick) {
+		on_stick = false;
+		base = MOUNT;
+		strlcpy(root, ROOT, sizeof(root));
+		mounted = card != NULL;
+	}
+	sd_unlock();
+}
+
+/* The computer takes the card: unmount the file system, keep the card initialised for raw sector access */
+void *sd_usb_lend(void)
+{
+	if (!lock) {
+		return NULL;
+	}
+	sd_lock();
+	void *r = NULL;
+	if (mounted && !on_stick) {
+		esp_vfs_fat_sdcard_unmount(MOUNT, card); /* also stops the SDMMC host */
+		mounted = false;
+		card = NULL;
+		sdmmc_host_t host;
+		sdmmc_slot_config_t slot;
+		sd_config(&host, &slot);
+		memset(&raw_card, 0, sizeof(raw_card));
+		if (sdmmc_host_init() == ESP_OK && sdmmc_host_init_slot(host.slot, &slot) == ESP_OK &&
+			sdmmc_card_init(&host, &raw_card) == ESP_OK) {
+			lent = true;
+			r = &raw_card;
+		} else {
+			ESP_LOGW(TAG, "card hand-over to USB failed: kept by the camera");
+			sdmmc_host_deinit();
+			sd_mount();
+		}
+	}
+	sd_unlock();
+	return r;
+}
+
+/* The computer let go (eject, unplug): the camera mounts the card again */
+void sd_usb_return(void)
+{
+	if (!lock) {
+		return;
+	}
+	sd_lock();
+	if (lent) {
+		sdmmc_host_deinit();
+		lent = false;
+		sd_mount();
+	}
+	sd_unlock();
+}
+
 
 #else /* no SD support in this build */
 
@@ -348,5 +522,9 @@ esp_err_t sd_serve(httpd_req_t *req, const char *day, const char *file, bool dow
 esp_err_t sd_delete(const char *day, const char *file) { return ESP_ERR_NOT_SUPPORTED; }
 esp_err_t sd_format(void) { return ESP_ERR_NOT_SUPPORTED; }
 const char *sd_card_name(void) { return ""; }
+void *sd_usb_lend(void) { return NULL; }
+void sd_stick_mounted(const char *mount) { (void)mount; }
+void sd_stick_gone(void) {}
+void sd_usb_return(void) {}
 
 #endif

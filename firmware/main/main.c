@@ -110,6 +110,7 @@ void app_main(void)
 	if (sd_mount()) {
 		events_note("sd", "card mounted");
 	}
+	usbdev_start(); /* usbMode: native USB port as a drive (the card) or a webcam; off = USB serial/JTAG as before */
 	console_start();
 	sched_start();
 	proto_start();

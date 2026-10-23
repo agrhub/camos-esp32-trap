@@ -311,6 +311,15 @@ menu "CamOS trap camera"
             int "Baud rate (A7680C default 115200)"
             depends on CAMOS_MODEM
             default 115200
+        config CAMOS_MODEM_FAST_BAUD
+            int "Baud rate once the module answers (0 = keep the one above)"
+            depends on CAMOS_MODEM
+            default 921600
+            help
+                The UART carries all 4G data. 115200 baud is about 11 KB/s: a 13 KB live JPEG needs over a second on
+                the wire. After the first AT the module is moved to this rate (AT+IPR); when the wires do not carry
+                it, the firmware goes back to CAMOS_MODEM_BAUD. A module that kept the fast rate from an earlier
+                boot is found at either rate.
         config CAMOS_MODEM_PWRKEY_GPIO
             int "PWRKEY GPIO (-1 = modem is always on)"
             depends on CAMOS_MODEM
@@ -474,6 +483,15 @@ menu "CamOS trap camera"
             default 40
     endmenu
 
+    config CAMOS_USB_OTG
+        bool "Native USB port as a webcam and a card reader (setting usbMode)"
+        depends on SOC_USB_OTG_SUPPORTED
+        default y
+        help
+            The ESP32-S3's native USB port (USB OTG, device mode) becomes a UVC webcam and shows the microSD card
+            to a computer as a drive. The usbMode setting, applied at boot: auto (default, both), storage, webcam,
+            or off (the port stays the USB serial/JTAG console). usbdev.c, docs/WEB_CONSOLE.md.
+
     config CAMOS_LIVE
         bool "Cloud live view: KVS WebRTC MASTER with software H.264 (ESP32-S3 only)"
         depends on IDF_TARGET_ESP32S3
@@ -511,6 +529,20 @@ menu "CamOS trap camera"
             web console stream runs at this clock too: the sensor's frame rate follows XCLK. Snapshots keep
             CAMOS_XCLK_MHZ. On the Freenove board 16 and 20 MHz cost the 2.4 GHz Wi-Fi (HTTP to the camera fell from
             400-1,300 KB/s to 5-180 KB/s, round trips rose to 100-500 ms); 10 and 12 MHz measured clean.
+    config CAMOS_LIVE_YUV_PLL_MUL
+        int "OV5640 PLL multiplier for the live view's YUV422 frames (0 = the driver's)"
+        depends on CAMOS_LIVE
+        range 0 40
+        default 16
+        help
+            The sensor's frame rate follows its PLL. esp32-camera runs 320x240 YUV422 at a multiplier of 8: 4.8
+            frames a second at the 12 MHz XCLK, and the encoder waited on the camera. Measured on the Freenove board
+            (23 Oct 2026): 16 gives 9.6, 24 gives 14.6, 32 gives 19, 40 gives 24 frames a second with a clean
+            picture; 48 and up corrupt the frames. With 16 the live view ran at 9.1-9.6 fps over Wi-Fi (the encoder
+            targets 10). XCLK stays at CAMOS_LIVE_XCLK_MHZ: the Wi-Fi throughput and round trip to the camera were
+            the same at 8 and 16, unlike a faster XCLK. A shorter frame caps the exposure, so a dark trap may need
+            video.image.nightMode. In a bright, detailed scene the software encoder (about 200 ms a frame) is the
+            limit, not the sensor.
     config CAMOS_LIVE_KBPS
         int "Live view target bitrate (kbit/s)"
         depends on CAMOS_LIVE

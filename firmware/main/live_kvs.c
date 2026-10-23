@@ -35,6 +35,7 @@
 #include "mbedtls/base64.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "freertos/queue.h"
 #include "cJSON.h"
 #include "esp_peer.h"
@@ -834,6 +835,14 @@ static const live_quality_t default_quality = { LIVE_MODE_H264, LIVE_W, LIVE_H, 
 static const live_quality_t jpeg_quality = { LIVE_MODE_JPEG, 640, 480, 12, 15 };
 #define WEAK_LINK_MS 6000 /* JPEG frames go out but no ack comes back for this long: H.264 on the video track */
 
+/* The weak-link wait: WEAK_LINK_MS, or four round trips when the link is slower (4G through a TURN relay: one late
+ * ack must not end a JPEG stream that gets through) */
+static int weak_link_ms(void)
+{
+	int rtt4 = k.flow.last_rtt_ms > 0 ? 4 * (int)k.flow.last_rtt_ms : 0;
+	return rtt4 > 15000 ? 15000 : rtt4 > WEAK_LINK_MS ? rtt4 : WEAK_LINK_MS;
+}
+
 /* A capture wants the camera: stop the pipeline, give the camera lock to the scheduler, wait until the capture is
  * done with the sensor, then start again in the same mode. False when the camera does not come back. */
 static bool pause_cycle(pipe_t *p, live_quality_t *cur, bool *cam_held)
@@ -867,6 +876,38 @@ static bool pause_cycle(pipe_t *p, live_quality_t *cur, bool *cam_held)
 	k.pause_ms = (int)((esp_timer_get_time() - t0) / 1000);
 	ESP_LOGI(TAG, "live stream back after %d ms", k.pause_ms);
 	return true;
+}
+
+/* The encoder's stack, reserved once at boot: with Wi-Fi, TLS and the web console up, internal RAM is split into
+ * blocks of at most about 8 KB, too small for it, and it cannot live in PSRAM (the camera re-init in this task reads
+ * flash, which a PSRAM stack does not allow) */
+#define VENC_STACK 16384
+static StackType_t *venc_stack;
+static StaticTask_t venc_tcb;
+static SemaphoreHandle_t stack_mux; /* venc_stack between the camera tasks (lend) and this one (create) */
+
+/* A photo or the web console stream needs the camera's 16 KB JPEG DMA buffer while no encoder runs: the encoder's
+ * block is lent to it (cam.c, before the camera starts) and taken back when the camera stops. After a live session
+ * the internal heap had no other 16 KB block left and photos failed ("frame buffer malloc failed", 23 Oct 2026). */
+void live_stack_lend(void)
+{
+	if (stack_mux && xSemaphoreTake(stack_mux, portMAX_DELAY) == pdTRUE) {
+		if (!k.venc && venc_stack) {
+			heap_caps_free(venc_stack);
+			venc_stack = NULL;
+		}
+		xSemaphoreGive(stack_mux);
+	}
+}
+
+void live_stack_reserve(void)
+{
+	if (stack_mux && xSemaphoreTake(stack_mux, portMAX_DELAY) == pdTRUE) {
+		if (!venc_stack) {
+			venc_stack = heap_caps_malloc(VENC_STACK, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+		}
+		xSemaphoreGive(stack_mux);
+	}
 }
 
 static void venc_task(void *arg)
@@ -911,8 +952,11 @@ static void venc_task(void *arg)
 		if (k.dc_hello) {
 			k.dc_hello = false;
 			dc_send_hello(&cur);
-			if (!k.req_pending && !k.viewer_chose) {
-				k.req = jpeg_quality; /* JPEG by default; the viewer's own choice, when it sends one, wins */
+			/* JPEG by default on Wi-Fi; the viewer's own choice, when it sends one, wins. Over 4G a JPEG frame needs
+			 * more than a second to get through (one round trip is 1.5-1.8 s via the TURN relay, measured 22 Oct
+			 * 2026), so the start stays on H.264 there instead of switching to JPEG and back. */
+			if (!k.req_pending && !k.viewer_chose && net_type() != NET_4G) {
+				k.req = jpeg_quality;
 				k.req_pending = true;
 			}
 		}
@@ -941,10 +985,10 @@ static void venc_task(void *arg)
 		} else if (capture_busy()) {
 			k.last_ack_ms = clock_ms(); /* a photo upload fills the uplink and acks get lost: not a weak link */
 		} else if (cur.mode == LIVE_MODE_JPEG && want.mode == LIVE_MODE_JPEG && seq > 0 &&
-				   clock_ms() - k.last_ack_ms > WEAK_LINK_MS) {
+				   clock_ms() - k.last_ack_ms > weak_link_ms()) {
 			want = default_quality; /* nothing arrives: the small H.264 stream copes with a weak link */
 			why = "weak_link";
-			ESP_LOGW(TAG, "no JPEG ack for %d s: H.264 %dx%d", WEAK_LINK_MS / 1000, LIVE_W, LIVE_H);
+			ESP_LOGW(TAG, "no JPEG ack for %d s: H.264 %dx%d", weak_link_ms() / 1000, LIVE_W, LIVE_H);
 		}
 		if (memcmp(&want, &cur, sizeof(want))) {
 			pipe_stop(&p);
@@ -1081,7 +1125,7 @@ done:
 	k.fps = 0;
 	ESP_LOGI(TAG, "encoder stopped after %u frames", (unsigned)k.frames);
 	k.venc_done = true;
-	vTaskDelete(NULL);
+	vTaskSuspend(NULL); /* venc_stop deletes it: the stack and TCB are reused (venc_stack) */
 }
 
 /* ------------------------------------------------------------------ peer */
@@ -1120,9 +1164,14 @@ static void venc_stop(void)
 {
 	if (k.venc) {
 		k.venc_run = false;
-		for (int i = 0; i < 300 && !k.venc_done; i++) {
+		for (int i = 0; i < 300 && !(k.venc_done && eTaskGetState(k.venc) == eSuspended); i++) {
 			vTaskDelay(pdMS_TO_TICKS(10));
 		}
+		if (!k.venc_done || eTaskGetState(k.venc) != eSuspended) {
+			ESP_LOGE(TAG, "encoder did not stop"); /* its stack stays taken: no new encoder until it does */
+			return;
+		}
+		vTaskDelete(k.venc); /* not running: removed at once, so its stack can serve the next encoder */
 		k.venc = NULL;
 	}
 }
@@ -1195,9 +1244,20 @@ static void handle_offer(ev_t *e)
 	int sizes[LIVE_DC_MAX_SIZES][2];
 	live_dc_set_sizes(sizes, cam_sizes(true, sizes, LIVE_DC_MAX_SIZES)); /* the sensor's live sizes */
 	ESP_LOGI(TAG, "offer from viewer %s (%u bytes)", k.viewer, (unsigned)strlen(e->data));
+	if (k.venc) {
+		set_err("the previous encoder did not stop");
+		k.viewer[0] = 0;
+		return;
+	}
 	k.venc_run = true, k.venc_done = false;
-	if (xTaskCreatePinnedToCore(venc_task, "venc", 16384, NULL, 4, &k.venc, 1) != pdPASS) {
-		k.venc = NULL;
+	if (!venc_stack) {
+		preview_stop(); /* the block was lent to the camera: the preview may still hold it, its stop gives it back */
+		live_stack_reserve();
+	}
+	xSemaphoreTake(stack_mux, portMAX_DELAY);
+	k.venc = venc_stack ? xTaskCreateStaticPinnedToCore(venc_task, "venc", VENC_STACK, NULL, 4, venc_stack, &venc_tcb, 1) : NULL;
+	xSemaphoreGive(stack_mux);
+	if (!k.venc) {
 		set_err("no memory for the encoder task");
 		k.viewer[0] = 0;
 		return;
@@ -1355,6 +1415,8 @@ void live_kvs_init(void)
 	}
 	strlcpy(k.state, "off", sizeof(k.state));
 	k.q = xQueueCreate(16, sizeof(ev_t));
+	stack_mux = xSemaphoreCreateMutex();
+	venc_stack = heap_caps_malloc(VENC_STACK, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 	esp_log_level_set("AGENT", ESP_LOG_WARN); /* esp_peer's ICE agent logs every allocate and the TURN password */
 	/* the stack in PSRAM: internal RAM is for the camera DMA, Wi-Fi and the encoder (this task never writes flash) */
 	if (!k.q || xTaskCreatePinnedToCoreWithCaps(kvs_task, "kvs", 12288, NULL, 5, &k.task, 0, MALLOC_CAP_SPIRAM) != pdPASS) {

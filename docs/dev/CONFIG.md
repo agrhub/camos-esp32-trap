@@ -13,7 +13,7 @@ are English by default; the language link switches to Vietnamese and the choice 
 
 | Call | Body / result |
 |---|---|
-| `GET /api/config` | every setting with its effective value; secrets (`password`, `simPin`, `provisionToken`, `token`, `apPassword`) as `true`/`false`; `defaults` (keys that are build defaults), `cert`, `key`, `paired`, `registered`, `claimed`, `hasModem`, `hasGps`, `hasLive`, `serial`, `verifyCode`, `labelQr`, `claimUrl`, `apSsid`, `wifiError`, `regError`, `timezoneAuto`, `timezoneSource`, `uiLang`, `model`, `fw`, `hostname` (read-only: the local name without `.local`) |
+| `GET /api/config` | every setting with its effective value; secrets (`password`, `simPin`, `provisionToken`, `token`, `apPassword`) as `true`/`false`; `defaults` (keys that are build defaults), `cert`, `key`, `paired`, `registered`, `claimed`, `hasModem`, `hasGps`, `hasLive`, `serial`, `verifyCode`, `labelQr`, `claimUrl`, `apSsid`, `wifiError`, `regError`, `timezoneAuto`, `timezoneSource`, `uiLang`, `model`, `fw`, `hostname` (read-only: the local name without `.local`), `usbMode` (`auto` default, `storage`, `webcam`, `off`; applied at boot) |
 | `GET /api/wifi/scan[?refresh=1]` | `[{ssid, rssi, secure, channel}]`, deduplicated by SSID, strongest first; cached from the scan at portal start, `refresh=1` scans again |
 | `POST /api/connect` | `{ssid, password, ...any keys}`: save the other keys, then join that network with the AP still up: `{ok, checking: true, ssid, timeoutS: 30}`; the network is stored only once it gave an IP (an empty password = the stored one of the same network). With 4G on: save and restart (`{ok}`). `400 CHOOSE_NETWORK`, `400 SHORT_PASSWORD`, `400 BAD_VALUE`, `409 BUSY` |
 | `GET /api/connect` | `{state: idle\|joining\|ok\|failed, ssid, elapsedS, timeoutS, reason: auth\|not_found\|timeout, ip, hostname}`; `ok`: the camera restarts onto the network 5 s later; `failed`: the portal stays (the 10 minutes start again) |
@@ -25,6 +25,7 @@ are English by default; the language link switches to Vietnamese and the choice 
 | `GET /info` | protocol 12.3: `{serial, model, fw, wifiScan: [{ssid, rssi, secure}]}` |
 | `POST /provision` | protocol 12.3: `{ssid, password, provisionToken?, endpoint?, apn?, apiBase?}` -> `{"ok":true}`, restarts |
 | `POST /api/config` (new keys in 0.4.0) | `sdSave`, `schedFrom`, `schedTo` (minutes after midnight), `motion`, `motionSens` (1-100), `motionCooldown` (s), `motionRoi` (`"x,y,w,h"` percent), `motionSd`, `motionUpload`, `ipMode` (0 DHCP, 1 static), `staticIp`, `staticMask`, `staticGateway`, `staticDns` (also accepted by the web console) |
+| `POST /api/config` (board wiring) | `modemPwrkey` (GPIO, -1 = not wired: the module stays on and `AT+CFUN` switches its radio), `modemFastBaud` (UART rate after the first AT, 0 = keep 115200), `gpsPowerActiveLow` (`true` for a P-MOSFET switch, `false` for an NPN switch or a GPIO powering the module), `battDivider` and `solarDivider` (the divider ratio (Rtop + Rbottom) / Rbottom x 100, 100-2000: 200 for 100k/100k, 403 for 100k/33k, 500 for the 30k/7.5k "voltage sensor" module). Defaults come from Kconfig; a factory reset keeps these values and an OTA image built with other defaults does not change them |
 
 ## 3. Web console API (http://<camera IP>/)
 
@@ -35,7 +36,7 @@ header `X-Requested-With: camos`. Details at the top of `firmware/main/web.c`.
 |---|---|
 | `GET /api/session` | `{activated, signedIn, model, serial, fw, uiLang}` (no sign-in needed) |
 | `POST /api/activate {password}`, `/api/login {password}`, `/api/logout`, `/api/password {current, new}`, `/api/lang {uiLang}` | admin password and session |
-| `GET /api/status` | device, time, network, cloud, live (cloud live view: supported, window, state, viewer, fps, kbit/s), image, stream (fps, frame size), motion, SD card, power, battery, location, LED |
+| `GET /api/status` | device, time, network, cloud, live (cloud live view: supported, window, state, viewer, fps, kbit/s), image, stream (fps, frame size), motion, USB port (`usb`: mode, setting, connected, idle, cardLent, streaming, width, height), SD card, power, battery, location, LED |
 | `GET|POST /api/config`, `POST /api/cert`, `GET /api/wifi/scan` | as in the portal |
 | `GET /api/image`, `POST /api/image {image: {...}, jpegQuality, save}` | image settings (shadow `video.image` keys); `save: false` previews only; `{restore: true}` |
 | `GET /api/stream?w=&h=&q=` | MJPEG live picture, one viewer at a time (409 `BUSY` for the next) |
@@ -58,7 +59,7 @@ Available in normal operation and inside the portal; English. `help` lists the c
 |---|---|
 | `info` | serial, verify code, label QR text, pairing state, network, IP, clock and its source, timezone and its source, public IP, claim state, battery, power mode, next capture, location |
 | `cfg` | the configuration as JSON (secrets as set / not set) |
-| `set <key> <value>` | the portal keys (`set apn v-internet`, `set powerMode battery`, `set uiLang vi`, `set batteryMonitor 1`) |
+| `set <key> <value>` | the portal keys (`set apn v-internet`, `set powerMode battery`, `set uiLang vi`, `set batteryMonitor 1`, `set battDivider 500`) |
 | `cert`, `key` | paste a PEM, finish with a line `END` |
 | `scan` | Wi-Fi scan (in the portal with the SoftAP up) |
 | `connect [ssid [password]]` | in the portal: the page's Connect check (AP up, stored once it gets an IP); no arguments = the stored network |
@@ -69,6 +70,7 @@ Available in normal operation and inside the portal; English. `help` lists the c
 | `time [flybot]` | clock state; `time flybot` asks `GET /api/device/time` |
 | `snap`, `frame [w h [q]]`, `meta` | capture + upload; one JPEG at a size with timings; the snapshot meta JSON |
 | `batt`, `mode auto\|battery\|powered` | battery / solar, power decision; power mode |
+| `usb`, `usb auto\|storage\|webcam\|off` | native USB port state (mode, connected, idle, cardLent, streaming; mode `stick` with `stick`, `stickMB` while the port is a USB drive's host); set `usbMode` for the next boot |
 | `gps [timeout]`, `at <AT command>` | GPS fix; talk to the modem |
 | `led [state]` | show an LED state (`portal`, `connecting`, `online`, `error`, `ota`, `off`, `capture`, `uploaderr`, `lowbatt`) |
 | `live`, `live start [min]`, `live stop` | cloud live view (ESP32-S3, `CAMOS_LIVE`): status JSON (state, viewer, fps, kbit/s, encode / camera ms, last error); open a window; drop the viewer and end the window. With `CAMOS_LIVE_BENCH_CREDS`: `live key id\|secret\|token <value>` / `live key clear` (bench keys in RAM, see [LIVE_VIEW.md](LIVE_VIEW.md)) |

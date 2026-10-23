@@ -197,6 +197,7 @@ static const str_field_t fields[] = {
 	{ "uiLang", "ui_lang", g_cfg.ui_lang, sizeof(g_cfg.ui_lang), false, "en", false },
 	{ "motionRoi", "mo_roi", g_cfg.motion_roi, sizeof(g_cfg.motion_roi), false, "0,0,100,100", false },
 	{ "captureSize", "cap_size", g_cfg.capture_size, sizeof(g_cfg.capture_size), false, "max", false },
+	{ "usbMode", "usb_mode", g_cfg.usb_mode, sizeof(g_cfg.usb_mode), false, "auto", false },
 	{ "staticIp", "st_ip", g_cfg.static_ip, sizeof(g_cfg.static_ip), false, "", false },
 	{ "staticMask", "st_mask", g_cfg.static_mask, sizeof(g_cfg.static_mask), false, "255.255.255.0", false },
 	{ "staticGateway", "st_gw", g_cfg.static_gw, sizeof(g_cfg.static_gw), false, "", false },
@@ -210,6 +211,24 @@ typedef struct {
 	int dflt, lo, hi;
 	bool identity;
 } int_field_t;
+
+/* Board wiring defaults: options that are off in this build have no symbol */
+#ifdef CONFIG_CAMOS_MODEM_PWRKEY_GPIO
+#define DEFAULT_MODEM_PWRKEY CONFIG_CAMOS_MODEM_PWRKEY_GPIO
+#else
+#define DEFAULT_MODEM_PWRKEY -1
+#endif
+#ifdef CONFIG_CAMOS_MODEM_FAST_BAUD
+#define DEFAULT_MODEM_FAST_BAUD CONFIG_CAMOS_MODEM_FAST_BAUD
+#else
+#define DEFAULT_MODEM_FAST_BAUD 0
+#endif
+#ifdef CONFIG_CAMOS_GPS_POWER_ACTIVE_LOW
+#define DEFAULT_GPS_PWR_LOW 1
+#else
+#define DEFAULT_GPS_PWR_LOW 0
+#endif
+#define DIVIDER_X100(top, bottom) (((top) + (bottom)) * 100 / (bottom))
 
 static const int_field_t ints[] = {
 	{ "intervalMin", "interval", &g_cfg.interval_min, CAMOS_DEFAULT_INTERVAL_MIN, 0, 1440, false },
@@ -228,6 +247,12 @@ static const int_field_t ints[] = {
 	{ "motionUpload", "mo_upload", &g_cfg.motion_upload, 0, 0, 1, false },
 	{ "motionSd", "mo_sd", &g_cfg.motion_sd, 1, 0, 1, false },
 	{ "ipMode", "ip_mode", &g_cfg.ip_mode, 0, 0, 1, false },
+	/* the wiring stays when the settings go back to the defaults */
+	{ "modemPwrkey", "mdm_pwrkey", &g_cfg.modem_pwrkey, DEFAULT_MODEM_PWRKEY, -1, 48, true },
+	{ "modemFastBaud", "mdm_fastbaud", &g_cfg.modem_fast_baud, DEFAULT_MODEM_FAST_BAUD, 0, 3000000, true },
+	{ "gpsPowerActiveLow", "gps_pwr_low", &g_cfg.gps_pwr_low, DEFAULT_GPS_PWR_LOW, 0, 1, true },
+	{ "battDivider", "batt_div", &g_cfg.batt_div, DIVIDER_X100(CONFIG_CAMOS_BATT_R_TOP_K, CONFIG_CAMOS_BATT_R_BOTTOM_K), 100, 2000, true },
+	{ "solarDivider", "solar_div", &g_cfg.solar_div, DIVIDER_X100(CONFIG_CAMOS_SOLAR_R_TOP_K, CONFIG_CAMOS_SOLAR_R_BOTTOM_K), 100, 2000, true },
 };
 #define N_INTS (sizeof(ints) / sizeof(ints[0]))
 
@@ -487,6 +512,9 @@ bool store_apply_kv(const char *key, const char *value)
 			return false;
 		}
 		if (!strcmp(key, "captureSize") && value[0] && !capture_size_parse(value, NULL, NULL)) {
+			return false;
+		}
+		if (!strcmp(key, "usbMode") && value[0] && !usb_mode_valid(value)) {
 			return false;
 		}
 		if (!strncmp(key, "static", 6) && value[0] && !ip4_ok(value)) {

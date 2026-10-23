@@ -56,9 +56,10 @@ static int cmd_info(int argc, char **argv)
 	printf("net %s %s ip %s rssi %d  mqtt %s\n", net_type_name(), net_up() ? "up" : "down", ip, net_rssi(),
 		   proto_connected() ? "connected" : "down");
 	printf("local name %s.local  (web console http://%s.local/ on the same Wi-Fi)\n", local_hostname(), local_hostname());
-	printf("clock %s  uptime %lld s  free heap %u (min %u)  free PSRAM %u\n", ts, (long long)(esp_timer_get_time() / 1000000),
-		   (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL), (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
-		   (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+	printf("clock %s  uptime %lld s  free heap %u (min %u, largest block %u)  free PSRAM %u\n", ts,
+		   (long long)(esp_timer_get_time() / 1000000), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+		   (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+		   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL), (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 	printf("timezone %s (from %s), clock from %s, public IP %s, claimed %s\n", tz_effective_iana(), tz_effective_source(),
 		   clock_source(), g_public_ip[0] ? g_public_ip : "?", shadow_claimed() ? "yes" : "no");
 	printf("battery %d mV %d %%  solar %d mV  charging %s  power.mode %s -> effective %s\n", battery_mv(), battery_pct(),
@@ -304,6 +305,26 @@ static int cmd_mode(int argc, char **argv)
 	}
 	printf("power.mode %s, effective %s\n", power_mode_name(shadow_power_mode()), power_mode_name(power_effective()));
 	sched_changed();
+	return 0;
+}
+
+/* usb [auto|storage|webcam|off]: the native USB port's mode (applied at the next boot) */
+static int cmd_usb(int argc, char **argv)
+{
+	if (argc < 2) {
+		cJSON *o = cJSON_CreateObject();
+		usbdev_json(o);
+		char *j = cJSON_PrintUnformatted(cJSON_GetObjectItem(o, "usb"));
+		printf("usb %s\n", j ? j : "{}");
+		cJSON_free(j);
+		cJSON_Delete(o);
+		return 0;
+	}
+	if (!usb_mode_valid(argv[1]) || !store_apply_kv("usbMode", argv[1])) {
+		printf("usage: usb auto|storage|webcam|off\n");
+		return 1;
+	}
+	printf("usbMode %s: restart to apply (command restart)\n", g_cfg.usb_mode);
 	return 0;
 }
 
@@ -663,6 +684,7 @@ void console_start(void)
 		{ .command = "frame", .help = "frame [w h [q]]: one JPEG at that size (default 640 480 12), size and timings", .func = cmd_frame },
 		{ .command = "batt", .help = "read battery / solar, print the power decision", .func = cmd_batt },
 		{ .command = "mode", .help = "mode auto|battery|powered", .func = cmd_mode },
+		{ .command = "usb", .help = "usb [auto|storage|webcam|off]: native USB port mode (at the next boot)", .func = cmd_usb },
 		{ .command = "gps", .help = "gps [timeout]: take a fix", .func = cmd_gps },
 		{ .command = "at", .help = "at <command>: send to the modem", .func = cmd_at },
 		{ .command = "live", .help = "live [status] | start [min] | stop", .func = cmd_live },

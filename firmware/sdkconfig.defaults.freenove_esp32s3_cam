@@ -33,6 +33,11 @@ CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=256
 CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 # with Wi-Fi buffers in PSRAM the block-ack window defaults to 16, more than twice the 6 static RX buffers (build error)
 CONFIG_ESP_WIFI_RX_BA_WIN=6
+# Wi-Fi code in flash, not IRAM: on the ESP32-S3 IRAM and DRAM share one SRAM, and these two options held the
+# internal RAM that the live encoder stack (16 KB in one block, live_kvs.c) needs next to Wi-Fi and the web console
+# (with them on: 1.5 KB free at the lowest on Wi-Fi with the stack reserved). Costs some Wi-Fi throughput.
+# CONFIG_ESP_WIFI_IRAM_OPT is not set
+# CONFIG_ESP_WIFI_RX_IRAM_OPT is not set
 # Camera DMA: during a live session the H.264 pipeline's YUV422 frames go by DMA straight into PSRAM and the session
 # holds a 16 KB internal block for every JPEG start (cam.c): esp32-camera's JPEG mode takes a fixed 16 KB internal
 # buffer whatever this says (its PSRAM DMA mode loses the JPEG end markers). This limit only sizes the YUV422 transfer.
@@ -41,3 +46,9 @@ CONFIG_CAMERA_DMA_BUFFER_SIZE_MAX=15360
 # 30-100 ms round trip carried about 60 KB/s (a 640x480 frame took 180 ms to send, the camera 50 ms to take it).
 # 16 segments; the buffers are in PSRAM (SPIRAM_TRY_ALLOCATE_WIFI_LWIP)
 CONFIG_LWIP_TCP_SND_BUF_DEFAULT=23040
+# USB host (usbMode "stick"): give slow USB drives time; their first enumeration failed with the 250/30/30 ms
+# defaults ("Dev 0 EP 0 Error"), and power-cycling the root port to retry races the hub driver (abort in hub.c)
+CONFIG_USB_HOST_DEBOUNCE_DELAY_MS=1000
+CONFIG_USB_HOST_RESET_HOLD_MS=50
+CONFIG_USB_HOST_RESET_RECOVERY_MS=200
+CONFIG_USB_HOST_SET_ADDR_RECOVERY_MS=50

@@ -19,6 +19,7 @@
 static const char *TAG = "wifi";
 static esp_timer_handle_t retry_timer;
 static int backoff_s = 1;
+static volatile int failures;
 static volatile bool s_up;
 static bool started, stopping;
 static void (*up_cb)(void);
@@ -26,6 +27,7 @@ static void (*up_cb)(void);
 void wifi_set_up_cb(void (*cb)(void)) { up_cb = cb; }
 bool wifi_up(void) { return s_up; }
 bool wifi_started(void) { return started; }
+int wifi_failures(void) { return failures; }
 
 int wifi_rssi(void)
 {
@@ -64,15 +66,39 @@ static void giveup_cb(void *arg)
 	esp_restart();
 }
 
+/* Public resolvers behind the router's: a router (or a laptop hotspot, seen 23 Oct 2026 with Windows' Internet
+ * Connection Sharing) can hand out a DNS server that never answers while it routes traffic fine. lwIP asks the next
+ * server when one times out. DHCP sets the main and backup entries and never the fallback, so 8.8.8.8 goes there at
+ * the start and 1.1.1.1 into the backup entry when DHCP left it empty. */
+static void set_dns(esp_netif_t *sta, esp_netif_dns_type_t type, const char *ip)
+{
+	esp_netif_dns_info_t dns = { 0 };
+	dns.ip.type = ESP_IPADDR_TYPE_V4;
+	dns.ip.u_addr.ip4.addr = esp_ip4addr_aton(ip);
+	esp_netif_set_dns_info(sta, type, &dns);
+}
+
+static void dns_backup_fill(void)
+{
+	esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+	esp_netif_dns_info_t d = { 0 };
+	if (sta && esp_netif_get_dns_info(sta, ESP_NETIF_DNS_BACKUP, &d) == ESP_OK && d.ip.u_addr.ip4.addr == 0) {
+		set_dns(sta, ESP_NETIF_DNS_BACKUP, "1.1.1.1");
+	}
+}
+
 static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
 	if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
-		esp_wifi_connect();
+		if (!stopping) {
+			esp_wifi_connect(); /* not for a wifi_probe scan */
+		}
 	} else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
 		s_up = false;
 		if (stopping) {
 			return;
 		}
+		failures++;
 		/* Exponential back-off with +-20 % jitter, capped at 300 s */
 		int jitter = (int)(esp_random() % 41) - 20;
 		int64_t delay_ms = (int64_t)backoff_s * 1000 * (100 + jitter) / 100;
@@ -81,7 +107,11 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 		backoff_s = backoff_s * 2 > 300 ? 300 : backoff_s * 2;
 	} else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
 		backoff_s = 1;
+		failures = 0;
 		s_up = true;
+		if (g_cfg.ip_mode != 1) {
+			dns_backup_fill();
+		}
 		if (giveup_timer) {
 			esp_timer_stop(giveup_timer);
 		}
@@ -109,6 +139,7 @@ void wifi_start_sta(void)
 	esp_netif_t *sta = esp_netif_create_default_wifi_sta();
 	local_hostname_apply(sta); /* the router lists the camera as flybot-xxxxxx */
 	local_mdns_start();         /* answers flybot-xxxxxx.local once the station has an address */
+	set_dns(sta, ESP_NETIF_DNS_FALLBACK, "8.8.8.8");
 	if (g_cfg.ip_mode == 1 && g_cfg.static_ip[0] && g_cfg.static_gw[0]) {
 		/* static address from the console's TCP/IP page (GOT_IP still comes once the station associates) */
 		esp_netif_ip_info_t ip = { 0 };
@@ -150,6 +181,54 @@ void wifi_start_sta(void)
 			ESP_LOGI(TAG, "new network %s: back to the portal if no IP within %d s", g_cfg.wifi_ssid, WIFI_NEW_GIVEUP_S);
 		}
 	}
+}
+
+/* 4G took over (net.c): is the configured network in range again? The radio is on for one scan only. */
+static bool released;
+
+/* 4G took over: the driver's buffers and task (internal RAM) are freed until the next probe */
+void wifi_release(void)
+{
+	wifi_stop();
+	if (started && !released && esp_wifi_deinit() == ESP_OK) {
+		released = true;
+	}
+}
+
+bool wifi_probe(int *rssi)
+{
+	if (!started || !stopping) {
+		return false;
+	}
+	if (released) {
+		wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
+		if (esp_wifi_init(&init) != ESP_OK || esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK) {
+			return false;
+		}
+	}
+	if (esp_wifi_start() != ESP_OK) {
+		if (released) {
+			esp_wifi_deinit();
+		}
+		return false;
+	}
+	wifi_scan_config_t sc = { .ssid = (uint8_t *)g_cfg.wifi_ssid, .show_hidden = true };
+	uint16_t n = 0;
+	wifi_ap_record_t ap;
+	bool found = false;
+	if (esp_wifi_scan_start(&sc, true) == ESP_OK && esp_wifi_scan_get_ap_num(&n) == ESP_OK && n > 0) {
+		uint16_t one = 1;
+		if (esp_wifi_scan_get_ap_records(&one, &ap) == ESP_OK && one == 1) {
+			found = true;
+			*rssi = ap.rssi;
+		}
+	}
+	esp_wifi_clear_ap_list();
+	esp_wifi_stop();
+	if (released) {
+		esp_wifi_deinit();
+	}
+	return found;
 }
 
 /* ------------------------------------------------------------------ scan (portal list, console Wi-Fi page) */

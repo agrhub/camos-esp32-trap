@@ -52,7 +52,16 @@ idf_component_register(
     SRCS main.c battery.c power.c power_decide.c store.c wifi.c modem.c net.c portal.c web.c led.c qr.c register.c apn.c
          reg_parse.c cam.c flybot.c ota.c proto.c shadow.c sched.c util.c tz.c nmea.c gps.c live.c console.c
          stream.c sd.c motion.c motion_core.c events.c hostname.c live_kvs.c live_dc.c sigv4.c fleet_policy.c logfwd.c logfwd_core.c
+         usbdev.c usbhost.c quality.c
     INCLUDE_DIRS "." "${CAMOS_GEN_DIR}"
     EMBED_TXTFILES certs/AmazonRootCA1.pem portal.html console.html
     EMBED_FILES www/logo.png
 )
+
+# Native USB port (usbdev.c): our TinyUSB configuration and descriptors go into the TinyUSB library, as
+# espressif/usb_device_uvc does (only one tusb_config.h may exist, so that component is not used)
+if(NOT CMAKE_BUILD_EARLY_EXPANSION AND CONFIG_CAMOS_USB_OTG)
+    idf_component_get_property(tusb_lib espressif__tinyusb COMPONENT_LIB)
+    target_include_directories(${tusb_lib} PUBLIC "${CMAKE_CURRENT_LIST_DIR}/usb")
+    target_sources(${tusb_lib} PRIVATE "${CMAKE_CURRENT_LIST_DIR}/usb/usb_descriptors.c")
+endif()

@@ -33,6 +33,12 @@ Free header pins used by the firmware:
 | 3.3 V supply | 3V3 pin | | the 3.3 V buck-boost output |
 | Ground | GND pins | | every module's GND |
 
+Wired differently? Five settings describe the wiring and are kept on the camera (NVS), so a firmware update built
+with the defaults above does not undo them: `modemPwrkey` (-1 when PWRKEY is not wired), `modemFastBaud`,
+`gpsPowerActiveLow` (`0` for an NPN such as a C1815 on the GPS ground, or GPIO21 powering the module), `battDivider` and
+`solarDivider` (ratio x 100: `500` for the 30k/7.5k "voltage sensor" module). Set them on the serial console
+(`set battDivider 500`) or with `POST /api/config`, then restart. See [CONFIG.md](dev/CONFIG.md).
+
 **Feed the board at its 3V3 pin from the buck-boost, not at 5 V**: from a LiPo (3.3-4.2 V) the board's own 5 V
 regulator path has no headroom. The ESP32-S3 with Wi-Fi peaks around 500 mA and the OV5640 adds about 150 mA at full size
 (datasheet values): the regulator needs at least 1 A.
@@ -54,6 +60,8 @@ regulator path has no headroom. The ESP32-S3 with Wi-Fi peaks around 500 mA and 
 The firmware first checks whether the modem already answers (many SIM800L-style boards power up by themselves), then
 pulses PWRKEY 1.5 s to start it. Before a deep sleep it sends `AT+CPOF` and, if the modem still answers, holds PWRKEY
 3 s. Without the NPN (a GPIO wired straight to PWRKEY through 1k), build with `CAMOS_MODEM_PWRKEY_ACTIVE_HIGH=n`.
+With PWRKEY not wired at all (the TDM2309 starts by itself), `set modemPwrkey -1`: the module then stays on and
+the radio is switched off with `AT+CFUN=0` before a deep sleep.
 
 ## 3. GPS: ATGM336H
 
