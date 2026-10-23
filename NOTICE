@@ -11,7 +11,7 @@ Third-party components built into the firmware image
 ====================================================
 
 Each keeps its own licence; their licence texts are in their source trees (ESP-IDF, firmware/managed_components after
-the first build). Versions are those of firmware/dependencies.lock and the release workflow (ESP-IDF v5.4.4).
+the first build, firmware/components). Versions are those of firmware/dependencies.lock and the release workflow (ESP-IDF v5.4.4).
 
 | Component | Version | Licence | Notes |
 |---|---|---|---|
@@ -37,6 +37,9 @@ the first build). Versions are those of firmware/dependencies.lock and the relea
 | espressif/esp_peer | 1.5.7 | Espressif Modified MIT (use with Espressif chips only), **core binary only** | ESP32-S3 live view only (`CAMOS_LIVE`): ICE, DTLS-SRTP, RTP in `libpeer_default.a`, derived from libpeer (MIT); linked under the section 7 permission below |
 | espressif/esp_libsrtp | 1.0.0 | BSD-3-Clause (libsrtp, Cisco) | ESP32-S3 live view only |
 | espressif/esp_websocket_client | 1.7.0 | Apache-2.0 | ESP32-S3 live view only (KVS signaling) |
+| espressif/tinyusb | 0.19.0~3 | MIT (TinyUSB, Ha Thach) | ESP32-S3 only: the native USB port as a card reader and a UVC webcam |
+| espressif/usb_host_msc | 1.3.0 | Apache-2.0 | ESP32-S3 only: a USB drive on the native port |
+| JPEGDEC (BitBank Software, Larry Bank) | 1.8.4 | Apache-2.0 | firmware/components/jpegdec: the upstream src/ unchanged, its LICENSE alongside; the photo quality measurement |
 | Amazon Root CA 1 (firmware/main/certs/AmazonRootCA1.pem) | | public CA certificate (Amazon Trust Services) | |
 
 Not in the firmware image: the browser flasher page (docs/flash/) loads ESP Web Tools (Apache-2.0) from unpkg.com.
