@@ -212,6 +212,24 @@ typedef struct {
 	bool identity;
 } int_field_t;
 
+/* Board wiring defaults: options that are off in this build have no symbol */
+#ifdef CONFIG_CAMOS_MODEM_PWRKEY_GPIO
+#define DEFAULT_MODEM_PWRKEY CONFIG_CAMOS_MODEM_PWRKEY_GPIO
+#else
+#define DEFAULT_MODEM_PWRKEY -1
+#endif
+#ifdef CONFIG_CAMOS_MODEM_FAST_BAUD
+#define DEFAULT_MODEM_FAST_BAUD CONFIG_CAMOS_MODEM_FAST_BAUD
+#else
+#define DEFAULT_MODEM_FAST_BAUD 0
+#endif
+#ifdef CONFIG_CAMOS_GPS_POWER_ACTIVE_LOW
+#define DEFAULT_GPS_PWR_LOW 1
+#else
+#define DEFAULT_GPS_PWR_LOW 0
+#endif
+#define DIVIDER_X100(top, bottom) (((top) + (bottom)) * 100 / (bottom))
+
 static const int_field_t ints[] = {
 	{ "intervalMin", "interval", &g_cfg.interval_min, CAMOS_DEFAULT_INTERVAL_MIN, 0, 1440, false },
 	{ "powerMode", "power_mode", &g_cfg.power_mode, CAMOS_DEFAULT_POWER_MODE, 0, 2, false },
@@ -229,6 +247,12 @@ static const int_field_t ints[] = {
 	{ "motionUpload", "mo_upload", &g_cfg.motion_upload, 0, 0, 1, false },
 	{ "motionSd", "mo_sd", &g_cfg.motion_sd, 1, 0, 1, false },
 	{ "ipMode", "ip_mode", &g_cfg.ip_mode, 0, 0, 1, false },
+	/* the wiring stays when the settings go back to the defaults */
+	{ "modemPwrkey", "mdm_pwrkey", &g_cfg.modem_pwrkey, DEFAULT_MODEM_PWRKEY, -1, 48, true },
+	{ "modemFastBaud", "mdm_fastbaud", &g_cfg.modem_fast_baud, DEFAULT_MODEM_FAST_BAUD, 0, 3000000, true },
+	{ "gpsPowerActiveLow", "gps_pwr_low", &g_cfg.gps_pwr_low, DEFAULT_GPS_PWR_LOW, 0, 1, true },
+	{ "battDivider", "batt_div", &g_cfg.batt_div, DIVIDER_X100(CONFIG_CAMOS_BATT_R_TOP_K, CONFIG_CAMOS_BATT_R_BOTTOM_K), 100, 2000, true },
+	{ "solarDivider", "solar_div", &g_cfg.solar_div, DIVIDER_X100(CONFIG_CAMOS_SOLAR_R_TOP_K, CONFIG_CAMOS_SOLAR_R_BOTTOM_K), 100, 2000, true },
 };
 #define N_INTS (sizeof(ints) / sizeof(ints[0]))
 

@@ -46,7 +46,7 @@ static int percent_from_mv(int mv)
 
 /* One divider on one pin -> source voltage in mV, -1 on failure. 16 samples averaged, calibrated when the chip has
  * calibration data (otherwise a rough 12 dB scale). */
-static int read_divider_mv(int gpio, int r_top_k, int r_bottom_k)
+static int read_divider_mv(int gpio, int ratio_x100)
 {
 	adc_unit_t unit;
 	adc_channel_t chan;
@@ -95,8 +95,8 @@ static int read_divider_mv(int gpio, int r_top_k, int r_bottom_k)
 		} else {
 			pin_mv = raw * 3100 / 4095; /* uncalibrated: rough, 12 dB range is about 0..3.1 V */
 		}
-		/* divider: Vsrc = Vpin * (Rtop + Rbottom) / Rbottom */
-		mv = pin_mv * (r_top_k + r_bottom_k) / r_bottom_k;
+		/* divider: Vsrc = Vpin * (Rtop + Rbottom) / Rbottom, given x 100 */
+		mv = pin_mv * ratio_x100 / 100;
 	}
 #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
 	if (cali) {
@@ -117,11 +117,11 @@ bool battery_sample(void)
 		last_mv = last_solar = last_charging = -1; /* no divider fitted: report nothing rather than noise */
 		return false;
 	}
-	int mv = read_divider_mv(CONFIG_CAMOS_BATT_ADC_GPIO, CONFIG_CAMOS_BATT_R_TOP_K, CONFIG_CAMOS_BATT_R_BOTTOM_K);
+	int mv = read_divider_mv(CONFIG_CAMOS_BATT_ADC_GPIO, g_cfg.batt_div);
 	if (mv >= 0) {
 		last_mv = mv;
 	}
-	int sol = read_divider_mv(CONFIG_CAMOS_SOLAR_ADC_GPIO, CONFIG_CAMOS_SOLAR_R_TOP_K, CONFIG_CAMOS_SOLAR_R_BOTTOM_K);
+	int sol = read_divider_mv(CONFIG_CAMOS_SOLAR_ADC_GPIO, g_cfg.solar_div);
 	if (sol >= 0) {
 		last_solar = sol;
 	}

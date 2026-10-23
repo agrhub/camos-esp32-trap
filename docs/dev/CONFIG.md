@@ -25,6 +25,7 @@ are English by default; the language link switches to Vietnamese and the choice 
 | `GET /info` | protocol 12.3: `{serial, model, fw, wifiScan: [{ssid, rssi, secure}]}` |
 | `POST /provision` | protocol 12.3: `{ssid, password, provisionToken?, endpoint?, apn?, apiBase?}` -> `{"ok":true}`, restarts |
 | `POST /api/config` (new keys in 0.4.0) | `sdSave`, `schedFrom`, `schedTo` (minutes after midnight), `motion`, `motionSens` (1-100), `motionCooldown` (s), `motionRoi` (`"x,y,w,h"` percent), `motionSd`, `motionUpload`, `ipMode` (0 DHCP, 1 static), `staticIp`, `staticMask`, `staticGateway`, `staticDns` (also accepted by the web console) |
+| `POST /api/config` (board wiring) | `modemPwrkey` (GPIO, -1 = not wired: the module stays on and `AT+CFUN` switches its radio), `modemFastBaud` (UART rate after the first AT, 0 = keep 115200), `gpsPowerActiveLow` (`true` for a P-MOSFET switch, `false` for an NPN switch or a GPIO powering the module), `battDivider` and `solarDivider` (the divider ratio (Rtop + Rbottom) / Rbottom x 100, 100-2000: 200 for 100k/100k, 403 for 100k/33k, 500 for the 30k/7.5k "voltage sensor" module). Defaults come from Kconfig; a factory reset keeps these values and an OTA image built with other defaults does not change them |
 
 ## 3. Web console API (http://<camera IP>/)
 
@@ -58,7 +59,7 @@ Available in normal operation and inside the portal; English. `help` lists the c
 |---|---|
 | `info` | serial, verify code, label QR text, pairing state, network, IP, clock and its source, timezone and its source, public IP, claim state, battery, power mode, next capture, location |
 | `cfg` | the configuration as JSON (secrets as set / not set) |
-| `set <key> <value>` | the portal keys (`set apn v-internet`, `set powerMode battery`, `set uiLang vi`, `set batteryMonitor 1`) |
+| `set <key> <value>` | the portal keys (`set apn v-internet`, `set powerMode battery`, `set uiLang vi`, `set batteryMonitor 1`, `set battDivider 500`) |
 | `cert`, `key` | paste a PEM, finish with a line `END` |
 | `scan` | Wi-Fi scan (in the portal with the SoftAP up) |
 | `connect [ssid [password]]` | in the portal: the page's Connect check (AP up, stored once it gets an IP); no arguments = the stored network |

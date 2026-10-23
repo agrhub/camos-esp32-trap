@@ -103,14 +103,13 @@ bool gps_available(void)
 static void gps_power(bool on)
 {
 #if CONFIG_CAMOS_GPS_POWER_GPIO >= 0
-	int active_low =
-#ifdef CONFIG_CAMOS_GPS_POWER_ACTIVE_LOW
-		1;
-#else
-		0;
-#endif
+	int active_low = g_cfg.gps_pwr_low;
 	gpio_hold_dis(CONFIG_CAMOS_GPS_POWER_GPIO);
 	gpio_set_direction(CONFIG_CAMOS_GPS_POWER_GPIO, GPIO_MODE_OUTPUT);
+	if (!active_low) {
+		/* the pin powers the module itself (no switch): strongest drive, about 40 mA */
+		gpio_set_drive_capability(CONFIG_CAMOS_GPS_POWER_GPIO, GPIO_DRIVE_CAP_3);
+	}
 	gpio_set_level(CONFIG_CAMOS_GPS_POWER_GPIO, on != active_low);
 	if (!on) {
 		gpio_hold_en(CONFIG_CAMOS_GPS_POWER_GPIO); /* stays off through deep sleep */

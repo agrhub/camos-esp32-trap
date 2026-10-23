@@ -62,6 +62,12 @@ typedef struct {
 	char usb_mode[8];     /* native USB port at boot: "auto" (a USB drive plugged in: host for it, the photo storage;
 						   else drive + webcam for a computer; default), "storage", "webcam" or "off" */
 	int ip_mode;          /* 0 DHCP, 1 static (Wi-Fi) */
+	/* board wiring: Kconfig gives the defaults, NVS keeps what this board has through an OTA and a factory reset */
+	int modem_pwrkey;     /* PWRKEY GPIO, -1 = not wired (the module is always on, AT+CFUN switches the radio) */
+	int modem_fast_baud;  /* UART rate after the first AT (0 = keep CAMOS_MODEM_BAUD) */
+	int gps_pwr_low;      /* 1 = the GPS switch is on when its pin is low (P-MOSFET), 0 = high (NPN / direct) */
+	int batt_div;         /* battery divider ratio x 100: (Rtop + Rbottom) / Rbottom, 200 = 100k/100k */
+	int solar_div;        /* solar / charger input divider ratio x 100, 500 = the 30k/7.5k "voltage sensor" module */
 	char static_ip[16], static_mask[16], static_gw[16], static_dns[16];
 	char ap_pass[65];
 	char *cert;           /* device certificate PEM (malloc, lives forever: esp-mqtt keeps the pointer) */
