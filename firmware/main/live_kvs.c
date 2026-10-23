@@ -877,6 +877,13 @@ static bool pause_cycle(pipe_t *p, live_quality_t *cur, bool *cam_held)
 	return true;
 }
 
+/* The encoder's stack, reserved once at boot: with Wi-Fi, TLS and the web console up, internal RAM is split into
+ * blocks of at most about 8 KB, too small for it, and it cannot live in PSRAM (the camera re-init in this task reads
+ * flash, which a PSRAM stack does not allow) */
+#define VENC_STACK 16384
+static StackType_t *venc_stack;
+static StaticTask_t venc_tcb;
+
 static void venc_task(void *arg)
 {
 	pipe_t p = { 0 };
@@ -1092,7 +1099,7 @@ done:
 	k.fps = 0;
 	ESP_LOGI(TAG, "encoder stopped after %u frames", (unsigned)k.frames);
 	k.venc_done = true;
-	vTaskDelete(NULL);
+	vTaskSuspend(NULL); /* venc_stop deletes it: the stack and TCB are reused (venc_stack) */
 }
 
 /* ------------------------------------------------------------------ peer */
@@ -1131,9 +1138,14 @@ static void venc_stop(void)
 {
 	if (k.venc) {
 		k.venc_run = false;
-		for (int i = 0; i < 300 && !k.venc_done; i++) {
+		for (int i = 0; i < 300 && !(k.venc_done && eTaskGetState(k.venc) == eSuspended); i++) {
 			vTaskDelay(pdMS_TO_TICKS(10));
 		}
+		if (!k.venc_done || eTaskGetState(k.venc) != eSuspended) {
+			ESP_LOGE(TAG, "encoder did not stop"); /* its stack stays taken: no new encoder until it does */
+			return;
+		}
+		vTaskDelete(k.venc); /* not running: removed at once, so its stack can serve the next encoder */
 		k.venc = NULL;
 	}
 }
@@ -1206,9 +1218,14 @@ static void handle_offer(ev_t *e)
 	int sizes[LIVE_DC_MAX_SIZES][2];
 	live_dc_set_sizes(sizes, cam_sizes(true, sizes, LIVE_DC_MAX_SIZES)); /* the sensor's live sizes */
 	ESP_LOGI(TAG, "offer from viewer %s (%u bytes)", k.viewer, (unsigned)strlen(e->data));
+	if (k.venc) {
+		set_err("the previous encoder did not stop");
+		k.viewer[0] = 0;
+		return;
+	}
 	k.venc_run = true, k.venc_done = false;
-	if (xTaskCreatePinnedToCore(venc_task, "venc", 16384, NULL, 4, &k.venc, 1) != pdPASS) {
-		k.venc = NULL;
+	k.venc = venc_stack ? xTaskCreateStaticPinnedToCore(venc_task, "venc", VENC_STACK, NULL, 4, venc_stack, &venc_tcb, 1) : NULL;
+	if (!k.venc) {
 		set_err("no memory for the encoder task");
 		k.viewer[0] = 0;
 		return;
@@ -1366,6 +1383,7 @@ void live_kvs_init(void)
 	}
 	strlcpy(k.state, "off", sizeof(k.state));
 	k.q = xQueueCreate(16, sizeof(ev_t));
+	venc_stack = heap_caps_malloc(VENC_STACK, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 	esp_log_level_set("AGENT", ESP_LOG_WARN); /* esp_peer's ICE agent logs every allocate and the TURN password */
 	/* the stack in PSRAM: internal RAM is for the camera DMA, Wi-Fi and the encoder (this task never writes flash) */
 	if (!k.q || xTaskCreatePinnedToCoreWithCaps(kvs_task, "kvs", 12288, NULL, 5, &k.task, 0, MALLOC_CAP_SPIRAM) != pdPASS) {
