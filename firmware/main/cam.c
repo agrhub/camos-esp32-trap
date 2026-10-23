@@ -598,7 +598,16 @@ esp_err_t cam_stream_start_live_jpeg(int width, int height, int quality)
 /* Raw YUV422 (Y U Y V per pixel pair, 2 bytes per pixel) for the H.264 encoder; stop with cam_stream_stop */
 esp_err_t cam_stream_start_yuv(int width, int height)
 {
-	return stream_start(width, height, 12, PIXFORMAT_YUV422, CAMOS_LIVE_XCLK_MHZ, true);
+	esp_err_t e = stream_start(width, height, 12, PIXFORMAT_YUV422, CAMOS_LIVE_XCLK_MHZ, true);
+#ifdef CONFIG_CAMOS_LIVE_YUV_PLL_MUL
+	/* the sensor's frame rate follows its PLL (Kconfig CAMOS_LIVE_YUV_PLL_MUL): the same XCLK, more frames */
+	int mul = CONFIG_CAMOS_LIVE_YUV_PLL_MUL;
+	sensor_t *sn = esp_camera_sensor_get();
+	if (e == ESP_OK && mul > 0 && sn && sn->id.PID == OV5640_PID && sn->set_pll) {
+		sn->set_pll(sn, 0, mul, 1, 0, 1, 1, 1, 4);
+	}
+#endif
+	return e;
 }
 
 void cam_stream_stop(void)
