@@ -79,6 +79,8 @@ void live_stop(void)
 #else
 
 void live_init(void) {}
+void live_stack_lend(void) {}
+void live_stack_reserve(void) {}
 bool live_supported(void) { return false; }
 bool live_active(void) { return false; }
 bool live_streaming(void) { return false; }

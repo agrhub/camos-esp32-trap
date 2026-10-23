@@ -127,6 +127,8 @@ static void cam_off(void)
 #endif
 	cam_power(false);
 	cam_pm(false);
+	/* the encoder's stack first: without it no live view at all, without the JPEG reserve only the JPEG mode (H.264 then) */
+	live_stack_reserve();
 	reserve_take(); /* a live session: the block the JPEG DMA buffer just gave back */
 }
 
@@ -195,9 +197,13 @@ static esp_err_t cam_up(framesize_t fs, int quality, int fb_count, pixformat_t f
 		.grab_mode = CAMERA_GRAB_LATEST, /* after the warm-up, the newest frame */
 	};
 	esp_camera_set_psram_mode(up_psram_dma);
-	if (fmt == PIXFORMAT_JPEG && !up_psram_dma && dma_reserve) {
-		heap_caps_free(dma_reserve); /* the JPEG DMA buffer goes into this hole */
-		dma_reserve = NULL;
+	if (fmt == PIXFORMAT_JPEG && !up_psram_dma) {
+		if (dma_reserve) {
+			heap_caps_free(dma_reserve); /* the JPEG DMA buffer goes into this hole */
+			dma_reserve = NULL;
+		} else {
+			live_stack_lend(); /* no reserve (taken back too late after a live session): the idle encoder's block */
+		}
 	}
 	return esp_camera_init(&c);
 }

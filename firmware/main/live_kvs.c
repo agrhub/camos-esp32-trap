@@ -35,6 +35,7 @@
 #include "mbedtls/base64.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "freertos/queue.h"
 #include "cJSON.h"
 #include "esp_peer.h"
@@ -883,6 +884,31 @@ static bool pause_cycle(pipe_t *p, live_quality_t *cur, bool *cam_held)
 #define VENC_STACK 16384
 static StackType_t *venc_stack;
 static StaticTask_t venc_tcb;
+static SemaphoreHandle_t stack_mux; /* venc_stack between the camera tasks (lend) and this one (create) */
+
+/* A photo or the web console stream needs the camera's 16 KB JPEG DMA buffer while no encoder runs: the encoder's
+ * block is lent to it (cam.c, before the camera starts) and taken back when the camera stops. After a live session
+ * the internal heap had no other 16 KB block left and photos failed ("frame buffer malloc failed", 23 Oct 2026). */
+void live_stack_lend(void)
+{
+	if (stack_mux && xSemaphoreTake(stack_mux, portMAX_DELAY) == pdTRUE) {
+		if (!k.venc && venc_stack) {
+			heap_caps_free(venc_stack);
+			venc_stack = NULL;
+		}
+		xSemaphoreGive(stack_mux);
+	}
+}
+
+void live_stack_reserve(void)
+{
+	if (stack_mux && xSemaphoreTake(stack_mux, portMAX_DELAY) == pdTRUE) {
+		if (!venc_stack) {
+			venc_stack = heap_caps_malloc(VENC_STACK, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+		}
+		xSemaphoreGive(stack_mux);
+	}
+}
 
 static void venc_task(void *arg)
 {
@@ -1224,7 +1250,13 @@ static void handle_offer(ev_t *e)
 		return;
 	}
 	k.venc_run = true, k.venc_done = false;
+	if (!venc_stack) {
+		preview_stop(); /* the block was lent to the camera: the preview may still hold it, its stop gives it back */
+		live_stack_reserve();
+	}
+	xSemaphoreTake(stack_mux, portMAX_DELAY);
 	k.venc = venc_stack ? xTaskCreateStaticPinnedToCore(venc_task, "venc", VENC_STACK, NULL, 4, venc_stack, &venc_tcb, 1) : NULL;
+	xSemaphoreGive(stack_mux);
 	if (!k.venc) {
 		set_err("no memory for the encoder task");
 		k.viewer[0] = 0;
@@ -1383,6 +1415,7 @@ void live_kvs_init(void)
 	}
 	strlcpy(k.state, "off", sizeof(k.state));
 	k.q = xQueueCreate(16, sizeof(ev_t));
+	stack_mux = xSemaphoreCreateMutex();
 	venc_stack = heap_caps_malloc(VENC_STACK, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 	esp_log_level_set("AGENT", ESP_LOG_WARN); /* esp_peer's ICE agent logs every allocate and the TURN password */
 	/* the stack in PSRAM: internal RAM is for the camera DMA, Wi-Fi and the encoder (this task never writes flash) */

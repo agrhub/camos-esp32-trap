@@ -398,6 +398,8 @@ void live_init(void);                           /* boot: the KVS task (powered m
 bool live_supported(void);                      /* built in, paired (kvs channel + region) and with a credential source */
 esp_err_t live_start(int minutes, char *err, size_t errn);
 void live_stop(void);
+void live_stack_lend(void);                     /* the encoder's idle 16 KB stack to the camera's JPEG DMA buffer */
+void live_stack_reserve(void);                  /* and back, once the camera stopped */
 bool live_active(void);                         /* a live.start / live.requested window is open */
 bool live_streaming(void);                      /* a VIEWER is connected: the camera belongs to the encoder */
 int live_pause(int timeout_ms);                 /* a capture needs the camera: 1 paused, 0 no live stream, -1 timeout */
