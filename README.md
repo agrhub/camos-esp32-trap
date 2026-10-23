@@ -36,7 +36,7 @@ registration with FlyBot. A running camera can also update itself from its web p
 [Releases](https://github.com/agrhub/camos-esp32-trap/releases) and write it at address 0:
 
 ```
-python -m esptool --chip esp32s3 --port COM7 write_flash 0x0 camos-esp32-trap-freenove-v0.8.0-install.bin
+python -m esptool --chip esp32s3 --port COM7 write_flash 0x0 camos-esp32-trap-freenove-v0.9.0-install.bin
 ```
 
 (`esptool` comes with `pip install esptool`; on Linux the port is `/dev/ttyUSB0`.)
