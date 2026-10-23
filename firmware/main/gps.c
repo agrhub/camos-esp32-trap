@@ -2,15 +2,20 @@
 /*
  * GPS: ATGM336H (NMEA 0183 at 9600 baud, 3.3 V) on a UART, power-gated by a GPIO (P-MOSFET). A fix is taken
  * once every CAMOS_GPS_FIX_INTERVAL_H (24 h) at a wake-up, or on the RPC `gps.fix` / console `gps`. The last fix
- * survives deep sleep in RTC memory and reboots in NVS, and is reported as shadow `location {lat,lng,fixAt}`
+ * survives deep sleep in RTC memory and reboots in NVS, and is reported as shadow `location {lat,lng,fixAt,source,
+ * accuracyM}`
  * (CONTRACTS section 3) and `state.gps` (protocol 4). When the clock is not set yet, the RMC date/time sets it
  * (protocol 3: GPS time when there is no NTP).
  *
  * A trap does not move, so one fix a day is plenty; the module is off the rest of the time (it keeps no almanac
  * without a backup supply, so every fix is a cold start: about 35 s with a clear sky per the datasheet, more
  * under trees; not measured here).
+ *
+ * No GPS fix: the position of the 4G cell (AT+CLBS, SIMCom's location service) is taken instead, `source: "cell"`
+ * with its accuracy radius. It never replaces a GPS fix, and the GPS is tried again 6 h later.
  */
 #include <string.h>
+#include <stdlib.h>
 #include <math.h>
 #include <sys/time.h>
 #include "esp_log.h"
@@ -24,7 +29,7 @@
 
 static const char *TAG = "gps";
 
-#define FIX_MAGIC 0x47505346
+#define FIX_MAGIC 0x47505347 /* changed with gps_fix_t (acc_m, cell) */
 static RTC_DATA_ATTR uint32_t rtc_magic;
 static RTC_DATA_ATTR gps_fix_t rtc_fix;
 
@@ -59,7 +64,8 @@ bool gps_fix_due(void)
 		return false;
 	}
 	load_last();
-	return rtc_fix.fix_at == 0 || time(NULL) - rtc_fix.fix_at >= (time_t)CONFIG_CAMOS_GPS_FIX_INTERVAL_H * 3600;
+	time_t every = rtc_fix.cell ? 6 * 3600 : (time_t)CONFIG_CAMOS_GPS_FIX_INTERVAL_H * 3600; /* a cell position: try the GPS again */
+	return rtc_fix.fix_at == 0 || time(NULL) - rtc_fix.fix_at >= every;
 }
 
 void gps_json(cJSON *parent)
@@ -74,6 +80,10 @@ void gps_json(cJSON *parent)
 	char s[25];
 	iso8601(f.fix_at, s);
 	cJSON_AddStringToObject(loc, "fixAt", s);
+	cJSON_AddStringToObject(loc, "source", f.cell ? "cell" : "gps");
+	if (f.acc_m > 0) {
+		cJSON_AddNumberToObject(loc, "accuracyM", f.acc_m);
+	}
 }
 
 void gps_state_json(cJSON *parent)
@@ -88,6 +98,7 @@ void gps_state_json(cJSON *parent)
 		cJSON_AddNumberToObject(g, "lat", round(f.lat * 1e6) / 1e6);
 		cJSON_AddNumberToObject(g, "lon", round(f.lng * 1e6) / 1e6);
 		cJSON_AddNumberToObject(g, "ts", (double)f.fix_at * 1000);
+		cJSON_AddStringToObject(g, "source", f.cell ? "cell" : "gps");
 	}
 	cJSON_AddBoolToObject(g, "fix", have);
 }
@@ -126,7 +137,25 @@ static double distance_m(double lat1, double lon1, double lat2, double lon2)
 	return 2 * r * asin(sqrt(a));
 }
 
+static bool fix_once(int timeout_s, gps_fix_t *out);
+static bool cell_fallback(gps_fix_t *out);
+
+/* One fix at a time: the scheduler's daily fix and a console or RPC request would share the UART and the first to
+ * finish would switch the module off under the other (seen 22 Oct 2026: 166, then 67, then 7 sentences) */
+static volatile bool fixing;
+
 bool gps_fix(int timeout_s, gps_fix_t *out)
+{
+	if (__atomic_test_and_set(&fixing, __ATOMIC_ACQUIRE)) {
+		ESP_LOGW(TAG, "a fix is already running");
+		return false;
+	}
+	bool ok = fix_once(timeout_s, out) || cell_fallback(out);
+	__atomic_clear(&fixing, __ATOMIC_RELEASE);
+	return ok;
+}
+
+static bool fix_once(int timeout_s, gps_fix_t *out)
 {
 	const uart_port_t u = CONFIG_CAMOS_GPS_UART_NUM;
 	uart_config_t uc = {
@@ -153,8 +182,21 @@ bool gps_fix(int timeout_s, gps_fix_t *out)
 	char line[128];
 	int li = 0, sentences = 0;
 	int64_t deadline = esp_timer_get_time() + (int64_t)timeout_s * 1000000, got_rmc_at = 0;
+	int64_t next_note = esp_timer_get_time() + 15000000;
+	int in_view = 0; /* GSV field 3, the largest of the talkers (GP, BD, GN): 0 means the antenna hears nothing */
+	int best_snr = 0; /* strongest satellite in this 15 s window, dB-Hz: under 20 weak, 30 and up good */
+	uint16_t strong[32]; /* satellites at 25 dB-Hz or more in this window (talker << 8 | id): a fix needs 4 */
+	int n_strong = 0;
 	bool ok = false;
 	while (esp_timer_get_time() < deadline) {
+		if (esp_timer_get_time() >= next_note) {
+			/* progress: no sentences = no module or wiring; sentences but 0 satellites = no sky view yet */
+			ESP_LOGI(TAG, "still searching: %d sentences, %d satellites in view, %d at 25 dB-Hz or more, %d in use, best %d dB-Hz",
+					 sentences, in_view, n_strong, fix.sats < 0 ? 0 : fix.sats, best_snr);
+			best_snr = 0;
+			n_strong = 0;
+			next_note += 15000000;
+		}
 		uint8_t c;
 		if (uart_read_bytes(u, &c, 1, pdMS_TO_TICKS(1000)) != 1) {
 			continue;
@@ -162,6 +204,33 @@ bool gps_fix(int timeout_s, gps_fix_t *out)
 		if (c == '\n' || c == '\r') {
 			if (li > 6) {
 				line[li] = 0;
+				/* $xxGSV,<msgs>,<msg>,<in view>,... */
+				if (line[0] == '$' && !strncmp(line + 3, "GSV,", 4)) {
+					/* fields: 1 msgs, 2 msg, 3 in view, then per satellite: id, elevation, azimuth, SNR (dB-Hz) */
+					const char *p = line;
+					int sat_id = 0;
+					for (int fi = 1; fi <= 19 && (p = strchr(p, ',')) != NULL; fi++) {
+						p++;
+						if (fi >= 4 && (fi - 4) % 4 == 0) {
+							sat_id = atoi(p);
+						}
+						if (fi == 3) {
+							int v = atoi(p);
+							in_view = v > in_view ? v : in_view;
+						} else if (fi >= 7 && (fi - 7) % 4 == 0 && *p >= '0' && *p <= '9') {
+							int snr = atoi(p);
+							best_snr = snr > best_snr ? snr : best_snr;
+							uint16_t key = (uint16_t)((uint8_t)line[2] << 8 | (sat_id & 0xff));
+							bool seen = false;
+							for (int k = 0; k < n_strong; k++) {
+								seen |= strong[k] == key;
+							}
+							if (snr >= 25 && !seen && n_strong < 32) {
+								strong[n_strong++] = key;
+							}
+						}
+					}
+				}
 				int t = nmea_parse_line(line, &fix);
 				if (t > 0) {
 					sentences++;
@@ -202,6 +271,8 @@ bool gps_fix(int timeout_s, gps_fix_t *out)
 	rtc_fix.lng = fix.lng;
 	rtc_fix.sats = fix.sats;
 	rtc_fix.fix_at = clock_synced() ? time(NULL) : (time_t)fix.epoch;
+	rtc_fix.cell = false;
+	rtc_fix.acc_m = fix.hdop > 0 ? (int)lround(fix.hdop * 5) : 0; /* HDOP x about 5 m for a consumer receiver */
 	store_set_blob("gps_fix", &rtc_fix, sizeof(rtc_fix));
 	ESP_LOGI(TAG, "fix %.6f, %.6f, %d sats, hdop %.1f", fix.lat, fix.lng, fix.sats, fix.hdop);
 	if (prev.fix_at) {
@@ -215,6 +286,34 @@ bool gps_fix(int timeout_s, gps_fix_t *out)
 			proto_publish_event(e);
 		}
 	}
+	if (out) {
+		*out = rtc_fix;
+	}
+	return true;
+}
+
+/* No GPS fix: the 4G cell's position. A GPS fix already taken stays (a trap does not move, and it is far more
+ * precise); a cell position only fills in when there is none, or replaces an older cell one. */
+static bool cell_fallback(gps_fix_t *out)
+{
+	double lat, lng;
+	int acc;
+	if (!modem_up() || !modem_cell_location(&lat, &lng, &acc)) {
+		return false;
+	}
+	load_last();
+	if (rtc_fix.fix_at && !rtc_fix.cell) {
+		ESP_LOGI(TAG, "cell position %.4f, %.4f (%d m) not used: the GPS fix stays", lat, lng, acc);
+		return false;
+	}
+	rtc_fix.lat = lat;
+	rtc_fix.lng = lng;
+	rtc_fix.sats = 0;
+	rtc_fix.acc_m = acc;
+	rtc_fix.cell = true;
+	rtc_fix.fix_at = time(NULL);
+	store_set_blob("gps_fix", &rtc_fix, sizeof(rtc_fix));
+	ESP_LOGI(TAG, "no GPS fix: cell position %.6f, %.6f, accuracy %d m", lat, lng, acc);
 	if (out) {
 		*out = rtc_fix;
 	}

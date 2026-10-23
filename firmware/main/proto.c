@@ -327,6 +327,12 @@ static void rpc_ota(const char *id)
 	}
 }
 
+typedef struct {
+	char id[48];
+	int timeout;
+} gps_job_t;
+static void gps_rpc_task(void *arg);
+
 static void rpc_handle(const char *json, TickType_t received)
 {
 	cJSON *req = cJSON_Parse(json);
@@ -394,17 +400,17 @@ static void rpc_handle(const char *json, TickType_t received)
 			rpc_reply(id, NULL, "NOT_SUPPORTED", "no GPS on this board");
 		} else {
 			cJSON *tmo = cJSON_GetObjectItem(params, "timeoutS");
-			int timeout = cJSON_IsNumber(tmo) ? (int)tmo->valuedouble : CONFIG_CAMOS_GPS_FIX_TIMEOUT_S;
-			sched_keep_awake(timeout + 10);
-			gps_fix_t f;
-			if (gps_fix(timeout, &f)) {
-				cJSON *r = cJSON_CreateObject();
-				gps_json(r);
-				cJSON_AddNumberToObject(r, "sats", f.sats);
-				rpc_reply(id, r, NULL, NULL);
-				proto_publish_reported_now();
-			} else {
-				rpc_reply(id, NULL, "TIMEOUT", "no fix");
+			gps_job_t *j = calloc(1, sizeof(*j));
+			if (j) {
+				strlcpy(j->id, id, sizeof(j->id));
+				j->timeout = cJSON_IsNumber(tmo) ? (int)tmo->valuedouble : CONFIG_CAMOS_GPS_FIX_TIMEOUT_S;
+				sched_keep_awake(j->timeout + 10);
+			}
+			/* its own task: a fix takes up to minutes and would hold the queue (a reboot behind it timed out,
+			 * 22 Oct 2026) */
+			if (!j || xTaskCreate(gps_rpc_task, "rpc-gps", 6144, j, 4, NULL) != pdPASS) {
+				free(j);
+				rpc_reply(id, NULL, "INTERNAL", "no memory for the fix");
 			}
 		}
 	} else if (!strcmp(method, "log.start")) {
@@ -457,6 +463,23 @@ static void rpc_handle(const char *json, TickType_t received)
 		rpc_reply(id, NULL, "NOT_SUPPORTED", method); /* records, speaker, app, format_sd, ota.start ... */
 	}
 	cJSON_Delete(req);
+}
+
+static void gps_rpc_task(void *arg)
+{
+	gps_job_t *j = arg;
+	gps_fix_t f;
+	if (gps_fix(j->timeout, &f)) {
+		cJSON *r = cJSON_CreateObject();
+		gps_json(r);
+		cJSON_AddNumberToObject(r, "sats", f.sats);
+		rpc_reply(j->id, r, NULL, NULL);
+		proto_publish_reported_now();
+	} else {
+		rpc_reply(j->id, NULL, "TIMEOUT", "no fix (or a fix already running)");
+	}
+	free(j);
+	vTaskDelete(NULL);
 }
 
 /* capture.requestNow from the shadow ("Capture now" while the camera slept): one photo, unless the request is

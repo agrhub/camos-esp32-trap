@@ -29,7 +29,7 @@ The token is only ever sent to `apiBase` (protocol 11.4).
 ```json
 {"v":1,"serial":"ESP000000000002","capturedAt":"2026-10-16T08:00:00Z","trigger":"schedule",
  "battery":{"mv":3900,"pct":65,"charging":true,"solarMv":5800},"net":"wifi","rssi":-61,
- "location":{"lat":10.971200,"lng":106.650300,"fixAt":"2026-10-16T05:00:12Z"},
+ "location":{"lat":10.971200,"lng":106.650300,"fixAt":"2026-10-16T05:00:12Z","source":"gps","accuracyM":6},
  "fw":"0.2.0","model":"AIC-FREENOVE-S3CAM"}
 ```
 
@@ -86,7 +86,7 @@ FlyBot's fleet page. `reported` carries `disabled`.
  "power":{"mode":"auto","effective":"battery","highMv":4050,"lowMv":3850},
  "live":{"requested":false,"supported":false,"active":false},
  "kvs":{"channelName":"cam-ESP000000000002","region":"ap-southeast-2"},
- "location":{"lat":10.971200,"lng":106.650300,"fixAt":"2026-10-16T05:00:12Z"},
+ "location":{"lat":10.971200,"lng":106.650300,"fixAt":"2026-10-16T05:00:12Z","source":"gps","accuracyM":6},
  "net":"wifi",
  "battery":{"voltage":3.9,"percent":65,"mv":3900,"pct":65,"charging":true,"solarMv":5800},
  "nextCaptureAt":"2026-10-16T09:00:00Z"}
@@ -94,7 +94,12 @@ FlyBot's fleet page. `reported` carries `disabled`.
 
 `battery.voltage` / `percent` are the fields of the reference firmware (kept); `mv`, `pct`, `charging`, `solarMv` are the
 CONTRACTS fields. `state` also has `thingName`, `net.cell {imei, iccid, operator, csq, registered}` on 4G (protocol 4 shape)
-and `gps {lat, lon, fix, ts}` (protocol 4) when the build has GPS.
+and `gps {lat, lon, fix, ts, source}` (protocol 4) when the build has GPS.
+
+`location.source` is `gps`, or `cell` when the GPS found no fix and the 4G module gave the position of its cell
+(`AT+CLBS`, SIMCom's location service; measured 254 m from the GPS fix on 22 Oct 2026, reported accuracy 550 m).
+`accuracyM` is the radius in metres: the module's figure for `cell`, about HDOP x 5 m for `gps` (absent when
+unknown). A cell position never replaces a GPS fix; after one the GPS is tried again 6 h later instead of 24 h.
 
 `live.supported` is true when the build has the cloud live view (`CAMOS_LIVE`), the camera is paired (KVS channel and
 region) and it has a way to get KVS credentials (credential provider host and role alias); `live.active` is true while
@@ -108,7 +113,7 @@ channel without a window (LIVE_VIEW.md).
 | `snapshot.now` | — | `{"snapshotId","image":{"key","w","h","bytes"},"bytes"}` (`image.key` = `snapshotId`, so the protocol 9 `capture` shape still holds). Errors `UPLOAD_FAILED`, `INTERNAL`, `BUSY` (live view running). `capture` is an alias. |
 | `live.start` | `{"minutes": 1..60}` (default 5) | `{"channelName","seconds"}`; `NOT_SUPPORTED` when the build has no live view (ESP32-CAM, or CAMOS_LIVE off) or the camera has no KVS channel or credential provider settings (see LIVE_VIEW.md), `BAD_PARAMS`, `BUSY`. Repeating it extends the session. The camera joins the channel within a few seconds of the answer (credentials, endpoints, WebSocket); a viewer offer sent before that is lost and the viewer offers again. |
 | `live.stop` | — | — (drops the viewer and ends the window; a powered camera stays on the channel) |
-| `gps.fix` | `{"timeoutS"?}` (default 120) | `{"location":{lat,lng,fixAt},"sats"}`; `TIMEOUT` when no fix, `NOT_SUPPORTED` without GPS. Blocks the RPC queue for up to `timeoutS`. |
+| `gps.fix` | `{"timeoutS"?}` (default 120) | `{"location":{lat,lng,fixAt,source,accuracyM},"sats"}` (a 4G cell position when the GPS finds none); `TIMEOUT` when neither, `NOT_SUPPORTED` without GPS. Runs in its own task: the reply comes up to `timeoutS` later, other RPCs go on. |
 | `ota.apply` | — | `{"version"}` at once, then `ota_progress` events and the event `ota_result` (`stage: "installed"` + restart, or `ok:false` with `DOWNLOAD_FAILED` / `SIGNATURE_INVALID` for a SHA-256 mismatch). `NOT_FOUND` when `GET /api/device/ota` gives 204, `OLD_VERSION` when it offers the running version, `LOW_BATTERY` (0.7.0) on battery without the charger below `CAMOS_OTA_MIN_MV` (3700 mV): FlyBot tries again at a later wake. |
 | `reboot` | — | as before |
 | `net.set` | `wifi {ssid, password}`, `cellular {apn}` | stored, effective at the next boot (protocol 9 method, now supported) |

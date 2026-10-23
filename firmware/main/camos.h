@@ -371,6 +371,8 @@ typedef struct {
 	double lat, lng;
 	int sats;
 	time_t fix_at;      /* 0 = no fix yet */
+	int acc_m;          /* accuracy radius in metres, 0 unknown */
+	bool cell;          /* from the 4G cell (AT+CLBS), not the GPS: a few hundred metres to a few km */
 } gps_fix_t;
 
 bool gps_available(void);
