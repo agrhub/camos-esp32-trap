@@ -312,6 +312,15 @@ bool flybot_ota_check(char *fw, size_t fwn, char *url, size_t urln, char *sha256
 /* the `meta` JSON of a snapshot (also shown by the console) */
 cJSON *flybot_meta_json(const char *trigger, time_t captured_at);
 
+/* quality.c: the photo's quality, measured before the upload (FlyBot's imageQuality.js numbers) */
+typedef struct {
+	float brightness, contrast, sharpness, edge_ratio, clipped;
+	int change;    /* per mille of the thumbnail changed since the last photo, -1 = no earlier photo */
+	int ms, decode_ms;
+} photo_quality_t;
+bool photo_quality(const uint8_t *jpg, size_t len, int w, photo_quality_t *q);
+void photo_quality_json(cJSON *parent, const photo_quality_t *q); /* adds quality {...} */
+
 /* ------------------------------------------------------------------ OTA (ota.c) */
 
 /* Downloads url into the other OTA slot, checks the SHA-256 (hex) before it is made bootable. Restarts on success. */
@@ -343,6 +352,7 @@ esp_err_t capture_now(const char *trigger, upload_t *out);
 void sched_start(void);
 void sched_init_lock(void);                     /* the camera lock alone (portal mode console) */
 void sched_changed(void);                       /* settings changed: recompute the next capture */
+bool sched_run(void (*fn)(void));              /* run fn on the scheduler's task (12 KB stack) soon; false if busy */
 void sched_keep_awake(int seconds);             /* live view / console: no deep sleep for this long */
 time_t sched_next_capture(void);                /* 0 when none */
 void sched_wake_hint(time_t at);                /* nextWakeAt from the FlyBot snapshot response */

@@ -212,6 +212,10 @@ esp_err_t flybot_snapshot(const camera_fb_t *fb, const char *trigger, upload_t *
 	}
 	out->bytes = fb->len;
 	cJSON *m = flybot_meta_json(trigger, fb->timestamp.tv_sec > 1735689600 ? fb->timestamp.tv_sec : time(NULL));
+	photo_quality_t q;
+	if (photo_quality(fb->buf, fb->len, out->w, &q)) {
+		photo_quality_json(m, &q); /* FlyBot can skip its own decode, and see a blurry lens or a changed card */
+	}
 	char *meta = cJSON_PrintUnformatted(m);
 	cJSON_Delete(m);
 	if (!meta) {

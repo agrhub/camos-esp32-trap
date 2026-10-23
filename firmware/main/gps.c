@@ -32,6 +32,10 @@ static const char *TAG = "gps";
 #define FIX_MAGIC 0x47505347 /* changed with gps_fix_t (acc_m, cell) */
 static RTC_DATA_ATTR uint32_t rtc_magic;
 static RTC_DATA_ATTR gps_fix_t rtc_fix;
+/* the last fix that found nothing: indoors the daily fix ran again every minute (2 of every 3 minutes with the module on,
+ * seen 23 Oct 2026), so it waits GPS_RETRY_S first; deep sleep keeps it, a power-on clears it */
+static RTC_DATA_ATTR time_t failed_at;
+#define GPS_RETRY_S 3600
 
 static void load_last(void)
 {
@@ -64,6 +68,9 @@ bool gps_fix_due(void)
 		return false;
 	}
 	load_last();
+	if (failed_at && time(NULL) - failed_at < GPS_RETRY_S) {
+		return false;
+	}
 	time_t every = rtc_fix.cell ? 6 * 3600 : (time_t)CONFIG_CAMOS_GPS_FIX_INTERVAL_H * 3600; /* a cell position: try the GPS again */
 	return rtc_fix.fix_at == 0 || time(NULL) - rtc_fix.fix_at >= every;
 }
@@ -151,6 +158,7 @@ bool gps_fix(int timeout_s, gps_fix_t *out)
 		return false;
 	}
 	bool ok = fix_once(timeout_s, out) || cell_fallback(out);
+	failed_at = ok ? 0 : (clock_synced() ? time(NULL) : 0);
 	__atomic_clear(&fixing, __ATOMIC_RELEASE);
 	return ok;
 }

@@ -24,17 +24,25 @@ The token is only ever sent to `apiBase` (protocol 11.4).
 | `GET /api/device/time` | when SNTP gets no answer within 15 s of the network coming up (4G carriers that block UDP 123); retried with SNTP until the clock is set. `epoch` is preferred, `now` parsed otherwise. |
 | `GET /api/device/ota` | on RPC `ota.apply` and the console `ota` command. 204 = nothing to do. The image `url` may carry a query (FlyBot's signed link); the token goes along when it starts with `apiBase`. |
 
-`meta` as sent (CONTRACTS shape plus two additive fields):
+`meta` as sent (CONTRACTS shape plus additive fields):
 
 ```json
 {"v":1,"serial":"ESP000000000002","capturedAt":"2026-10-16T08:00:00Z","trigger":"schedule",
  "battery":{"mv":3900,"pct":65,"charging":true,"solarMv":5800},"net":"wifi","rssi":-61,
  "location":{"lat":10.971200,"lng":106.650300,"fixAt":"2026-10-16T05:00:12Z","source":"gps","accuracyM":6},
+ "quality":{"brightness":190,"contrast":24.2,"sharpness":47,"edgeRatio":0.08,"clipped":0,"change":3,"ms":856},
  "fw":"0.2.0","model":"AIC-FREENOVE-S3CAM"}
 ```
 
 `battery` is absent without a battery monitor, `location` without a GPS fix, `solarMv` without a solar ADC.
 `trigger` is `schedule` | `rpc` | `boot`. `rssi` is dBm (Wi-Fi) or `-113 + 2 * CSQ` (4G), 0 when unknown.
+`quality` is measured on the camera before the upload (firmware/main/quality.c), the same numbers FlyBot's
+imageQuality.js computes on a grey copy about 320 wide: `brightness` (mean, 0-255), `contrast` (standard deviation),
+`sharpness` (variance of the Laplacian), `edgeRatio` (sharpness / contrast², low = blurry), `clipped` (share of pure
+white). `change` is the per mille of a 40x30 thumbnail that differs from the previous photo's by more than 16 grey
+levels once the brightness shift is taken out; it is absent after a power-on. `ms` is the time the camera spent (on
+the ESP32-S3, about 850 ms for a 2560x1920 photo, 800 of them decoding the JPEG). `quality` is absent when the photo
+cannot be decoded.
 
 ## 3. Shadow (protocol 8) additions
 
