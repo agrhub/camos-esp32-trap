@@ -270,7 +270,8 @@ menu "CamOS trap camera"
             default -1
             help
                 Open-drain, low while charging on TP4056 / CN3791 boards (pull-up enabled). Without it the
-                solar input voltage decides `charging`.
+                solar input voltage decides `charging`: at or above CAMOS_SOLAR_PRESENT_MV, or 100 mV or more
+                above the cell (a small panel sags to just above the cell while it charges).
         config CAMOS_CHARGING_ACTIVE_LOW
             bool "Charger status pin is low while charging"
             depends on CAMOS_CHARGING_GPIO >= 0

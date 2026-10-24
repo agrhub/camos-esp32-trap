@@ -91,17 +91,25 @@ FlyBot's fleet page. `reported` carries `disabled`.
 
 ```json
 {"capture":{"resolution":"max","jpegQuality":85,"intervalMin":60,"w":2560,"h":1920},
- "power":{"mode":"auto","effective":"battery","highMv":4050,"lowMv":3850},
+ "power":{"mode":"auto","effective":"battery","level":"saver","highMv":4050,"lowMv":3850},
  "live":{"requested":false,"supported":false,"active":false},
  "kvs":{"channelName":"cam-ESP000000000002","region":"ap-southeast-2"},
  "location":{"lat":10.971200,"lng":106.650300,"fixAt":"2026-10-16T05:00:12Z","source":"gps","accuracyM":6},
  "net":"wifi",
- "battery":{"voltage":3.9,"percent":65,"mv":3900,"pct":65,"charging":true,"solarMv":5800},
+ "battery":{"voltage":3.9,"percent":65,"mv":3900,"pct":65,"charging":true,"charge":"normal","solarMv":5800},
  "nextCaptureAt":"2026-10-16T09:00:00Z"}
 ```
 
 `battery.voltage` / `percent` are the fields of the reference firmware (kept); `mv`, `pct`, `charging`, `solarMv` are the
-CONTRACTS fields. `state` also has `thingName`, `net.cell {imei, iccid, operator, csq, registered}` on 4G (protocol 4 shape)
+CONTRACTS fields. Without a charger status pin, `charging` is true when `solarMv` is at least 4500 or at least 100 mV
+above `mv` (a small panel sags to just above the cell while it charges). `charge` (0.9.2) tells them apart: `normal`
+(the input at 4500 mV or more, or the charger's status pin), `slow` (charging with the input under 4500 mV: a small
+or shaded panel; the cell gains slowly), `none`.
+
+`power.level` (0.9.2) is what the camera does with that: `full` (cell at `highMv` or above, or charging `normal`),
+`eco` (online, but the cell under `highMv` and not charging `normal`: the live view offers sizes up to the 480p tier
+only), `saver` (the battery mode: deep sleep between photos). Only a `normal` charge keeps `auto` online below `highMv`;
+with a `slow` one the cell voltage decides. `power.mode` `powered` is always `full`. `state` also has `thingName`, `net.cell {imei, iccid, operator, csq, registered}` on 4G (protocol 4 shape)
 and `gps {lat, lon, fix, ts, source}` (protocol 4) when the build has GPS.
 
 `location.source` is `gps`, or `cell` when the GPS found no fix and the 4G module gave the position of its cell

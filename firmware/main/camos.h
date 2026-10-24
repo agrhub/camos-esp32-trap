@@ -368,15 +368,19 @@ int battery_mv(void);                           /* last cell voltage in mV, -1 u
 int battery_pct(void);
 int solar_mv(void);                             /* solar / charger input in mV, -1 unknown */
 bool battery_charging(void);                    /* charger status pin or solar input present */
+bool battery_charging_fast(void);               /* charging, the input at full voltage (not a sagging panel) */
+const char *battery_charge_name(void);          /* "yes", "slow", "no" or "unknown" */
 bool battery_low_due(void);                     /* true once per 6 h while below CAMOS_BATT_LOW_MV */
 bool battery_critical(void);
-void battery_json(cJSON *parent);               /* adds battery {voltage, percent, mv, pct, charging, solarMv} when known */
+void battery_json(cJSON *parent);               /* adds battery {voltage, percent, mv, pct, charging, charge, solarMv} */
 
 power_mode_t power_effective(void);             /* auto resolved by battery voltage with hysteresis */
 const char *power_mode_name(power_mode_t m);
 bool power_mode_parse(const char *s, power_mode_t *out);
 bool power_may_deep_sleep(void);                /* effective mode is battery (and deep sleep is built in) */
-void power_json(cJSON *parent);                 /* power {mode, effective, highMv, lowMv} */
+bool power_eco(void);                           /* online on a cell not full and not charging at full input */
+const char *power_level_name(void);             /* "full", "eco" (power_eco) or "saver" (battery mode) */
+void power_json(cJSON *parent);                 /* power {mode, effective, level, highMv, lowMv} */
 
 /* ------------------------------------------------------------------ GPS (gps.c) */
 

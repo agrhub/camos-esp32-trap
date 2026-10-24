@@ -24,6 +24,7 @@ static const char *TAG = "battery";
 static int last_mv = -1;   /* cell voltage in mV, -1 unknown */
 static int last_solar = -1;
 static int last_charging = -1; /* -1 unknown */
+#define CHARGE_MARGIN_MV 100       /* the solar input this far above the cell: current flows into it */
 
 /* Typical single-cell LiPo discharge curve (approximation: it varies with load, temperature and cell) */
 static const struct { int mv, pct; } curve[] = {
@@ -135,14 +136,31 @@ bool battery_sample(void)
 	last_charging = level != 0;
 #endif
 #else
-	last_charging = last_solar >= 0 ? last_solar >= CONFIG_CAMOS_SOLAR_PRESENT_MV : -1;
+	/* a small panel that cannot give the charger its full current sags to just above the cell (3.98 V over a 3.84 V
+	 * cell in full sun, 24 Oct 2026, the cell rising): above the cell by CHARGE_MARGIN_MV it still charges */
+	last_charging = last_solar < 0 ? -1
+					: last_solar >= CONFIG_CAMOS_SOLAR_PRESENT_MV || (last_mv > 0 && last_solar >= last_mv + CHARGE_MARGIN_MV);
 #endif
 	if (last_mv >= 0) {
 		ESP_LOGI(TAG, "battery %d mV (%d %%), solar %d mV, charging %s", last_mv, percent_from_mv(last_mv), last_solar,
-				 last_charging < 0 ? "unknown" : last_charging ? "yes" : "no");
+				 battery_charge_name());
 	}
 	return mv >= 0;
 }
+
+/* Slow: charging, but the input under CAMOS_SOLAR_PRESENT_MV, so the charger gets less than its set current (a small
+ * or shaded panel); the cell gains, slowly, and may not keep up with an always-on camera */
+static bool charging_slow(void)
+{
+	return last_charging == 1 && last_solar >= 0 && last_solar < CONFIG_CAMOS_SOLAR_PRESENT_MV;
+}
+
+const char *battery_charge_name(void)
+{
+	return last_charging < 0 ? "unknown" : !last_charging ? "no" : charging_slow() ? "slow" : "yes";
+}
+
+bool battery_charging_fast(void) { return last_charging == 1 && !charging_slow(); }
 
 int battery_mv(void) { return last_mv; }
 int battery_pct(void) { return last_mv >= 0 ? percent_from_mv(last_mv) : -1; }
@@ -184,6 +202,9 @@ void battery_json(cJSON *parent)
 	cJSON_AddNumberToObject(b, "mv", last_mv); /* CONTRACTS section 3 */
 	cJSON_AddNumberToObject(b, "pct", percent_from_mv(last_mv));
 	cJSON_AddBoolToObject(b, "charging", last_charging == 1);
+	if (last_charging >= 0) {
+		cJSON_AddStringToObject(b, "charge", !last_charging ? "none" : charging_slow() ? "slow" : "normal");
+	}
 	if (last_solar >= 0) {
 		cJSON_AddNumberToObject(b, "solarMv", last_solar);
 	}
