@@ -66,7 +66,8 @@ camera photos.*
 ## Live picture on the LAN (MJPEG)
 
 `GET /api/stream?w=640&h=480&q=12` answers `multipart/x-mixed-replace;boundary=camosframe`, one JPEG per part with its
-`Content-Length`. Sizes: 320x240, 640x480 (default), 800x600, 1024x768, 1280x720, 1280x1024, 1600x1200; JPEG quality
+`Content-Length`. Sizes: 320x240, 640x480 (default), 800x600, 1024x768, 1280x720, 1280x1024, 1600x1200, 1920x1080,
+2048x1536 (within the sensor's maximum; above 1600x1200 at the photo XCLK); JPEG quality
 8..40 (lower = better; the page offers 10 high, 12 standard, 20 smooth). The stream runs in a task of its own (async
 HTTP request), so the console keeps answering while it plays, and Wi-Fi power save is off while it plays.
 

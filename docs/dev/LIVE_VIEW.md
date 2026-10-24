@@ -46,17 +46,23 @@ data channel instead (`live_dc.c` for the protocol, host-tested in `tests/test_l
 - **Default.** JPEG over the data channel: once the channel is open and the viewer has not asked for something else,
   the camera switches to JPEG 640x480, `q` 12, 15 fps (the web console stream's standard quality). H.264 320x240 on the
   video track is the fallback: before the channel opens, for a viewer without the channel, when the channel closes,
-  when the viewer asks for `h264`, and when no JPEG ack has come back for 6 s while frames went out (a weak link:
-  `mode` then carries `"reason":"weak_link"`). While JPEG flows, the video track carries nothing.
+  and when the viewer asks for `h264`. While JPEG flows, the video track carries nothing.
+- **Weak link.** When no JPEG ack has come back for 6 s while frames went out (or four round trips, when those are
+  longer, up to 15 s), the camera steps one video tier down: 2K, FullHD, HD, 480p by picture area as FlyBot names them
+  (`live_dc_step_down`; within a tier the offered size closest to the tier's own, e.g. 2048x1536 -> 1920x1080 ->
+  1280x720 -> 640x480), and below 480p H.264 320x240. Each step sends `mode` with `"reason":"weak_link"` and waits
+  another 6 s before the next. A request with `"fixed":true` (a size the person picked) is never stepped down: the ack
+  window paces it at whatever frame rate the link carries.
 - **Sizes** follow the camera module: `sizes` in `hello` is `camera.liveSizes` of the shadow (the sensor's frame sizes
-  up to 1600x1200 within its maximum), the same list the web console's own stream offers.
+  up to 2048x1536 within its maximum), the same list the web console's own stream offers. Above 1600x1200 the sensor
+  runs at the photo XCLK (10 MHz), as the web console's stream does.
 - **Text messages** are JSON control messages:
 
   | From | Message | Meaning |
   |---|---|---|
-  | camera | `{"t":"hello","v":1,"mode":"h264","w":320,"h":240,"q":12,"fps":10,"modes":["h264","jpeg"],"sizes":[[320,240],[640,480],[800,600],[1024,768],[1280,720],[1280,1024],[1600,1200]],"qRange":[8,40],"chunk":16000}` | the channel is open: what runs (`mode`, `w`, `h`, `q`, `fps`) and what can be asked for (`modes`, `sizes`: here an OV5640, `qRange`) |
-  | viewer | `{"t":"quality","mode":"jpeg","w":640,"h":480,"q":12,"fps":10}` | switch, at any time in the session. `mode` is `h264` or `jpeg`; fields left out keep their value; `h264` always uses the build's 320x240; `w`x`h` must be one of `sizes`, `q` within `qRange` (esp32-camera scale, lower is better), `fps` 1..25 |
-  | camera | `{"t":"mode","mode":"jpeg","w":640,"h":480,"q":12,"fps":15}` | the setting now running, also the answer to a request that changes nothing; `"reason":"weak_link"` when the camera fell back to H.264 by itself. A change restarts the sensor: about 1 s without pictures |
+  | camera | `{"t":"hello","v":1,"mode":"h264","w":320,"h":240,"q":12,"fps":10,"modes":["h264","jpeg"],"sizes":[[320,240],[640,480],[800,600],[1024,768],[1280,720],[1280,1024],[1600,1200],[1920,1080],[2048,1536]],"qRange":[8,40],"chunk":16000}` | the channel is open: what runs (`mode`, `w`, `h`, `q`, `fps`) and what can be asked for (`modes`, `sizes`: here an OV5640, `qRange`) |
+  | viewer | `{"t":"quality","mode":"jpeg","w":640,"h":480,"q":12,"fps":10,"fixed":true}` | switch, at any time in the session. `mode` is `h264` or `jpeg`; fields left out keep their value; `h264` always uses the build's 320x240; `w`x`h` must be one of `sizes`, `q` within `qRange` (esp32-camera scale, lower is better), `fps` 1..25; `fixed` (optional): no step down on a weak link |
+  | camera | `{"t":"mode","mode":"jpeg","w":640,"h":480,"q":12,"fps":15}` | the setting now running, also the answer to a request that changes nothing; `"reason":"weak_link"` when the camera stepped down by itself. A change restarts the sensor: about 1 s without pictures |
   | camera | `{"t":"stats","mode":...,"rate":14.9,"kbps":790,"bytes":6640,"drops":0,"waits":17,"ackMs":45,"pushMs":9}` | every 2 s: frames per second sent, kbit/s, mean frame size, chunks the channel refused, times the camera waited for acks or RAM, send-to-ack time of the last frame, time to hand a frame to the channel |
   | camera | `{"t":"error","msg":"size not offered"}` | a request was refused, or the sensor did not start at that size (the camera keeps what ran) |
   | viewer | `{"t":"ack","seq":42}` | a complete JPEG frame arrived. Cumulative: a lost ack is covered by the next one |

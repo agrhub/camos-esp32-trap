@@ -30,6 +30,7 @@ typedef enum { LIVE_DC_NONE = 0, LIVE_DC_QUALITY, LIVE_DC_ACK, LIVE_DC_BAD } liv
 typedef struct {
 	live_dc_kind_t kind;
 	live_quality_t quality; /* LIVE_DC_QUALITY: the request applied over the current setting */
+	bool fixed;             /* LIVE_DC_QUALITY: "fixed": true, a size the person picked (no step down on a weak link) */
 	uint32_t seq;           /* LIVE_DC_ACK */
 	char error[64];         /* LIVE_DC_BAD */
 } live_dc_msg_t;
@@ -45,13 +46,21 @@ bool live_dc_size_ok(int w, int h);
 /*
  * One control message from the viewer:
  *   {"t":"quality","mode":"h264"|"jpeg","w":640,"h":480,"q":12,"fps":10}   fields left out keep the current value;
- *                                                                         "h264" always uses h264_w x h264_h
+ *                                                                         "h264" always uses h264_w x h264_h;
+ *                                                                         "fixed":true keeps it on a weak link
  *   {"t":"ack","seq":123}                                                  a complete JPEG frame arrived (acks are
  *                                                                          cumulative: a lost one is covered by the next)
  * Anything else, or a bad value: LIVE_DC_BAD with the reason (unknown "t" is LIVE_DC_NONE: ignored).
  */
 live_dc_kind_t live_dc_parse(const char *text, size_t len, const live_quality_t *cur, int h264_w, int h264_h,
 							 live_dc_msg_t *out);
+
+/*
+ * Auto on a weak link: the next lower video tier that the offered sizes have (tiers by picture area, as FlyBot names
+ * them: 240p, 360p, 480p, HD, FullHD, 2K; within a tier the size closest to the tier's own), same q and fps. False when
+ * no JPEG size above 320 wide is left below `cur`: the small H.264 stream then.
+ */
+bool live_dc_step_down(const live_quality_t *cur, live_quality_t *out);
 
 /* The 20-byte header in front of each chunk of frame `seq` (total JPEG bytes, offset of this chunk, capture time) */
 void live_dc_header(uint8_t out[LIVE_DC_HDR_LEN], uint32_t seq, uint32_t total, uint32_t offset, uint32_t ts_ms);
