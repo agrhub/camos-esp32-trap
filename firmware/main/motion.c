@@ -34,7 +34,7 @@ static int roi[4] = { 0, 0, 100, 100 };
 
 static bool wanted(void)
 {
-	return g_cfg.motion && power_effective() == POWER_POWERED && !live_streaming();
+	return g_cfg.motion && power_effective() == POWER_POWERED && !live_streaming() && !ota_running();
 }
 
 void motion_config_changed(void)

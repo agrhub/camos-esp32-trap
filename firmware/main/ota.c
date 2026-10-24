@@ -28,7 +28,25 @@ static int hexval(char c)
 	return -1;
 }
 
+/* An image is downloading: motion detection pauses (its photos took the 4G uplink and the download stalled twice,
+ * 24 Oct 2026) */
+static volatile bool running;
+
+bool ota_running(void) { return running; }
+
+static esp_err_t apply(const char *url, const char *sha256_hex, char *err, size_t errn, ota_progress_cb progress,
+					   void *ctx);
+
 esp_err_t ota_apply(const char *url, const char *sha256_hex, char *err, size_t errn, ota_progress_cb progress, void *ctx)
+{
+	running = true;
+	esp_err_t e = apply(url, sha256_hex, err, errn, progress, ctx);
+	running = false;
+	return e;
+}
+
+static esp_err_t apply(const char *url, const char *sha256_hex, char *err, size_t errn, ota_progress_cb progress,
+					   void *ctx)
 {
 	err[0] = 0;
 	uint8_t expect[32];

@@ -350,6 +350,19 @@ static void rpc_ota(const char *id)
 	}
 }
 
+/* ota.apply on the scheduler task, like snapshot.now: the download takes minutes and held every other RPC behind it
+ * (a gps.fix timed out in the queue, 24 Oct 2026); scheduled and motion photos wait for it meanwhile */
+static char ota_id[48];
+static volatile bool ota_pending;
+
+static void ota_job(void)
+{
+	char id[48];
+	strlcpy(id, ota_id, sizeof(id));
+	rpc_ota(id);
+	ota_pending = false;
+}
+
 typedef struct {
 	char id[48];
 	int timeout;
@@ -459,7 +472,16 @@ static void rpc_handle(const char *json, TickType_t received)
 		logfwd_stop("rpc");
 		rpc_reply(id, NULL, NULL, NULL);
 	} else if (!strcmp(method, "ota.apply")) {
-		rpc_ota(id);
+		if (ota_pending) {
+			rpc_reply(id, NULL, "BUSY", "an update is already running");
+		} else {
+			strlcpy(ota_id, id, sizeof(ota_id));
+			ota_pending = true;
+			if (!sched_run(ota_job)) {
+				ota_pending = false;
+				rpc_reply(id, NULL, "BUSY", "the camera is busy");
+			}
+		}
 	} else if (!strcmp(method, "reboot")) {
 		rpc_reply(id, NULL, NULL, NULL);
 		proto_flush(3000);
