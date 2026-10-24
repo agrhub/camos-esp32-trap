@@ -481,6 +481,8 @@ void button_task_start(void)
 	if (CONFIG_CAMOS_BUTTON_GPIO >= 0) {
 		gpio_config_t io = { .pin_bit_mask = 1ULL << CONFIG_CAMOS_BUTTON_GPIO, .mode = GPIO_MODE_INPUT, .pull_up_en = GPIO_PULLUP_ENABLE };
 		gpio_config(&io);
-		xTaskCreate(button_task, "button", 2560, NULL, 3, NULL);
+		/* 4 KB: the log line (forwarded to the remote log) and the NVS flag overflowed 2.5 KB when the button was held
+		 * on 4G (24 Oct 2026) */
+		xTaskCreate(button_task, "button", 4096, NULL, 3, NULL);
 	}
 }
