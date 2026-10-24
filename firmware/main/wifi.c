@@ -30,6 +30,42 @@ bool wifi_up(void) { return s_up; }
 bool wifi_started(void) { return started; }
 int wifi_failures(void) { return failures; }
 
+static volatile int last_reason; /* wifi_err_reason_t of the last disconnect, 0 none */
+
+/* The reasons a join fails in the field, named; others as their number */
+static const char *reason_name(int r)
+{
+	switch (r) {
+	case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:
+	case WIFI_REASON_HANDSHAKE_TIMEOUT:
+	case WIFI_REASON_MIC_FAILURE:
+		return "wrong password?";
+	case WIFI_REASON_AUTH_EXPIRE: /* a router that refused the bench camera until its Wi-Fi was set again, 24 Oct 2026 */
+		return "authentication timed out, wrong password?";
+	case WIFI_REASON_AUTH_FAIL:
+		return "authentication refused";
+	case WIFI_REASON_CONNECTION_FAIL:
+		return "connection failed";
+	case WIFI_REASON_NO_AP_FOUND:
+		return "network not found";
+	case WIFI_REASON_ASSOC_TOOMANY:
+		return "router full";
+	case WIFI_REASON_BEACON_TIMEOUT:
+		return "signal lost";
+	case WIFI_REASON_ASSOC_LEAVE:
+		return "left";
+	default:
+		return "";
+	}
+}
+
+int wifi_last_reason(const char **name)
+{
+	int r = last_reason;
+	*name = reason_name(r);
+	return r;
+}
+
 int wifi_rssi(void)
 {
 	wifi_ap_record_t ap;
@@ -144,15 +180,18 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 			return;
 		}
 		failures++;
+		last_reason = data ? ((wifi_event_sta_disconnected_t *)data)->reason : 0;
 		/* Exponential back-off with +-20 % jitter, capped at 300 s */
 		int jitter = (int)(esp_random() % 41) - 20;
 		int64_t delay_ms = (int64_t)backoff_s * 1000 * (100 + jitter) / 100;
-		ESP_LOGW(TAG, "disconnected, retry in %d ms", (int)delay_ms);
+		ESP_LOGW(TAG, "disconnected (reason %d%s%s), retry in %d ms", last_reason, reason_name(last_reason)[0] ? ", " : "",
+				 reason_name(last_reason), (int)delay_ms);
 		esp_timer_start_once(retry_timer, delay_ms * 1000);
 		backoff_s = backoff_s * 2 > 300 ? 300 : backoff_s * 2;
 	} else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
 		backoff_s = 1;
 		failures = 0;
+		last_reason = 0;
 		s_up = true;
 		if (g_cfg.ip_mode != 1) {
 			dns_backup_fill();

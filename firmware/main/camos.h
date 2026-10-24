@@ -145,6 +145,7 @@ void wifi_ip(char *out, size_t n);
 void wifi_set_up_cb(void (*cb)(void));
 void wifi_stop(void);
 int wifi_failures(void);           /* failed join attempts since the start or the last IP */
+int wifi_last_reason(const char **name); /* why the last join failed: the driver's reason (0 none), named or "" */
 bool wifi_probe(int *rssi);        /* after wifi_stop (4G in use): one scan for the configured network */
 void wifi_release(void);           /* 4G took over: stop and free the driver (wifi_probe starts it for its scan) */
 

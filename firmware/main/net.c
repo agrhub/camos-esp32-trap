@@ -200,10 +200,13 @@ static void modem_task(void *arg)
 #define WIFI_FIRST_WAIT_S 20     /* no IP within this: 4G */
 #define WIFI_FIRST_TRIES 3       /* or after this many failed joins (wrong password, network not in range) */
 #define WIFI_NO_CLOUD_S 90       /* an IP but no MQTT for this long (no internet behind the router, or it went): 4G */
-#define WIFI_PROBE_MIN 10        /* on 4G: look for the Wi-Fi every 10 min, doubled per no-internet fallback, max x16 */
+#define WIFI_PROBE_MIN 10        /* on 4G: look for the Wi-Fi every 10 min, doubled per fallback in a row, max x16 */
+#define PROBE_RECHECK_S 60       /* a probe due while a live viewer watches: asked again this often */
 
-/* Wi-Fi fallbacks for "no internet" in a row, kept through restarts and deep sleep: the probe waits longer each
- * time, so a router that keeps its Wi-Fi up without internet does not pull the camera back every 10 minutes */
+/* Wi-Fi fallbacks in a row, kept through restarts and deep sleep: "no internet", or no IP right after a probe saw the
+ * network. The probe waits longer each time, so a router that keeps its Wi-Fi up without internet, or that refuses
+ * the camera (24 Oct 2026: in range at -33 dBm, dropped 3 s after joining with reason 2, each time), does not
+ * restart the camera every 10 minutes */
 #define NO_CLOUD_MAGIC 0x4e4f4331
 static RTC_NOINIT_ATTR uint32_t no_cloud_magic;
 static RTC_NOINIT_ATTR int no_cloud_count;
@@ -219,19 +222,26 @@ static void set_no_cloud(int n)
 	no_cloud_count = n;
 }
 
+/* This boot is the probe's restart onto a Wi-Fi it saw (set before esp_restart, read once at the start) */
+#define PROBED_MAGIC 0x50524f42
+static RTC_NOINIT_ATTR uint32_t probed_magic;
+static bool probed_boot;
+
 /* Keeps the network that works, checked every second by an esp_timer (no task of its own: internal RAM is for
  * the live encoder's stack); what takes time runs in a short-lived task:
  *  - Wi-Fi joining: no IP within WIFI_FIRST_WAIT_S / WIFI_FIRST_TRIES -> 4G;
  *  - Wi-Fi with an IP: the always-on 4G module's radio goes off (modem_park); no MQTT for WIFI_NO_CLOUD_S (no
  *    internet behind the router, the router went, the line went) -> 4G;
- *  - 4G with a Wi-Fi set: every WIFI_PROBE_MIN a scan for it; seen -> restart, and the boot takes Wi-Fi first
- *    (not while a live viewer watches). 4G that loses its signal is modem.c's watchdog: a restart after 180 s.
+ *  - 4G with a Wi-Fi set: every WIFI_PROBE_MIN a scan for it (longer after fallbacks in a row); seen -> restart,
+ *    and the boot takes Wi-Fi first (not while a live viewer watches: within a minute after the viewer leaves).
+ *    4G that loses its signal is modem.c's watchdog: a restart after 180 s.
  * A network just set in the portal (wifi_new) never falls back: wifi.c sends the user back to the portal. */
 static esp_timer_handle_t watch_timer;
 static volatile bool watch_busy; /* a worker below is running */
 static bool joined;
 static int watch_s, down_s;
 static int64_t next_probe;
+static bool probe_deferred; /* the probe was due while a live viewer watched */
 static bool has_4g, wifi_new; /* read once at the start: the timer task has a small stack for NVS */
 static const char *fallback_why;
 
@@ -258,6 +268,7 @@ static void probe_worker(void *arg)
 	if (wifi_probe(&rssi)) {
 		ESP_LOGW(TAG, "Wi-Fi %s is back (%d dBm): restarting onto it", g_cfg.wifi_ssid, rssi);
 		events_note("net", "Wi-Fi is back: restarting onto it");
+		probed_magic = PROBED_MAGIC;
 		vTaskDelay(pdMS_TO_TICKS(1000));
 		esp_restart();
 	}
@@ -297,8 +308,13 @@ static void watch_tick(void *arg)
 				joined = true;
 				run_worker(park_worker, "net-park", 4096);
 			} else if (can_4g && (watch_s >= WIFI_FIRST_WAIT_S || wifi_failures() >= WIFI_FIRST_TRIES)) {
-				ESP_LOGW(TAG, "Wi-Fi %s gave no IP (%d attempts, %d s): 4G instead", g_cfg.wifi_ssid, wifi_failures(),
-						 watch_s);
+				const char *rn;
+				int r = wifi_last_reason(&rn);
+				ESP_LOGW(TAG, "Wi-Fi %s gave no IP (%d attempts, %d s, reason %d%s%s): 4G instead", g_cfg.wifi_ssid,
+						 wifi_failures(), watch_s, r, rn[0] ? ", " : "", rn);
+				if (probed_boot) {
+					set_no_cloud(no_cloud() + 1); /* the probe saw it, yet no IP: the next look waits longer */
+				}
 				to_4g("Wi-Fi gave no IP: 4G instead");
 			}
 			return;
@@ -312,7 +328,7 @@ static void watch_tick(void *arg)
 			ESP_LOGW(TAG, "Wi-Fi %s: no cloud connection for %d s (%s): 4G instead", g_cfg.wifi_ssid, down_s,
 					 wifi_up() ? "an IP but no internet" : "Wi-Fi lost");
 			if (wifi_up()) {
-				set_no_cloud(no_cloud() + 1); /* the probe waits longer only for a Wi-Fi without internet */
+				set_no_cloud(no_cloud() + 1); /* a Wi-Fi without internet: the probe waits longer (not for one lost) */
 			}
 			to_4g("Wi-Fi without internet: 4G instead");
 		}
@@ -323,10 +339,17 @@ static void watch_tick(void *arg)
 			next_probe = now + (int64_t)WIFI_PROBE_MIN * 60 * (1 << n);
 			ESP_LOGI(TAG, "on 4G: looking for Wi-Fi %s again in %d min", g_cfg.wifi_ssid, WIFI_PROBE_MIN << n);
 		} else if (now >= next_probe) {
-			next_probe = 0;
 			if (live_streaming()) {
-				ESP_LOGI(TAG, "live viewer: Wi-Fi probe later");
+				/* a scan takes the radio from the viewer: asked again every minute, so the probe runs within a
+				 * minute after the viewer leaves (not a whole period later, which kept a much-watched camera on 4G) */
+				if (!probe_deferred) {
+					ESP_LOGI(TAG, "live viewer: Wi-Fi probe once the viewer leaves");
+				}
+				probe_deferred = true;
+				next_probe = now + PROBE_RECHECK_S;
 			} else {
+				next_probe = 0;
+				probe_deferred = false;
 				run_worker(probe_worker, "net-probe", 4096);
 			}
 		}
@@ -337,6 +360,8 @@ static void watch_start(void)
 {
 	has_4g = modem_available();
 	wifi_new = store_get_flag("wifi_new");
+	probed_boot = probed_magic == PROBED_MAGIC;
+	probed_magic = 0;
 	const esp_timer_create_args_t args = { .callback = watch_tick, .name = "net-watch" };
 	if (esp_timer_create(&args, &watch_timer) == ESP_OK) {
 		esp_timer_start_periodic(watch_timer, 1000000);
