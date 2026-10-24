@@ -16,10 +16,12 @@ tại `docs/img/trap-assembled.jpg`.)*
 
 ## 1. Cần mua gì
 
-- Board camera **Freenove ESP32-S3 CAM (FNK0085)**, thẻ microSD và hộp chống nước: khoảng 430.000 ₫ + board (19,99 USD)
-  cho camera Wi-Fi.
-- Ngoài vườn thêm: module 4G, module GPS, pin LiPo, tấm pin mặt trời và mạch sạc: khoảng 1.130.000 ₫ + board.
-- Danh sách đầy đủ, link cửa hàng và giá đọc ngày 17/10/2026: [docs/BOM.md](docs/BOM.md).
+- Board **ESP32-S3 N16R8 CAM** loại không kèm camera và **module OV5640 rời có ống kính chỉnh được** (419.640 ₫), hoặc
+  board **Freenove ESP32-S3 CAM (FNK0085)** (19,99 USD); thêm thẻ microSD và hộp chống nước: khoảng 850.000 ₫ cho camera
+  Wi-Fi.
+- Ngoài vườn thêm: module 4G, module GPS, pin LiPo dẹt, tấm pin mặt trời, mạch sạc, mạch ổn áp 3,3 V, board test 2 mặt
+  7 x 9 cm và domino: khoảng 1.580.000 ₫ cả board.
+- Danh sách đầy đủ, link cửa hàng và giá đọc ngày 17 và 24/10/2026: [docs/BOM.md](docs/BOM.md).
 - Sơ đồ đấu dây camera ngoài vườn: [docs/WIRING.md](docs/WIRING.md). Lắp vào hộp và lên cọc:
   [docs/ASSEMBLY.md](docs/ASSEMBLY.md).
 

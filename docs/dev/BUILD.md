@@ -81,8 +81,9 @@ Needs gcc and cJSON (ESP-IDF's copy when `IDF_PATH` is set, else `libcjson-dev`)
 - Screenshots in `docs/img/` were taken from the mock with headless Chrome, for example:
   `chrome --headless=new --window-size=1280,640 --screenshot=console-live.png "http://localhost:8099/#live"`
   (phone width: `http://localhost:8099/phone?src=%2Fportal`).
-- Wiring diagrams: `python tools/diagrams/wiring.py` writes `docs/img/wiring-*.svg`; the PNG copies come from the same
-  headless Chrome command on the SVG files. Keep them in step with the Kconfig defaults.
+- Wiring diagram: `docs/img/wiring-overview.svg` is edited as SVG (the drawing of the field-camera wiring sheet); its
+  PNG copy comes from the same headless Chrome command on the SVG. Keep its pins in step with the Kconfig defaults.
+  `python tools/diagrams/wiring.py` draws `docs/img/trap-illustration.svg`.
 
 ## Releases
 

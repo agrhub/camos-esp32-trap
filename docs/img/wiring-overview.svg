@@ -1,192 +1,240 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="980" viewBox="0 0 1440 980">
-<rect width="100%" height="100%" fill="#ffffff"/>
-<text x="24" y="36" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#1f2833" text-anchor="start">Trap camera wiring: overview</text>
-<text x="24" y="60" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#5b6672" text-anchor="start">Freenove ESP32-S3 CAM + A7680C 4G (TDM2309) + ATGM336H GPS + LiPo + solar charger. Pins = firmware defaults (freenove preset).</text>
-<line x1="24" y1="92" x2="52" y2="92" stroke="#d62828" stroke-width="3"/>
-<text x="58" y="96" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2833" text-anchor="start">BAT+ (3.4-4.2 V)</text>
-<line x1="174" y1="92" x2="202" y2="92" stroke="#f08c00" stroke-width="3"/>
-<text x="208" y="96" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2833" text-anchor="start">3.3 V</text>
-<line x1="324" y1="92" x2="352" y2="92" stroke="#222222" stroke-width="3"/>
-<text x="358" y="96" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2833" text-anchor="start">GND</text>
-<line x1="474" y1="92" x2="502" y2="92" stroke="#1c7ed6" stroke-width="3"/>
-<text x="508" y="96" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2833" text-anchor="start">UART data</text>
-<line x1="624" y1="92" x2="652" y2="92" stroke="#7048e8" stroke-width="3"/>
-<text x="658" y="96" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2833" text-anchor="start">control</text>
-<line x1="774" y1="92" x2="802" y2="92" stroke="#2b8a3e" stroke-width="3"/>
-<text x="808" y="96" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2833" text-anchor="start">ADC sense</text>
-<line x1="924" y1="92" x2="952" y2="92" stroke="#e8590c" stroke-width="3"/>
-<text x="958" y="96" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2833" text-anchor="start">solar input</text>
-<line x1="1074" y1="92" x2="1102" y2="92" stroke="#868e96" stroke-width="3"/>
-<text x="1108" y="96" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2833" text-anchor="start">antenna</text>
-<rect x="40" y="140" width="210" height="90" rx="8" fill="#fff4e6" stroke="#e8590c" stroke-width="1.6"/>
-<text x="145.0" y="162" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1f2833" text-anchor="middle">Solar panel 6 V 2 W</text>
-<text x="145.0" y="180" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">136 x 110 mm, tilted to the sun</text>
-<rect x="40" y="300" width="210" height="160" rx="8" fill="#fff9db" stroke="#f08c00" stroke-width="1.6"/>
-<text x="145.0" y="322" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1f2833" text-anchor="middle">Charger board</text>
-<text x="145.0" y="340" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">TP4056 + DW01 (protected)</text>
-<text x="145.0" y="355" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">or CN3791 MPPT matched to</text>
-<text x="145.0" y="370" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">the panel voltage</text>
-<circle cx="250" cy="420" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="241" y="424" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="end">OUT+ / BAT+</text>
-<rect x="40" y="580" width="210" height="110" rx="8" fill="#fff5f5" stroke="#d62828" stroke-width="1.6"/>
-<text x="145.0" y="602" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1f2833" text-anchor="middle">LiPo 1S 2000 mAh</text>
-<text x="145.0" y="620" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">3.7 V nominal, protected</text>
-<text x="145.0" y="635" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">(4.2 V full, 3.3 V empty)</text>
-<polyline points="145,230 145,300" fill="none" stroke="#e8590c" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<text x="145.0" y="269.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#e8590c" text-anchor="middle">panel + / -</text>
-<polyline points="145,460 145,580" fill="none" stroke="#d62828" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<text x="145.0" y="524.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#d62828" text-anchor="middle">B+ / B-</text>
-<polyline points="250,420 290,420" fill="none" stroke="#d62828" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<circle cx="290" cy="420" r="4" fill="#d62828"/>
-<polyline points="290,500 290,120 1100,120 1100,250 1150,250" fill="none" stroke="#d62828" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<text x="695.0" y="114.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#d62828" text-anchor="middle">BAT+ to the modem VCC (short, thick wires)</text>
-<rect x="320" y="330" width="170" height="90" rx="8" fill="#fff9db" stroke="#f08c00" stroke-width="1.6"/>
-<text x="405.0" y="352" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1f2833" text-anchor="middle">3.3 V buck-boost</text>
-<text x="405.0" y="370" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">TPS63020 module</text>
-<text x="405.0" y="385" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">1.8-5.5 V in, 3.3 V 1.3 A</text>
-<polyline points="290,375 320,375" fill="none" stroke="#d62828" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<circle cx="290" cy="375" r="4" fill="#d62828"/>
-<rect x="590" y="240" width="330" height="400" rx="8" fill="#e6fcf5" stroke="#0ca678" stroke-width="1.6"/>
-<text x="755.0" y="262" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1f2833" text-anchor="middle">Freenove ESP32-S3 CAM (FNK0085)</text>
-<text x="755.0" y="280" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">ESP32-S3 N8R8 / N16R8, OV5640 on the FPC</text>
-<text x="755.0" y="295" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">on board: WS2812 LED GPIO48, BOOT button GPIO0,</text>
-<text x="755.0" y="310" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">microSD (CLK 39, CMD 38, D0 40), USB-C CH340</text>
-<circle cx="590" cy="350" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="599" y="354" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">3V3</text>
-<circle cx="590" cy="390" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="599" y="394" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">GND</text>
-<circle cx="590" cy="430" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="599" y="434" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">GPIO1  (ADC1_CH0)</text>
-<circle cx="590" cy="470" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="599" y="474" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">GPIO2  (ADC1_CH1)</text>
-<circle cx="920" cy="350" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="911" y="354" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="end">GPIO41  U1 TX</text>
-<circle cx="920" cy="390" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="911" y="394" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="end">GPIO42  U1 RX</text>
-<circle cx="920" cy="430" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="911" y="434" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="end">GPIO47  PWRKEY</text>
-<circle cx="920" cy="470" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="911" y="474" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="end">GND</text>
-<circle cx="920" cy="510" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="911" y="514" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="end">GPIO14  U2 RX</text>
-<circle cx="920" cy="550" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="911" y="554" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="end">GPIO21  GPS power</text>
-<polyline points="490,375 545,375 545,350 590,350" fill="none" stroke="#f08c00" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<text x="517.5" y="369.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#f08c00" text-anchor="middle">3.3 V</text>
-<circle cx="545" cy="350" r="4" fill="#f08c00"/>
-<polyline points="405,420 405,470 560,470 560,390 590,390" fill="none" stroke="#222222" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<line x1="405" y1="480" x2="405" y2="488" stroke="#222222" stroke-width="2.4"/><line x1="395" y1="488" x2="415" y2="488" stroke="#222222" stroke-width="2.4"/><line x1="399" y1="492" x2="411" y2="492" stroke="#222222" stroke-width="2.4"/><line x1="403" y1="496" x2="407" y2="496" stroke="#222222" stroke-width="2.4"/>
-<rect x="323" y="522" width="14" height="36" rx="2" fill="#fff" stroke="#495057" stroke-width="1.6"/>
-<text x="342" y="544" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#1f2833" text-anchor="start">100k</text>
-<rect x="323" y="602" width="14" height="36" rx="2" fill="#fff" stroke="#495057" stroke-width="1.6"/>
-<text x="342" y="624" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#1f2833" text-anchor="start">100k</text>
-<polyline points="290,500 330,500 330,522" fill="none" stroke="#d62828" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="330,558 330,602" fill="none" stroke="#2b8a3e" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="330,638 330,660" fill="none" stroke="#222222" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<line x1="330" y1="660" x2="330" y2="668" stroke="#222222" stroke-width="2.4"/><line x1="320" y1="668" x2="340" y2="668" stroke="#222222" stroke-width="2.4"/><line x1="324" y1="672" x2="336" y2="672" stroke="#222222" stroke-width="2.4"/><line x1="328" y1="676" x2="332" y2="676" stroke="#222222" stroke-width="2.4"/>
-<polyline points="330,580 575,580 575,430 590,430" fill="none" stroke="#2b8a3e" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<text x="452.5" y="574.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#2b8a3e" text-anchor="middle">battery sense</text>
-<circle cx="330" cy="580" r="4" fill="#2b8a3e"/>
-<line x1="386" y1="601" x2="414" y2="601" stroke="#495057" stroke-width="2.4"/><line x1="386" y1="609" x2="414" y2="609" stroke="#495057" stroke-width="2.4"/>
-<text x="420" y="609" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#1f2833" text-anchor="start">100 nF</text>
-<polyline points="400,580 400,601" fill="none" stroke="#2b8a3e" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<circle cx="400" cy="580" r="4" fill="#2b8a3e"/>
-<polyline points="400,609 400,625" fill="none" stroke="#222222" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<line x1="400" y1="625" x2="400" y2="633" stroke="#222222" stroke-width="2.4"/><line x1="390" y1="633" x2="410" y2="633" stroke="#222222" stroke-width="2.4"/><line x1="394" y1="637" x2="406" y2="637" stroke="#222222" stroke-width="2.4"/><line x1="398" y1="641" x2="402" y2="641" stroke="#222222" stroke-width="2.4"/>
-<rect x="463" y="182" width="14" height="36" rx="2" fill="#fff" stroke="#495057" stroke-width="1.6"/>
-<text x="482" y="204" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#1f2833" text-anchor="start">100k</text>
-<rect x="463" y="252" width="14" height="36" rx="2" fill="#fff" stroke="#495057" stroke-width="1.6"/>
-<text x="482" y="274" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#1f2833" text-anchor="start">33k</text>
-<polyline points="250,185 470,185 470,182" fill="none" stroke="#e8590c" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<text x="360.0" y="179.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#e8590c" text-anchor="middle">panel +</text>
-<polyline points="470,218 470,252" fill="none" stroke="#2b8a3e" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="470,288 470,300" fill="none" stroke="#222222" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<line x1="470" y1="300" x2="470" y2="308" stroke="#222222" stroke-width="2.4"/><line x1="460" y1="308" x2="480" y2="308" stroke="#222222" stroke-width="2.4"/><line x1="464" y1="312" x2="476" y2="312" stroke="#222222" stroke-width="2.4"/><line x1="468" y1="316" x2="472" y2="316" stroke="#222222" stroke-width="2.4"/>
-<polyline points="470,235 580,235 580,470 590,470" fill="none" stroke="#2b8a3e" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<text x="525.0" y="229.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#2b8a3e" text-anchor="middle">solar sense</text>
-<circle cx="470" cy="235" r="4" fill="#2b8a3e"/>
-<rect x="1150" y="170" width="250" height="230" rx="8" fill="#e7f5ff" stroke="#1c7ed6" stroke-width="1.6"/>
-<text x="1275.0" y="192" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1f2833" text-anchor="middle">A7680C 4G (TDM2309)</text>
-<text x="1275.0" y="210" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">SIM800L-compatible pinout</text>
-<text x="1275.0" y="225" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">3.8-4.2 V, 3.3 / 5 V logic</text>
-<circle cx="1150" cy="250" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="1159" y="254" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">VCC</text>
-<circle cx="1150" cy="280" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="1159" y="284" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">GND</text>
-<circle cx="1150" cy="310" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="1159" y="314" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">RXD</text>
-<circle cx="1150" cy="340" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="1159" y="344" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">TXD</text>
-<circle cx="1150" cy="370" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="1159" y="374" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">PWRKEY / RST *</text>
-<polyline points="1370,170 1370,136" stroke="#868e96" stroke-width="2.4" fill="none"/><polyline points="1358,124 1370,136 1382,124" stroke="#868e96" stroke-width="2.4" fill="none"/>
-<text x="1352" y="140" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#5b6672" text-anchor="end">LTE antenna (IPEX / SMA)</text>
-<line x1="1036" y1="211" x2="1064" y2="211" stroke="#495057" stroke-width="2.4"/><line x1="1036" y1="219" x2="1064" y2="219" stroke="#495057" stroke-width="2.4"/>
-<text x="1070" y="219" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#1f2833" text-anchor="start"></text>
-<text x="1040" y="200" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#1f2833" text-anchor="end">1000 uF + 100 nF</text>
-<polyline points="1100,160 1050,160 1050,211" fill="none" stroke="#d62828" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<circle cx="1100" cy="160" r="4" fill="#d62828"/>
-<polyline points="1050,219 1050,232" fill="none" stroke="#222222" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<line x1="1050" y1="232" x2="1050" y2="240" stroke="#222222" stroke-width="2.4"/><line x1="1040" y1="240" x2="1060" y2="240" stroke="#222222" stroke-width="2.4"/><line x1="1044" y1="244" x2="1056" y2="244" stroke="#222222" stroke-width="2.4"/><line x1="1048" y1="248" x2="1052" y2="248" stroke="#222222" stroke-width="2.4"/>
-<polyline points="920,350 1000,350 1000,310 1150,310" fill="none" stroke="#1c7ed6" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<text x="960.0" y="344.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#1c7ed6" text-anchor="middle">TX -&gt; RXD</text>
-<polyline points="920,390 1015,390 1015,340 1150,340" fill="none" stroke="#1c7ed6" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<text x="967.5" y="384.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#1c7ed6" text-anchor="middle">RX &lt;- TXD</text>
-<polyline points="1085,470 1085,280 1150,280" fill="none" stroke="#222222" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="920,470 1085,470" fill="none" stroke="#222222" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<rect x="952" y="423" width="36" height="14" rx="2" fill="#fff" stroke="#495057" stroke-width="1.6"/>
-<text x="970" y="418" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#1f2833" text-anchor="middle">1k</text>
-<polyline points="920,430 952,430" fill="none" stroke="#7048e8" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<rect x="1030" y="408" width="44" height="44" rx="6" fill="#f3f0ff" stroke="#495057" stroke-width="1.6"/>
-<text x="1052" y="434" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1f2833" text-anchor="middle">NPN</text>
-<polyline points="988,430 1030,430" fill="none" stroke="#7048e8" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="1052,408 1052,388 1130,388 1130,370 1150,370" fill="none" stroke="#7048e8" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<text x="1091.0" y="383.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#7048e8" text-anchor="middle">collector</text>
-<polyline points="1052,452 1052,470" fill="none" stroke="#222222" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<circle cx="1052" cy="470" r="4" fill="#222222"/>
-<rect x="1150" y="600" width="250" height="220" rx="8" fill="#ebfbee" stroke="#2b8a3e" stroke-width="1.6"/>
-<text x="1275.0" y="622" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1f2833" text-anchor="middle">ATGM336H GPS</text>
-<text x="1275.0" y="640" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">GPS + BeiDou, NMEA 9600 baud</text>
-<text x="1275.0" y="655" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#5b6672" text-anchor="middle">3.3 V, about 25 mA</text>
-<circle cx="1150" cy="690" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="1159" y="694" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">TX</text>
-<circle cx="1150" cy="720" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="1159" y="724" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">RX (leave open)</text>
-<circle cx="1150" cy="750" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="1159" y="754" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">GND</text>
-<circle cx="1150" cy="780" r="4" fill="#fff" stroke="#495057" stroke-width="2"/>
-<text x="1159" y="784" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2833" text-anchor="start">VCC</text>
-<polyline points="1370,600 1370,566" stroke="#868e96" stroke-width="2.4" fill="none"/><polyline points="1358,554 1370,566 1382,554" stroke="#868e96" stroke-width="2.4" fill="none"/>
-<text x="1352" y="570" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#5b6672" text-anchor="end">active GPS antenna (IPEX)</text>
-<polyline points="920,510 990,510 990,690 1150,690" fill="none" stroke="#1c7ed6" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<text x="955.0" y="504.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#1c7ed6" text-anchor="middle">RX &lt;- TX</text>
-<polyline points="1085,470 1085,750 1150,750" fill="none" stroke="#222222" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<circle cx="1085" cy="470" r="4" fill="#222222"/>
-<rect x="1010" y="856" width="60" height="48" rx="6" fill="#fff4e6" stroke="#495057" stroke-width="1.6"/>
-<text x="1040" y="878" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1f2833" text-anchor="middle">P-FET</text>
-<text x="1040" y="893" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#5b6672" text-anchor="middle">AO3401</text>
-<text x="1002" y="898" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1f2833" text-anchor="middle">S</text>
-<text x="1078" y="898" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1f2833" text-anchor="middle">D</text>
-<text x="1048" y="850" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1f2833" text-anchor="start">G</text>
-<polyline points="545,350 545,880 1010,880" fill="none" stroke="#f08c00" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<text x="777.5" y="874.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#f08c00" text-anchor="middle">3.3 V to the switch (source)</text>
-<polyline points="1070,880 1120,880 1120,780 1150,780" fill="none" stroke="#f08c00" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<text x="1095.0" y="874.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#f08c00" text-anchor="middle">drain</text>
-<rect x="952" y="543" width="36" height="14" rx="2" fill="#fff" stroke="#495057" stroke-width="1.6"/>
-<text x="970" y="538" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#1f2833" text-anchor="middle">1k</text>
-<polyline points="920,550 952,550" fill="none" stroke="#7048e8" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="988,550 1040,550 1040,856" fill="none" stroke="#7048e8" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<text x="1040.0" y="773.0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#7048e8" text-anchor="middle">gate</text>
-<rect x="953" y="802" width="14" height="36" rx="2" fill="#fff" stroke="#495057" stroke-width="1.6"/>
-<text x="972" y="824" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#1f2833" text-anchor="start"></text>
-<text x="948" y="824" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#1f2833" text-anchor="end">100k</text>
-<polyline points="960,802 960,790 1040,790" fill="none" stroke="#7048e8" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<circle cx="1040" cy="790" r="4" fill="#7048e8"/>
-<polyline points="960,838 960,880" fill="none" stroke="#f08c00" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-<circle cx="960" cy="880" r="4" fill="#f08c00"/>
-<text x="40" y="730" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#495057" text-anchor="start">* The TDM2309 keeps the SIM800L pinout: wire the NPN collector to</text>
-<text x="40" y="747" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#495057" text-anchor="start">  its PWRKEY pin (or RST if that is all it has). Without the NPN,</text>
-<text x="40" y="764" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#495057" text-anchor="start">  set CAMOS_MODEM_PWRKEY_ACTIVE_HIGH=n.</text>
-<text x="40" y="781" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#495057" text-anchor="start">Common ground for every board. Feed the camera board at 3V3 from</text>
-<text x="40" y="798" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#495057" text-anchor="start">the buck-boost, not 5 V. Optional: charger CHRG pin to GPIO46.</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="1090" viewBox="0 -90 1320 1090" style="--paper:#ffffff;--fg:#16202b;--muted:#5a6573;--line:#d3d9e1;--accent:#1f4fbf;--accent-soft:#e6edfb;--w-bat:#cf2f2f;--w-3v3:#7a3fc0;--w-gnd:#2a2f36;--w-uart:#138a4a;--w-gps:#1f6fd1;--w-sense:#0d8a8c;--w-solar:#a8551b;--font-body:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;--font-mono:Consolas,'DejaVu Sans Mono',monospace;">
+<rect x="0" y="-90" width="1320" height="1090" fill="#ffffff"/>
+<text x="24" y="-54" style="fill:var(--fg);font-family:var(--font-body)" font-size="22" font-weight="700">4G trap wiring (firmware 0.9.2: these pins are the defaults, nothing to set)</text>
+<g transform="translate(0 -90)"><line x1="24" y1="66" x2="50" y2="66" style="stroke:var(--w-bat)" stroke-width="4" stroke-linecap="round"/><text x="58" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">BAT+ 3.7-4.2 V</text><line x1="184.8" y1="66" x2="210.8" y2="66" style="stroke:var(--w-3v3)" stroke-width="4" stroke-linecap="round"/><text x="218.8" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">3.3 V regulator to the ESP32</text><line x1="446.40000000000003" y1="66" x2="472.40000000000003" y2="66" style="stroke:var(--w-gnd)" stroke-width="4" stroke-linecap="round"/><text x="480.40000000000003" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">GND</text><line x1="528" y1="66" x2="554" y2="66" style="stroke:var(--w-uart)" stroke-width="4" stroke-linecap="round"/><text x="562" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">4G UART</text><line x1="638.4" y1="66" x2="664.4" y2="66" style="stroke:var(--w-gps)" stroke-width="4" stroke-linecap="round"/><text x="672.4" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">GPS UART and switches</text><line x1="849.6" y1="66" x2="875.6" y2="66" style="stroke:var(--w-sense)" stroke-width="4" stroke-linecap="round"/><text x="883.6" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">battery sense GPIO1</text><line x1="1046.4" y1="66" x2="1072.4" y2="66" style="stroke:var(--w-solar)" stroke-width="4" stroke-linecap="round"/><text x="1080.4" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">charge input GPIO2</text></g>
+
+        <style>
+          .box { fill: var(--paper); stroke: var(--line); stroke-width: 1.5; }
+          .box.opt { stroke-dasharray: 6 5; }
+          .esp { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+          .t { fill: var(--fg); font-family: var(--font-body); font-size: 15px; font-weight: 700; }
+          .s { fill: var(--muted); font-family: var(--font-body); font-size: 12px; }
+          .p { fill: var(--fg); font-family: var(--font-mono); font-size: 12px; font-weight: 700; }
+          .pn { fill: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+          .wl { font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
+          .w { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+          .rail { fill: none; stroke-width: 4.5; stroke-linecap: round; }
+          .dash { stroke-dasharray: 7 6; }
+          .bat { stroke: var(--w-bat); } .v5 { stroke: var(--w-5v); } .v33 { stroke: var(--w-3v3); }
+          .gnd { stroke: var(--w-gnd); } .uart { stroke: var(--w-uart); } .gps { stroke: var(--w-gps); }
+          .sense { stroke: var(--w-sense); } .solar { stroke: var(--w-solar); }
+          .dot { fill: var(--fg); }
+          .pin { fill: var(--paper); stroke: var(--fg); stroke-width: 1.5; }
+          .ink { stroke: var(--fg); stroke-width: 1.5; fill: none; }
+          .ink-fill { fill: var(--fg); }
+        </style>
+
+        <!-- ===== Solar panel (optional) ===== -->
+        <rect class="box" x="40" y="40" width="220" height="90" rx="8"/>
+        <text class="t" x="56" y="72">Solar panel</text>
+        <text class="s" x="56" y="94">the housing's, or 6 V 2 W</text>
+        <text class="p" x="244" y="74" text-anchor="end">+</text>
+        <text class="p" x="244" y="114" text-anchor="end">−</text>
+        <path class="w solar" d="M260 70 H390 V230"/>
+        <path class="w gnd" d="M260 110 H450 V320"/>
+        <rect class="ink" x="300" y="58" width="44" height="64" rx="4"/>
+        <text class="pn" x="322" y="140" text-anchor="middle">terminal</text>
+        <path class="w solar" d="M390 230 V400"/>
+        <path class="w gnd" d="M450 320 V400"/>
+        <circle class="pin" cx="260" cy="70" r="4"/><circle class="pin" cx="260" cy="110" r="4"/>
+
+        <!-- ===== Charge-input divider ===== -->
+        <rect class="box" x="40" y="190" width="220" height="185" rx="8"/>
+        <text class="t" x="56" y="214">Charge-input divider</text>
+        <text class="s" x="56" y="344">100 kΩ / 33 kΩ (÷4), 100 nF</text>
+        <text class="s" x="56" y="362">USB-C or panel: charging?</text>
+        <path class="ink" d="M260 230 H210 V240 M210 266 V280 H260 M210 280 V290 M210 314 V320 H260"/>
+        <rect class="ink" x="203" y="240" width="14" height="26" rx="2"/>
+        <rect class="ink" x="203" y="290" width="14" height="24" rx="2"/>
+        <text class="pn" x="197" y="258" text-anchor="end">100k</text>
+        <text class="pn" x="197" y="307" text-anchor="end">33k</text>
+        <path class="ink" d="M238 280 V296 M230 296 H246 M230 302 H246 M238 302 V320"/>
+        <circle class="dot" cx="210" cy="280" r="3"/><circle class="dot" cx="238" cy="280" r="3"/>
+        <circle class="dot" cx="210" cy="320" r="3"/><circle class="dot" cx="238" cy="320" r="3"/>
+        <path class="w solar" d="M260 230 H390"/>
+        <path class="w gnd" d="M260 320 H384 a6 6 0 0 1 12 0 H450"/>
+        <circle class="dot" cx="390" cy="230" r="5"/><circle class="dot" cx="450" cy="320" r="5"/>
+        <path class="w solar" d="M264 280 H384 a6 6 0 0 1 12 0 H444 a6 6 0 0 1 12 0 H604 a6 6 0 0 1 12 0 H634 a6 6 0 0 1 12 0 H1036"/>
+        <text class="wl" fill="var(--w-solar)" x="990" y="272" text-anchor="middle">→IO2</text>
+        <circle class="pin" cx="260" cy="230" r="4"/><circle class="pin" cx="260" cy="280" r="4"/><circle class="pin" cx="260" cy="320" r="4"/>
+
+        <!-- ===== LiPo cell ===== -->
+        <rect class="box" x="40" y="430" width="220" height="100" rx="8"/>
+        <rect class="ink" x="66" y="484" width="120" height="34" rx="3"/>
+        <text class="t" x="56" y="462">LiPo cell 103450</text>
+        <text class="p" x="244" y="459" text-anchor="end">+</text>
+        <text class="p" x="244" y="509" text-anchor="end">−</text>
+        <text class="s" x="126" y="506" text-anchor="middle">3.7 V 2000 mAh</text>
+        <rect class="ink" x="276" y="443" width="38" height="74" rx="4"/>
+        <text class="pn" x="295" y="535" text-anchor="middle">terminal</text>
+        <path class="w bat" d="M260 455 H330"/>
+        <path class="w gnd" d="M260 505 H330"/>
+        <circle class="pin" cx="260" cy="455" r="4"/><circle class="pin" cx="260" cy="505" r="4"/>
+
+        <!-- ===== TP4056 charger ===== -->
+        <rect class="box" x="330" y="400" width="230" height="170" rx="8"/>
+        <rect class="ink" x="425" y="400" width="40" height="12" rx="3"/>
+        <text class="p" x="390" y="430" text-anchor="middle">IN+</text>
+        <text class="p" x="450" y="430" text-anchor="middle">IN−</text>
+        <text class="p" x="346" y="459">B+</text>
+        <text class="p" x="346" y="509">B−</text>
+        <text class="p" x="544" y="444" text-anchor="end">OUT+</text>
+        <text class="p" x="544" y="534" text-anchor="end">OUT−</text>
+        <text class="t" x="445" y="478" text-anchor="middle">TP4056 charger</text>
+        <text class="s" x="445" y="498" text-anchor="middle">DW01 protection · USB-C</text>
+        <text class="s" x="445" y="592" text-anchor="middle">Charge from USB-C, or a solar panel on IN+ / IN−</text>
+        <circle class="pin" cx="390" cy="400" r="4"/><circle class="pin" cx="450" cy="400" r="4"/>
+        <circle class="pin" cx="330" cy="455" r="4"/><circle class="pin" cx="330" cy="505" r="4"/>
+        <circle class="pin" cx="560" cy="440" r="4"/><circle class="pin" cx="560" cy="530" r="4"/>
+
+        <!-- ===== Rails ===== -->
+        <path class="rail bat" d="M610 100 V800"/>
+        <path class="rail gnd" d="M640 140 V960"/>
+        <text class="wl" fill="var(--w-bat)" transform="translate(600 365) rotate(-90)" text-anchor="middle">BAT+ · 3.7–4.2 V</text>
+        <text class="wl" fill="var(--w-gnd)" transform="translate(630 690) rotate(-90)" text-anchor="middle">common GND</text>
+        <path class="w bat" d="M560 440 H610"/>
+        <path class="w gnd" d="M560 530 H640"/>
+        <circle class="dot" cx="610" cy="440" r="5"/><circle class="dot" cx="640" cy="530" r="5"/>
+
+        <!-- ===== 4G module ===== -->
+        <rect class="box" x="700" y="50" width="240" height="210" rx="8"/>
+        <path class="ink" d="M820 50 V20 M806 8 L820 20 L834 8"/>
+        <text class="s" x="842" y="22">LTE antenna</text>
+        <text class="t" x="820" y="78" text-anchor="middle">4G module A7680C</text>
+        <text class="p" x="716" y="104">VCC</text>
+        <text class="p" x="716" y="144">GND</text>
+        <text class="p" x="716" y="224">RST</text><text class="pn" x="748" y="224">not connected</text>
+        <text class="p" x="924" y="144" text-anchor="end">RXD</text>
+        <text class="p" x="924" y="184" text-anchor="end">TXD</text>
+        <text class="s" x="820" y="248" text-anchor="middle">TDM2309 · nano SIM · caps at VCC</text>
+        <path class="w bat" d="M610 100 H618"/>
+        <rect class="box" x="618" y="88" width="44" height="24" rx="4"/>
+        <text class="pn" x="640" y="104" text-anchor="middle">P-FET</text>
+        <path class="w bat" d="M662 100 H700"/>
+        <path class="w gps" d="M640 88 V58"/>
+        <text class="wl" fill="var(--w-gps)" x="640" y="40" text-anchor="middle">AO3401A 4G switch</text>
+        <text class="wl" fill="var(--w-gps)" x="640" y="54" text-anchor="middle">gate ← C1815 ← IO47</text>
+        <path class="w gnd" d="M640 140 H700"/>
+        <!-- 1000 uF + 100 nF across VCC-GND -->
+        <path class="ink" d="M672 100 V114 M662 114 H682 M662 122 Q672 116 682 122 M672 122 V140"/>
+        <circle class="dot" cx="672" cy="100" r="3"/><circle class="dot" cx="672" cy="140" r="3"/>
+        <circle class="pin" cx="700" cy="100" r="4"/><circle class="pin" cx="700" cy="140" r="4"/>
+        <circle class="pin" cx="700" cy="220" r="4"/><circle class="pin" cx="820" cy="50" r="4"/>
+        <circle class="pin" cx="940" cy="140" r="4"/><circle class="pin" cx="940" cy="180" r="4"/>
+
+        <!-- ===== Battery divider ===== -->
+        <rect class="box" x="700" y="300" width="240" height="135" rx="8"/>
+        <text class="t" x="820" y="318" text-anchor="middle">Battery divider</text>
+        <path class="ink" d="M700 330 H724 M760 330 H800 V346 M800 374 V404 M800 338 H880 V360 H940 M880 360 V378 M880 384 V404 M700 404 H880"/>
+        <rect class="ink" x="724" y="323" width="36" height="14" rx="2"/>
+        <rect class="ink" x="793" y="346" width="14" height="28" rx="2"/>
+        <path class="ink" d="M872 378 H888 M872 384 H888"/>
+        <text class="pn" x="742" y="354" text-anchor="middle">100k</text>
+        <text class="pn" x="814" y="366">100k</text>
+        <text class="pn" x="894" y="386">100n</text>
+        <circle class="dot" cx="800" cy="338" r="3"/><circle class="dot" cx="880" cy="360" r="3"/>
+        <circle class="dot" cx="800" cy="404" r="3"/><circle class="dot" cx="880" cy="404" r="3"/>
+        <text class="s" x="820" y="426" text-anchor="middle">÷2: a 4.2 V cell puts 2.1 V on GPIO1</text>
+        <path class="w bat" d="M610 330 H634 a6 6 0 0 1 12 0 H700"/>
+        <path class="w gnd" d="M640 404 H700"/>
+        <circle class="dot" cx="610" cy="330" r="5"/><circle class="dot" cx="640" cy="404" r="5"/>
+        <circle class="pin" cx="700" cy="330" r="4"/><circle class="pin" cx="700" cy="404" r="4"/>
+        <circle class="pin" cx="940" cy="360" r="4"/>
+
+        <!-- ===== 3.3 V regulator (auto buck-boost, EN tied to IN+) ===== -->
+        <rect class="box" x="700" y="480" width="240" height="130" rx="8"/>
+        <text class="p" x="716" y="524">IN+</text>
+        <text class="p" x="716" y="554">EN</text>
+        <text class="p" x="716" y="584">IN−</text>
+        <path class="ink" d="M700 520 H690 V550 H700"/>
+        <circle class="dot" cx="690" cy="520" r="3"/>
+        <text class="p" x="924" y="524" text-anchor="end">OUT+</text>
+        <text class="p" x="924" y="584" text-anchor="end">OUT−</text>
+        <text class="t" x="830" y="552" text-anchor="middle">3.3 V regulator</text>
+        <text class="s" x="830" y="572" text-anchor="middle">auto buck-boost</text>
+        <text class="s" x="820" y="600" text-anchor="middle">EN to IN+ · measure 3.3 V first</text>
+        <path class="w bat" d="M610 520 H634 a6 6 0 0 1 12 0 H700"/>
+        <path class="w gnd" d="M640 580 H700"/>
+        <circle class="dot" cx="610" cy="520" r="5"/><circle class="dot" cx="640" cy="580" r="5"/>
+        <circle class="pin" cx="700" cy="520" r="4"/><circle class="pin" cx="700" cy="580" r="4"/>
+        <circle class="pin" cx="940" cy="520" r="4"/><circle class="pin" cx="940" cy="580" r="4"/>
+
+        <!-- ===== GPS ===== -->
+        <rect class="box" x="700" y="670" width="240" height="160" rx="8"/>
+        <text class="t" x="716" y="700">GPS module ATGM336H</text>
+        <text class="s" x="716" y="722">GPS antenna facing the sky</text>
+        <text class="s" x="716" y="742">10–20 cm from the 4G antenna</text>
+        <text class="p" x="716" y="776">RX, PPS</text><text class="pn" x="776" y="776">not connected</text>
+        <text class="p" x="716" y="804">VCC</text>
+        <text class="p" x="812" y="822" text-anchor="middle">GND</text>
+        <text class="p" x="924" y="764" text-anchor="end">TX</text>
+        <circle class="pin" cx="812" cy="830" r="4"/>
+        <path class="w bat" d="M610 800 H634 a6 6 0 0 1 12 0 H700"/>
+        <circle class="dot" cx="610" cy="800" r="5"/><circle class="pin" cx="700" cy="800" r="4"/>
+
+        <!-- ===== C1815 low-side switch for the GPS ===== -->
+        <circle class="ink" cx="818" cy="890" r="21"/>
+        <path class="ink" d="M826 878 V902"/>
+        <path class="w gnd" d="M812 830 V872 L826 884"/>
+        <path class="w gnd" d="M826 896 L812 908 V960 H640"/>
+        <path class="ink-fill" d="M812 908 l8 -2 l-4 -6 z"/>
+        <path class="w gps" d="M826 890 H860"/>
+        <rect class="box" x="860" y="883" width="40" height="14" rx="3"/>
+        <path class="w gps" d="M900 890 H1036"/>
+        <rect class="box" x="843" y="916" width="14" height="30" rx="3"/>
+        <path class="w gps" d="M850 890 V916"/>
+        <path class="w gnd" d="M850 946 V960"/>
+        <circle class="dot" cx="850" cy="890" r="4"/><circle class="dot" cx="850" cy="960" r="4"/>
+        <circle class="dot" cx="812" cy="960" r="4"/><circle class="dot" cx="640" cy="960" r="5"/>
+        <text class="t" x="790" y="896" text-anchor="end">C1815</text>
+        <text class="pn" x="800" y="872" text-anchor="end">C</text>
+        <text class="pn" x="800" y="922" text-anchor="end">E</text>
+        <text class="pn" x="836" y="884">B</text>
+        <text class="pn" x="880" y="876" text-anchor="middle">1 kΩ</text>
+        <text class="pn" x="864" y="936">10 kΩ</text>
+        <text class="s" x="700" y="986">GPIO21 high = GPS on · 10 kΩ keeps it off at boot</text>
+        <circle class="pin" cx="940" cy="760" r="4"/>
+
+        <!-- ===== ESP32 board ===== -->
+        <rect class="esp" x="1040" y="60" width="250" height="900" rx="12"/>
+        <text class="t" x="1170" y="96" text-anchor="middle">ESP32-S3 CAM</text>
+        <text class="s" x="1170" y="116" text-anchor="middle">N16R8 · Freenove pin map</text>
+        <rect class="ink" x="1150" y="390" width="80" height="80" rx="6"/>
+        <circle class="ink" cx="1190" cy="430" r="22"/><circle class="ink" cx="1190" cy="430" r="9"/>
+        <text class="s" x="1190" y="490" text-anchor="middle">OV5640 camera</text>
+        <text class="p" x="1056" y="144">IO41</text><text class="pn" x="1096" y="144">TX to 4G</text>
+        <text class="p" x="1056" y="184">IO42</text><text class="pn" x="1096" y="184">RX from 4G</text>
+        <text class="p" x="1056" y="364">IO1</text><text class="pn" x="1088" y="364">battery sense</text>
+        <text class="p" x="1056" y="284">IO2</text><text class="pn" x="1088" y="284">charge sense</text>
+        <text class="p" x="1056" y="234">IO47</text><text class="pn" x="1096" y="234">4G switch</text>
+        <path class="w gps" d="M950 230 H1036"/>
+        <text class="wl" fill="var(--w-gps)" x="990" y="222" text-anchor="middle">IO47→C1815</text>
+        <circle class="pin" cx="1040" cy="230" r="4"/>
+        <text class="p" x="1056" y="894">IO21</text><text class="pn" x="1096" y="894">GPS power</text>
+        <text class="p" x="1056" y="524">3V3</text><text class="pn" x="1088" y="524">3.3 V supply in</text>
+        <text class="p" x="1056" y="584">GND</text>
+        <text class="p" x="1056" y="764">IO14</text><text class="pn" x="1096" y="764">RX from GPS</text>
+        <rect class="ink" x="1145" y="946" width="50" height="14" rx="4"/>
+        <text class="s" x="1170" y="918" text-anchor="middle">USB in for flashing / logs:</text>
+        <text class="s" x="1170" y="936" text-anchor="middle">disconnect the 3.3 V wire</text>
+        <circle class="pin" cx="1040" cy="140" r="4"/><circle class="pin" cx="1040" cy="180" r="4"/>
+        <circle class="pin" cx="1040" cy="360" r="4"/><circle class="pin" cx="1040" cy="520" r="4"/>
+        <circle class="pin" cx="1040" cy="580" r="4"/>
+        <circle class="pin" cx="1040" cy="760" r="4"/>
+        <circle class="pin" cx="1040" cy="280" r="4"/><circle class="pin" cx="1040" cy="890" r="4"/>
+
+        <!-- ===== Signal and supply wires into the ESP32 ===== -->
+        <path class="w uart" d="M944 140 H1036"/>
+        <text class="wl" fill="var(--w-uart)" x="990" y="132" text-anchor="middle">IO41→RXD</text>
+        <path class="w uart" d="M944 180 H1036"/>
+        <text class="wl" fill="var(--w-uart)" x="990" y="172" text-anchor="middle">TXD→IO42</text>
+        <path class="w sense" d="M944 360 H1036"/>
+        <text class="wl" fill="var(--w-sense)" x="990" y="352" text-anchor="middle">sense</text>
+        <path class="w v33" d="M944 520 H1036"/>
+        <text class="wl" fill="var(--w-3v3)" x="990" y="512" text-anchor="middle">3.3 V</text>
+        <path class="w gnd" d="M944 580 H1036"/>
+        <text class="wl" fill="var(--w-gnd)" x="990" y="572" text-anchor="middle">GND</text>
+        <path class="w gps" d="M944 760 H1036"/>
+        <text class="wl" fill="var(--w-gps)" x="990" y="752" text-anchor="middle">TX→IO14</text>
+      
 </svg>

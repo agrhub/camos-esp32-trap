@@ -16,13 +16,15 @@ will follow in `docs/img/trap-assembled.jpg`.)*
 
 ## 1. What you need
 
-- The camera board **Freenove ESP32-S3 CAM (FNK0085)** (US$19.99) and a trap housing: the hanging solar trap in the
-  photos costs US$3.00. That is a Wi-Fi camera, about US$23.
-- For the field, as built in the photos: a 4G module and a GPS module (both with their antennas), an 18650 cell, a
-  charger and a 5 V boost board: about US$40 in all, board and housing included (449.000 ₫ of parts at 26.050 ₫/USD,
-  the Vietcombank rate of 21 Oct 2026). The reference build of the wiring page (IP65 box, 3.3 V buck-boost, sticky
-  card): about US$63.
-- The full list with shop links and the prices read on 17 Oct 2026: [docs/BOM.md](docs/BOM.md).
+- The camera board: an **ESP32-S3 N16R8 CAM** bought without a camera plus an **OV5640 module with an adjustable lens**
+  (419.640 ₫, about US$16), or the **Freenove ESP32-S3 CAM (FNK0085)** (US$19.99), and a trap housing: the hanging solar
+  trap in the photos costs US$3.00. That is a Wi-Fi camera, about US$19.
+- For the field: a 4G module and a GPS module (both with their antennas), a flat LiPo cell, a charger, a 3.3 V
+  regulator, a power switch for the 4G module, a prototype board with screw terminals and the lure: 962.160 ₫ of
+  parts, about US$40 with the housing
+  (26.050 ₫/USD, the Vietcombank rate of 21 Oct 2026). The reference build of the wiring page (IP65 box, sticky card,
+  active GPS antenna): about US$61.
+- The full list with shop links and the prices read on 17 and 24 Oct 2026: [docs/BOM.md](docs/BOM.md).
 - Wiring diagrams for the field camera: [docs/WIRING.md](docs/WIRING.md). Putting it in the box and on the post:
   [docs/ASSEMBLY.md](docs/ASSEMBLY.md).
 

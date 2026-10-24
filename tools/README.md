@@ -8,7 +8,7 @@
 | `factory.sh` / `factory.ps1` | factory provisioning: the read-only `fctry` NVS image (serial, verify code, certificate, key, thing) flashed at 0x14000; prints the AWS IoT registration command (docs/dev/FACTORY.md) |
 | `serial_log.py` | non-interactive serial capture and console driver: `python tools/serial_log.py COM7 --reset --seconds 60`, `--cmd info --cmd scan` |
 | `mock/server.js` | mock camera serving the setup page and the web console with fake data (docs/dev/BUILD.md) |
-| `diagrams/wiring.py` | draws the wiring diagrams in docs/img |
+| `diagrams/wiring.py` | draws the illustration of the mounted trap in docs/img |
 
 ## Provisioning with provision.sh
 
