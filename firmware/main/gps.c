@@ -8,8 +8,8 @@
  * (protocol 3: GPS time when there is no NTP).
  *
  * A trap does not move, so one fix a day is plenty; the module is off the rest of the time (it keeps no almanac
- * without a backup supply, so every fix is a cold start: about 35 s with a clear sky per the datasheet, more
- * under trees; not measured here).
+ * without a backup supply, so a fix after a power-off is a cold start: about 35 s with a clear sky per the datasheet,
+ * minutes with few satellites in view), except for GPS_WARM_S after a try that found no fix.
  *
  * No GPS fix: the position of the 4G cell (AT+CLBS, SIMCom's location service) is taken instead, `source: "cell"`
  * with its accuracy radius. It never replaces a GPS fix, and the GPS is tried again 6 h later.
@@ -118,8 +118,17 @@ bool gps_available(void)
 	return CONFIG_CAMOS_GPS_RX_GPIO >= 0 && g_cfg.gps && !store_get_flag("gps_absent");
 }
 
+/* After a fix that did not come, the module stays powered for GPS_WARM_S: it keeps the satellites it has found and the
+ * ephemeris it has read, so the next try is a warm start instead of another cold one (outdoors on 24 Oct 2026 each
+ * 120 s try started from nothing, with 2-3 satellites in view). Deep sleep switches it off (gps_sleep_prepare). */
+#define GPS_WARM_S 600
+static esp_timer_handle_t warm_timer;
+
 static void gps_power(bool on)
 {
+	if (warm_timer) {
+		esp_timer_stop(warm_timer); /* not running: harmless */
+	}
 #if CONFIG_CAMOS_GPS_POWER_GPIO >= 0
 	int active_low = g_cfg.gps_pwr_low;
 	gpio_hold_dis(CONFIG_CAMOS_GPS_POWER_GPIO);
@@ -146,10 +155,40 @@ static double distance_m(double lat1, double lon1, double lat2, double lon2)
 
 static bool fix_once(int timeout_s, gps_fix_t *out);
 static bool cell_fallback(gps_fix_t *out);
+static volatile bool fixing;
+
+static void warm_end(void *arg)
+{
+	if (!fixing) {
+		ESP_LOGI(TAG, "no fix asked for %d min: GPS off", GPS_WARM_S / 60);
+		gps_power(false);
+	}
+}
+
+/* Keep the module on for GPS_WARM_S after a fix that did not come */
+static void gps_keep_warm(void)
+{
+	if (!warm_timer) {
+		const esp_timer_create_args_t a = { .callback = warm_end, .name = "gps-warm" };
+		if (esp_timer_create(&a, &warm_timer) != ESP_OK) {
+			gps_power(false);
+			return;
+		}
+	}
+	esp_timer_stop(warm_timer);
+	esp_timer_start_once(warm_timer, (uint64_t)GPS_WARM_S * 1000000ULL);
+	ESP_LOGI(TAG, "GPS kept on for %d min: the next try starts warm", GPS_WARM_S / 60);
+}
+
+void gps_sleep_prepare(void)
+{
+	if (gps_available()) {
+		gps_power(false);
+	}
+}
 
 /* One fix at a time: the scheduler's daily fix and a console or RPC request would share the UART and the first to
- * finish would switch the module off under the other (seen 22 Oct 2026: 166, then 67, then 7 sentences) */
-static volatile bool fixing;
+ * finish would switch the module off under the other (seen 22 Oct 2026: 166, then 67, then 7 sentences): `fixing` */
 
 bool gps_fix(int timeout_s, gps_fix_t *out)
 {
@@ -157,7 +196,33 @@ bool gps_fix(int timeout_s, gps_fix_t *out)
 		ESP_LOGW(TAG, "a fix is already running");
 		return false;
 	}
-	bool ok = fix_once(timeout_s, out) || cell_fallback(out);
+	/* The 4G module's transmitter drowns the GPS: outdoors with 4G on, 2-3 satellites in view and no fix in three 300 s
+	 * tries (24 Oct 2026); with 4G off it had found 5 outdoors (22 Oct). Its radio is off for the fix and back after
+	 * (the cell position needs it), and the caller's reply or report waits for MQTT; not while a live viewer watches. */
+	bool quiet = net_type() == NET_4G && modem_up() && !live_streaming();
+	if (quiet) {
+		/* FlyBot takes the silence that follows as a fix, not an outage (event gps_fix: started, then done) */
+		char id[27];
+		cJSON *e = evt_new("gps_fix", id);
+		cJSON_AddStringToObject(e, "state", "started");
+		cJSON_AddNumberToObject(e, "seconds", timeout_s);
+		proto_publish_event(e);
+		proto_flush(3000);
+		modem_radio_pause();
+	}
+	bool ok = fix_once(timeout_s, out);
+	if (quiet) {
+		modem_radio_resume();
+		for (int i = 0; i < 30 && !proto_connected(); i++) {
+			vTaskDelay(pdMS_TO_TICKS(1000));
+		}
+		char id[27];
+		cJSON *e = evt_new("gps_fix", id);
+		cJSON_AddStringToObject(e, "state", "done");
+		cJSON_AddBoolToObject(e, "fix", ok);
+		proto_publish_event(e);
+	}
+	ok = ok || cell_fallback(out);
 	failed_at = ok ? 0 : (clock_synced() ? time(NULL) : 0);
 	__atomic_clear(&fixing, __ATOMIC_RELEASE);
 	return ok;
@@ -259,7 +324,11 @@ static bool fix_once(int timeout_s, gps_fix_t *out)
 			line[li++] = (char)c;
 		}
 	}
-	gps_power(false);
+	if (ok || !sentences) {
+		gps_power(false);
+	} else {
+		gps_keep_warm();
+	}
 	if (!ok) {
 		ESP_LOGW(TAG, "no fix in %d s (%d sentences seen%s)", timeout_s, sentences, sentences ? "" : ": is the module powered and TX wired to the RX pin?");
 		if (sentences == 0 && timeout_s >= 30) {
@@ -331,6 +400,7 @@ static bool cell_fallback(gps_fix_t *out)
 #else
 
 bool gps_available(void) { return false; }
+void gps_sleep_prepare(void) {}
 bool gps_fix(int timeout_s, gps_fix_t *out)
 {
 	(void)timeout_s;

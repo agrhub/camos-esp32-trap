@@ -395,10 +395,12 @@ menu "CamOS trap camera"
             int "Give up a fix after (s)"
             depends on CAMOS_GPS
             range 10 600
-            default 120
+            default 300
             help
-                Cold start of the ATGM336H is about 35 s with a clear sky (datasheet, not measured here);
-                under a canopy it can take minutes. The module keeps no almanac without a backup supply.
+                Cold start of the ATGM336H is about 35 s with a clear sky (datasheet); under a canopy, or with
+                2-3 satellites in view (outdoors beside a building, 24 Oct 2026), it takes minutes: 120 s was not
+                enough. The module keeps no almanac without a backup supply. An RPC gps.fix asking for less
+                waits this long too.
         config CAMOS_GPS_FIX_INTERVAL_H
             int "Fix once every (hours)"
             depends on CAMOS_GPS

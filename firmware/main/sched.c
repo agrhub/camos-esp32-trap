@@ -512,6 +512,7 @@ static void deep_sleep_until(time_t until, time_t now, bool with_lead)
 	}
 	net_sleep_prepare(); /* modem off through PWRKEY and its rail, Wi-Fi stopped */
 	cam_sleep_prepare();
+	gps_sleep_prepare();
 	led_sleep_prepare(battery_mv() >= 0 && battery_mv() < CONFIG_CAMOS_BATT_LOW_MV);
 	esp_sleep_enable_timer_wakeup((uint64_t)sleep_s * 1000000ULL);
 	esp_deep_sleep_start();
@@ -626,7 +627,7 @@ static void sched_task(void *arg)
 #endif
 		if (!deep && gps_fix_due() && proto_connected() && !live_active() && !gps_task_running) {
 			gps_task_running = true;
-			if (xTaskCreate(gps_fix_task, "gps-fix", 6144, NULL, 3, NULL) != pdPASS) {
+			if (xTaskCreate(gps_fix_task, "gps-fix", 8192, NULL, 3, NULL) != pdPASS) {
 				gps_fix(CONFIG_CAMOS_GPS_FIX_TIMEOUT_S, NULL); /* no memory for the task: here, as before */
 				proto_publish_reported_now();
 				gps_task_running = false;

@@ -426,12 +426,14 @@ static void rpc_handle(const char *json, TickType_t received)
 			gps_job_t *j = calloc(1, sizeof(*j));
 			if (j) {
 				strlcpy(j->id, id, sizeof(j->id));
-				j->timeout = cJSON_IsNumber(tmo) ? (int)tmo->valuedouble : CONFIG_CAMOS_GPS_FIX_TIMEOUT_S;
+				/* at least the build's wait: FlyBot asks 120 s, too short for a cold start with few satellites */
+				int asked = cJSON_IsNumber(tmo) ? (int)tmo->valuedouble : 0;
+				j->timeout = asked > CONFIG_CAMOS_GPS_FIX_TIMEOUT_S ? (asked > 600 ? 600 : asked) : CONFIG_CAMOS_GPS_FIX_TIMEOUT_S;
 				sched_keep_awake(j->timeout + 10);
 			}
 			/* its own task: a fix takes up to minutes and would hold the queue (a reboot behind it timed out,
 			 * 22 Oct 2026) */
-			if (!j || xTaskCreate(gps_rpc_task, "rpc-gps", 6144, j, 4, NULL) != pdPASS) {
+			if (!j || xTaskCreate(gps_rpc_task, "rpc-gps", 8192, j, 4, NULL) != pdPASS) {
 				free(j);
 				rpc_reply(id, NULL, "INTERNAL", "no memory for the fix");
 			}

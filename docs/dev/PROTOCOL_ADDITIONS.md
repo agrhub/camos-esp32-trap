@@ -121,8 +121,8 @@ channel without a window (LIVE_VIEW.md).
 | `snapshot.now` | — | `{"snapshotId","image":{"key","w","h","bytes"},"bytes"}` (`image.key` = `snapshotId`, so the protocol 9 `capture` shape still holds). Errors `UPLOAD_FAILED`, `INTERNAL`, `BUSY` (a photo is still being taken). The photo is taken and uploaded on the scheduler task, so other RPCs are answered meanwhile; a running live view pauses for it and comes back. `capture` is an alias. |
 | `live.start` | `{"minutes": 1..60}` (default 5) | `{"channelName","seconds"}`; `NOT_SUPPORTED` when the build has no live view (ESP32-CAM, or CAMOS_LIVE off) or the camera has no KVS channel or credential provider settings (see LIVE_VIEW.md), `BAD_PARAMS`, `BUSY`. Repeating it extends the session. The camera joins the channel within a few seconds of the answer (credentials, endpoints, WebSocket); a viewer offer sent before that is lost and the viewer offers again. |
 | `live.stop` | — | — (drops the viewer and ends the window; a powered camera stays on the channel) |
-| `gps.fix` | `{"timeoutS"?}` (default 120) | `{"location":{lat,lng,fixAt,source,accuracyM},"sats"}` (a 4G cell position when the GPS finds none); `TIMEOUT` when neither, `NOT_SUPPORTED` without GPS. Runs in its own task: the reply comes up to `timeoutS` later, other RPCs go on. |
 | `ota.apply` | — | `{"version"}` at once, then `ota_progress` events and the event `ota_result` (`stage: "installed"` + restart, or `ok:false` with `DOWNLOAD_FAILED` / `SIGNATURE_INVALID` for a SHA-256 mismatch). `NOT_FOUND` when `GET /api/device/ota` gives 204, `OLD_VERSION` when it offers the running version, `LOW_BATTERY` (0.7.0) on battery without the charger below `CAMOS_OTA_MIN_MV` (3700 mV): FlyBot tries again at a later wake. |
+| `gps.fix` | `{"timeoutS"?}` (at least the build's 300, at most 600) | `{"location":{lat,lng,fixAt,source,accuracyM},"sats"}` (a 4G cell position when the GPS finds none); `TIMEOUT` when neither, `NOT_SUPPORTED` without GPS. Runs in its own task: the reply comes up to `timeoutS` later, other RPCs go on. After a try without a fix the module stays on for 10 minutes, so the next try starts warm. On 4G the module's radio is off during the fix (its transmitter drowns the GPS): the camera is offline for up to `timeoutS`, then dials again and replies; not while a live viewer watches; a request while a fix runs answers `TIMEOUT` at once ("a fix already running"). |
 | `reboot` | — | as before |
 | `net.set` | `wifi {ssid, password}`, `cellular {apn}` | stored, effective at the next boot (protocol 9 method, now supported) |
 | `factory_reset` | — | erases everything but the serial and verify code (protocol 9 method, now supported) |
@@ -139,6 +139,9 @@ Unchanged: `ping`, `state`, `capture`. Everything else answers `NOT_SUPPORTED`.
   area (percent of the picture), `level` in per mille of the area, `sdFile` = `YYYYMMDD/HHMMSSM.JPG` when the picture
   was saved on the microSD card. At most one per cooldown (web console setting, default 60 s).
 - `location_changed` `{lat, lon, distanceM}` when a new fix is more than 50 m from the previous one.
+- `gps_fix` (0.9.2) `{state:"started", seconds}` right before a fix on 4G switches the 4G radio off (the camera is then
+  offline for up to `seconds`), and `{state:"done", fix}` once it is back. FlyBot shows "Taking a GPS fix" instead of
+  an outage meanwhile.
 - `ota_progress` `{target:"firmware", version, pct}` (0.7.0): at 25, 50 and 75 % of the download when the server
   sends its length.
 - `ota_result` `{target:"firmware", version, ok, stage, error?, detail?}`.

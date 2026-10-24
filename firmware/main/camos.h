@@ -163,6 +163,8 @@ const char *modem_apn(void);       /* the APN in use (the user's or auto from th
 bool modem_start(void);            /* power on, AT sync, PPP; returns false when no modem answers or no SIM */
 void modem_stop(void);             /* PPP down, AT+CPOF, PWRKEY, power rail off */
 void modem_park(void);             /* always-on module unused (Wi-Fi): its radio off, AT+CFUN=0 */
+void modem_radio_pause(void);      /* 4G radio off for a while (a GPS fix): modem_stop, the watchdog waits */
+bool modem_radio_resume(void);     /* and back: modem_start, PPP and MQTT again */
 bool modem_up(void);
 bool modem_cell_location(double *lat, double *lng, int *acc_m); /* AT+CLBS: the 4G cell's position */
 int modem_rssi(void);
@@ -387,7 +389,9 @@ typedef struct {
 } gps_fix_t;
 
 bool gps_available(void);
-bool gps_fix(int timeout_s, gps_fix_t *out);    /* power the module, wait for RMC valid (+GGA), power it down */
+bool gps_fix(int timeout_s, gps_fix_t *out);    /* power the module, wait for RMC valid (+GGA), power it down
+                                                 * (no fix: kept on for 10 min, the next try starts warm) */
+void gps_sleep_prepare(void);                   /* before deep sleep: the module off */
 bool gps_last(gps_fix_t *out);                  /* last fix (RTC memory / NVS) */
 bool gps_fix_due(void);                         /* no fix in CAMOS_GPS_FIX_INTERVAL_H */
 void gps_json(cJSON *parent);                   /* location {lat, lng, fixAt} (CONTRACTS) */

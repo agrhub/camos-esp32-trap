@@ -383,12 +383,33 @@ static void recover(bool reset)
 	}
 }
 
+/* The radio off on purpose (a GPS fix): the watchdog below does not count it as a 4G that carries no data */
+static volatile bool s_paused;
+
+void modem_radio_pause(void)
+{
+	s_paused = true;
+	ESP_LOGI(TAG, "4G radio off for a GPS fix");
+	modem_stop();
+}
+
+bool modem_radio_resume(void)
+{
+	bool ok = modem_start();
+	if (ok) {
+		net_4g_restarted();
+	}
+	s_paused = false;
+	ESP_LOGI(TAG, "4G radio back after the GPS fix%s", ok ? "" : ": no network, the watchdog takes over");
+	return ok;
+}
+
 static void watchdog_task(void *arg)
 {
 	int down = 0, tries = 0;
 	for (;;) {
 		vTaskDelay(pdMS_TO_TICKS(10000));
-		if (net_type() != NET_4G || !proto_provisioned() || proto_connected()) {
+		if (s_paused || net_type() != NET_4G || !proto_provisioned() || proto_connected()) {
 			down = 0;
 			if (proto_connected()) {
 				tries = 0;
@@ -715,6 +736,8 @@ const char *modem_apn(void) { return ""; }
 bool modem_start(void) { ESP_LOGW(TAG, "no modem in this build (CAMOS_MODEM)"); return false; }
 void modem_stop(void) {}
 void modem_park(void) {}
+void modem_radio_pause(void) {}
+bool modem_radio_resume(void) { return false; }
 bool modem_up(void) { return false; }
 bool modem_cell_location(double *lat, double *lng, int *acc_m) { (void)lat; (void)lng; (void)acc_m; return false; }
 int modem_rssi(void) { return 0; }

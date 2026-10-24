@@ -468,6 +468,7 @@ static int cmd_sleep(int argc, char **argv)
 	proto_flush(3000);
 	net_sleep_prepare();
 	cam_sleep_prepare();
+	gps_sleep_prepare();
 	esp_sleep_enable_timer_wakeup((uint64_t)s * 1000000ULL);
 	esp_deep_sleep_start();
 	return 0;
