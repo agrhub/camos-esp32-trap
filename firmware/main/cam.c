@@ -494,6 +494,12 @@ static esp_err_t detect_and_up(framesize_t want, int q, int fb_count, pixformat_
 		want = max_fs; /* captureSize larger than this sensor: its maximum */
 	}
 	err = cam_up(want == FRAMESIZE_INVALID ? max_fs : want, q, fb_count, fmt);
+	if (err != ESP_OK && fb_count > 1 && fmt == PIXFORMAT_JPEG) {
+		/* A full-size photo takes two 2.4 MB frame buffers, and with a live session open PSRAM had 4.4 MB left ("frame
+		 * buffer malloc failed" on Capture now during live, 24 Oct 2026): one buffer is enough for a still */
+		ESP_LOGW(TAG, "camera init failed 0x%x with %d frame buffers: one", err, fb_count);
+		err = cam_up(want == FRAMESIZE_INVALID ? max_fs : want, q, 1, fmt);
+	}
 	if (err != ESP_OK) {
 		ESP_LOGE(TAG, "camera init failed 0x%x", err);
 	}

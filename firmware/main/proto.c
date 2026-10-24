@@ -257,8 +257,16 @@ static cJSON *image_result(const upload_t *up)
 	return r;
 }
 
-static void rpc_capture(const char *id)
+/* snapshot.now / capture: the photo and its upload take from seconds to minutes (a slow link: 3 minutes over a hotspot
+ * whose DNS did not answer, 23 Oct 2026), and in this task they held every RPC behind them until those timed out in the
+ * queue. The scheduler's task runs it (sched_run); a second request meanwhile answers BUSY. */
+static char capture_id[48];
+static volatile bool capture_pending;
+
+static void capture_job(void)
 {
+	char id[48];
+	strlcpy(id, capture_id, sizeof(id));
 	upload_t up;
 	esp_err_t err = capture_now("rpc", &up);
 	if (err == ESP_OK) {
@@ -271,6 +279,21 @@ static void rpc_capture(const char *id)
 		rpc_reply(id, NULL, "BUSY", up.error);
 	} else {
 		rpc_reply(id, NULL, "INTERNAL", up.error[0] ? up.error : "camera");
+	}
+	capture_pending = false;
+}
+
+static void rpc_capture(const char *id)
+{
+	if (capture_pending) {
+		rpc_reply(id, NULL, "BUSY", "a photo is being taken");
+		return;
+	}
+	strlcpy(capture_id, id, sizeof(capture_id));
+	capture_pending = true;
+	if (!sched_run(capture_job)) {
+		capture_pending = false;
+		rpc_reply(id, NULL, "BUSY", "the camera is busy");
 	}
 }
 

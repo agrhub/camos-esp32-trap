@@ -9,6 +9,7 @@
 #include "esp_timer.h"
 #include "esp_random.h"
 #include "esp_log.h"
+#include "lwip/sockets.h"
 #include "esp_system.h"
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
@@ -87,6 +88,50 @@ static void dns_backup_fill(void)
 	}
 }
 
+/* A router whose DNS does not answer (Windows' Internet Connection Sharing on a laptop hotspot, 23 Oct 2026): every
+ * lookup waited for its timeout before the public resolvers answered, and one photo upload took 3 minutes. One query
+ * to it once there is an IP; no answer: 8.8.8.8 and 1.1.1.1 go first, the router's stays as the fallback. */
+static bool dns_answers(uint32_t server)
+{
+	int s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (s < 0) {
+		return true; /* cannot tell: leave it */
+	}
+	struct timeval tv = { .tv_sec = 1, .tv_usec = 500000 };
+	setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+	struct sockaddr_in to = { .sin_family = AF_INET, .sin_port = htons(53), .sin_addr.s_addr = server };
+	/* pool.ntp.org, type A, recursion desired */
+	static const uint8_t q[] = { 0x43, 0x4d, 0x01, 0x00, 0, 1, 0, 0, 0, 0, 0, 0, 4, 'p', 'o', 'o', 'l', 3, 'n', 't', 'p',
+								 3, 'o', 'r', 'g', 0, 0, 1, 0, 1 };
+	bool ok = false;
+	for (int i = 0; i < 2 && !ok; i++) {
+		sendto(s, q, sizeof(q), 0, (struct sockaddr *)&to, sizeof(to));
+		uint8_t r[64];
+		int n = recv(s, r, sizeof(r), 0);
+		ok = n >= 12 && r[0] == q[0] && r[1] == q[1];
+	}
+	close(s);
+	return ok;
+}
+
+static void dns_check_task(void *arg)
+{
+	esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+	esp_netif_dns_info_t d = { 0 };
+	if (sta && esp_netif_get_dns_info(sta, ESP_NETIF_DNS_MAIN, &d) == ESP_OK && d.ip.u_addr.ip4.addr &&
+		d.ip.u_addr.ip4.addr != esp_ip4addr_aton("8.8.8.8")) {
+		char ip[16];
+		esp_ip4addr_ntoa(&d.ip.u_addr.ip4, ip, sizeof(ip));
+		if (!dns_answers(d.ip.u_addr.ip4.addr)) {
+			ESP_LOGW(TAG, "the router's DNS %s does not answer: 8.8.8.8 and 1.1.1.1 first", ip);
+			set_dns(sta, ESP_NETIF_DNS_FALLBACK, ip);
+			set_dns(sta, ESP_NETIF_DNS_MAIN, "8.8.8.8");
+			set_dns(sta, ESP_NETIF_DNS_BACKUP, "1.1.1.1");
+		}
+	}
+	vTaskDelete(NULL);
+}
+
 static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
 	if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
@@ -112,6 +157,7 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 		if (g_cfg.ip_mode != 1) {
 			dns_backup_fill();
 		}
+		xTaskCreate(dns_check_task, "dns-check", 3584, NULL, 3, NULL); /* no memory now: the lookups are only slower */
 		if (giveup_timer) {
 			esp_timer_stop(giveup_timer);
 		}
