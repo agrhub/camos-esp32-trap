@@ -116,6 +116,7 @@ static struct {
 	uint16_t dc_stream;
 	char dc_err[64];
 	live_quality_t req, cur;
+	bool req_fixed; /* req is a size the person picked: kept on a weak link */
 	live_dc_flow_t flow;
 	uint8_t *dc_buf;           /* one chunk: header + payload */
 	int32_t push_ms;           /* time to hand the last JPEG frame to the channel */
@@ -751,6 +752,7 @@ static int on_dc_data(esp_peer_data_frame_t *f, void *ctx)
 	switch (live_dc_parse((const char *)f->data, (size_t)f->size, (const live_quality_t *)&k.cur, LIVE_W, LIVE_H, &m)) {
 	case LIVE_DC_QUALITY:
 		k.req = m.quality;
+		k.req_fixed = m.fixed;
 		k.req_pending = true;
 		k.viewer_chose = true;
 		break;
@@ -944,7 +946,7 @@ static void venc_task(void *arg)
 			 (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 	int64_t t0 = esp_timer_get_time(), next = t0, win = t0, last_log = t0, last_stats = t0;
 	uint32_t win_frames = 0, seq = 0;
-	bool waiting = false;
+	bool waiting = false, fixed = false;
 	uint64_t win_bytes = 0, win_enc_us = 0, win_cap_us = 0;
 	k.frames = k.idr = k.dc_drops = k.dc_waits = 0;
 	live_dc_flow_reset(&k.flow);
@@ -957,6 +959,7 @@ static void venc_task(void *arg)
 			 * 2026), so the start stays on H.264 there instead of switching to JPEG and back. */
 			if (!k.req_pending && !k.viewer_chose && net_type() != NET_4G) {
 				k.req = jpeg_quality;
+				k.req_fixed = false;
 				k.req_pending = true;
 			}
 		}
@@ -978,17 +981,22 @@ static void venc_task(void *arg)
 		if (k.req_pending) {
 			k.req_pending = false;
 			want = k.req;
+			fixed = k.req_fixed;
 			asked = true;
 		}
 		if (want.mode == LIVE_MODE_JPEG && !k.dc_open) {
 			want = default_quality; /* the data channel is gone: H.264 on the video track */
 		} else if (capture_busy()) {
 			k.last_ack_ms = clock_ms(); /* a photo upload fills the uplink and acks get lost: not a weak link */
-		} else if (cur.mode == LIVE_MODE_JPEG && want.mode == LIVE_MODE_JPEG && seq > 0 &&
+		} else if (cur.mode == LIVE_MODE_JPEG && want.mode == LIVE_MODE_JPEG && !fixed && seq > 0 &&
 				   clock_ms() - k.last_ack_ms > weak_link_ms()) {
-			want = default_quality; /* nothing arrives: the small H.264 stream copes with a weak link */
+			/* nothing arrives: one video tier down, and below 480p the small H.264 stream, which copes with a weak
+			 * link. A size the person picked stays, at whatever frame rate the link carries (the ack window). */
+			if (!live_dc_step_down(&cur, &want)) {
+				want = default_quality;
+			}
 			why = "weak_link";
-			ESP_LOGW(TAG, "no JPEG ack for %d s: H.264 %dx%d", weak_link_ms() / 1000, LIVE_W, LIVE_H);
+			ESP_LOGW(TAG, "no JPEG ack for %d s: %s %dx%d", weak_link_ms() / 1000, mode_name(want.mode), want.w, want.h);
 		}
 		if (memcmp(&want, &cur, sizeof(want))) {
 			pipe_stop(&p);

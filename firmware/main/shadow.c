@@ -347,11 +347,17 @@ static void apply_image(const cJSON *img, settings_t *s, cJSON *errors)
 /* capture.requestNow: the newest request not handled yet (0 none); the handled one is the NVS flag req_now_s
  * (seconds, so it fits the flag) and goes back in reported.capture.requestNow */
 static volatile int64_t req_pending_ms;
+/* the one taken this boot: the same desired document applied twice before the photo was done took two photos
+ * (23 Oct 2026) */
+static int64_t req_taken_ms;
 
 bool shadow_take_capture_request(int64_t *ms)
 {
 	int64_t v = req_pending_ms;
 	req_pending_ms = 0;
+	if (v) {
+		req_taken_ms = v;
+	}
 	if (v && ms) {
 		*ms = v;
 	}
@@ -402,7 +408,7 @@ static void apply_capture(const cJSON *item, settings_t *s, cJSON *errors)
 			/* "Capture now" for a camera that was asleep: a ms epoch, acted on once (proto.c takes the photo) */
 			if (cJSON_IsNumber(c)) {
 				int64_t ms = (int64_t)c->valuedouble;
-				if (ms / 1000 > (int64_t)store_get_flag_default("req_now_s", 0)) {
+				if (ms / 1000 > (int64_t)store_get_flag_default("req_now_s", 0) && ms != req_taken_ms) {
 					req_pending_ms = ms;
 				}
 			} else if (!cJSON_IsNull(c)) {

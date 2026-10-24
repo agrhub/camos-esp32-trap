@@ -257,7 +257,8 @@ static const uint16_t SIZES[][2] = { { 320, 240 },   { 640, 480 },   { 800, 600 
 									 { 1280, 1024 }, { 1600, 1200 }, { 1920, 1080 }, { 2048, 1536 }, { 2560, 1440 },
 									 { 2560, 1600 }, { 2560, 1920 }, { 2592, 1944 } };
 #define N_SIZES (sizeof(SIZES) / sizeof(SIZES[0]))
-#define LIVE_MAX_W 1600 /* the live JPEG stream (LAN and data channel): up to UXGA */
+#define LIVE_MAX_W 2048 /* the live JPEG stream (LAN and data channel): up to QXGA, FlyBot's 2K */
+#define LIVE_XCLK_MAX_W 1600 /* above UXGA the photo XCLK (see cam_stream_start) */
 
 static bool size_fits(size_t i, bool live, framesize_t lim)
 {
@@ -494,6 +495,12 @@ static esp_err_t detect_and_up(framesize_t want, int q, int fb_count, pixformat_
 		want = max_fs; /* captureSize larger than this sensor: its maximum */
 	}
 	err = cam_up(want == FRAMESIZE_INVALID ? max_fs : want, q, fb_count, fmt);
+	if (err != ESP_OK && fb_count > 1 && fmt == PIXFORMAT_JPEG) {
+		/* A full-size photo takes two 2.4 MB frame buffers, and with a live session open PSRAM had 4.4 MB left ("frame
+		 * buffer malloc failed" on Capture now during live, 24 Oct 2026): one buffer is enough for a still */
+		ESP_LOGW(TAG, "camera init failed 0x%x with %d frame buffers: one", err, fb_count);
+		err = cam_up(want == FRAMESIZE_INVALID ? max_fs : want, q, 1, fmt);
+	}
 	if (err != ESP_OK) {
 		ESP_LOGE(TAG, "camera init failed 0x%x", err);
 	}
@@ -591,14 +598,14 @@ esp_err_t cam_stream_start(int width, int height, int quality)
 	 * the Freenove board); 16 MHz and up cost the 2.4 GHz Wi-Fi (Kconfig CAMOS_LIVE_XCLK_MHZ) */
 	/* above the live view's sizes (the USB webcam's 1920x1080 and 2560x1920) the photo XCLK: at 2560x1920, unscaled,
 	 * the live XCLK gave black frames */
-	return stream_start(width, height, quality, PIXFORMAT_JPEG, width > LIVE_MAX_W ? CONFIG_CAMOS_XCLK_MHZ : CAMOS_LIVE_XCLK_MHZ,
-						false);
+	return stream_start(width, height, quality, PIXFORMAT_JPEG,
+						width > LIVE_XCLK_MAX_W ? CONFIG_CAMOS_XCLK_MHZ : CAMOS_LIVE_XCLK_MHZ, false);
 }
 
-/* JPEG frames for the live view's data channel (the live view XCLK) */
+/* JPEG frames for the live view's data channel: the same clocks as the web console's stream */
 esp_err_t cam_stream_start_live_jpeg(int width, int height, int quality)
 {
-	return stream_start(width, height, quality, PIXFORMAT_JPEG, CAMOS_LIVE_XCLK_MHZ, false);
+	return cam_stream_start(width, height, quality);
 }
 
 /* Raw YUV422 (Y U Y V per pixel pair, 2 bytes per pixel) for the H.264 encoder; stop with cam_stream_stop */

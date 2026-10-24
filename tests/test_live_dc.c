@@ -83,6 +83,33 @@ int main(void)
 
 	CHECK(!live_dc_size_ok(1024, 768) && live_dc_size_ok(1600, 1200)); /* the sizes set above */
 
+	/* "fixed": a size the person picked */
+	CHECK(parse("{\"t\":\"quality\",\"mode\":\"jpeg\",\"w\":640,\"h\":480,\"fixed\":true}", &cur, &m) == LIVE_DC_QUALITY && m.fixed);
+	CHECK(parse("{\"t\":\"quality\",\"mode\":\"jpeg\",\"w\":640,\"h\":480}", &cur, &m) == LIVE_DC_QUALITY && !m.fixed);
+
+	/* Auto on a weak link: one tier down at a time (an OV5640's live sizes), then H.264 */
+	static const int ov[][2] = { { 320, 240 },   { 640, 480 },   { 800, 600 },   { 1024, 768 },  { 1280, 720 },
+								 { 1280, 1024 }, { 1600, 1200 }, { 1920, 1080 }, { 2048, 1536 } };
+	live_dc_set_sizes(ov, 9);
+	live_quality_t q = { LIVE_MODE_JPEG, 2048, 1536, 12, 10 }, d;
+	CHECK(live_dc_step_down(&q, &d) && d.w == 1920 && d.h == 1080 && d.q == 12 && d.fps == 10); /* 2K -> FullHD */
+	q = d;
+	CHECK(live_dc_step_down(&q, &d) && d.w == 1280 && d.h == 720);                            /* FullHD -> HD */
+	q.w = 1600, q.h = 1200;
+	CHECK(live_dc_step_down(&q, &d) && d.w == 1280 && d.h == 720);                            /* a 4:3 FullHD too */
+	q = d;
+	CHECK(live_dc_step_down(&q, &d) && d.w == 640 && d.h == 480);                             /* HD -> 480p */
+	q = d;
+	CHECK(!live_dc_step_down(&q, &d));                                                        /* 480p: H.264 next */
+	q.w = 800, q.h = 600;
+	CHECK(!live_dc_step_down(&q, &d));                                                        /* 800x600 is 480p too */
+	q.mode = LIVE_MODE_H264;
+	CHECK(!live_dc_step_down(&q, &d));
+	static const int small[][2] = { { 320, 240 }, { 640, 480 }, { 1600, 1200 } };
+	live_dc_set_sizes(small, 3);
+	q = (live_quality_t){ LIVE_MODE_JPEG, 1600, 1200, 12, 10 };
+	CHECK(live_dc_step_down(&q, &d) && d.w == 640 && d.h == 480);                             /* no HD size: 480p */
+
 	printf("test_live_dc: %d failure(s)\n", fails);
 	return fails ? 1 : 0;
 }

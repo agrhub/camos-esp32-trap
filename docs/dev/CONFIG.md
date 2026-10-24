@@ -153,12 +153,12 @@ known at boot; before the very first power-up of a new board `sensor` is `""`, `
 ```json
 "camera":{"sensor":"OV5640","maxW":2560,"maxH":1920,
  "photoSizes":[[640,480],[800,600],[1024,768],[1280,720],[1280,1024],[1600,1200],[1920,1080],[2048,1536],[2560,1440],[2560,1600],[2560,1920]],
- "liveSizes":[[320,240],[640,480],[800,600],[1024,768],[1280,720],[1280,1024],[1600,1200]]}
+ "liveSizes":[[320,240],[640,480],[800,600],[1024,768],[1280,720],[1280,1024],[1600,1200],[1920,1080],[2048,1536]]}
 ```
 
 - `photoSizes`: from 640x480 to the sensor's maximum (OV2640 1600x1200, OV3660 2048x1536, OV5640 2560x1920: the
   largest esp32-camera drives on that sensor). `capture.resolution` takes `"max"` or one of them.
-- `liveSizes`: from 320x240 to 1600x1200, within the maximum: the web console stream (`/api/stream?w=&h=&q=`) and the
+- `liveSizes`: from 320x240 to 2048x1536, within the maximum: the web console stream (`/api/stream?w=&h=&q=`) and the
   live view data channel (`hello.sizes`, `quality` requests) offer exactly these. JPEG quality of both: 8..40 on the
   esp32-camera scale (lower = better; `hello.qRange`).
 - `liveFps` is not reported: the frame rate depends on the link more than on the size (LIVE_VIEW.md has measurements).

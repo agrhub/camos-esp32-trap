@@ -118,7 +118,7 @@ channel without a window (LIVE_VIEW.md).
 
 | Method | `params` | `result` / error |
 |---|---|---|
-| `snapshot.now` | — | `{"snapshotId","image":{"key","w","h","bytes"},"bytes"}` (`image.key` = `snapshotId`, so the protocol 9 `capture` shape still holds). Errors `UPLOAD_FAILED`, `INTERNAL`, `BUSY` (live view running). `capture` is an alias. |
+| `snapshot.now` | — | `{"snapshotId","image":{"key","w","h","bytes"},"bytes"}` (`image.key` = `snapshotId`, so the protocol 9 `capture` shape still holds). Errors `UPLOAD_FAILED`, `INTERNAL`, `BUSY` (a photo is still being taken). The photo is taken and uploaded on the scheduler task, so other RPCs are answered meanwhile; a running live view pauses for it and comes back. `capture` is an alias. |
 | `live.start` | `{"minutes": 1..60}` (default 5) | `{"channelName","seconds"}`; `NOT_SUPPORTED` when the build has no live view (ESP32-CAM, or CAMOS_LIVE off) or the camera has no KVS channel or credential provider settings (see LIVE_VIEW.md), `BAD_PARAMS`, `BUSY`. Repeating it extends the session. The camera joins the channel within a few seconds of the answer (credentials, endpoints, WebSocket); a viewer offer sent before that is lost and the viewer offers again. |
 | `live.stop` | — | — (drops the viewer and ends the window; a powered camera stays on the channel) |
 | `gps.fix` | `{"timeoutS"?}` (default 120) | `{"location":{lat,lng,fixAt,source,accuracyM},"sats"}` (a 4G cell position when the GPS finds none); `TIMEOUT` when neither, `NOT_SUPPORTED` without GPS. Runs in its own task: the reply comes up to `timeoutS` later, other RPCs go on. |

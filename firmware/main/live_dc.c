@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 /* The live view data channel protocol (see live_dc.h). */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "cJSON.h"
 #include "live_dc.h"
@@ -26,6 +27,48 @@ bool live_dc_size_ok(int w, int h)
 {
 	for (int i = 0; i < n_dc_sizes; i++) {
 		if (dc_sizes[i][0] == w && dc_sizes[i][1] == h) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/* Video tiers by picture area (client/src/utils/camosLive.js in FlyBot): the largest area each takes, and its own size */
+static const struct {
+	long max_area, area;
+} TIERS[] = {
+	{ 120000, 320 * 240 },   { 265000, 640 * 360 },    { 600000, 640 * 480 },
+	{ 1450000, 1280 * 720 }, { 2800000, 1920 * 1080 }, { 0x7fffffffL, 2560 * 1440 },
+};
+#define N_TIERS (int)(sizeof(TIERS) / sizeof(TIERS[0]))
+
+static int tier_of(int w, int h)
+{
+	int t = 0;
+	while (t < N_TIERS - 1 && (long)w * h > TIERS[t].max_area) {
+		t++;
+	}
+	return t;
+}
+
+bool live_dc_step_down(const live_quality_t *cur, live_quality_t *out)
+{
+	if (cur->mode != LIVE_MODE_JPEG) {
+		return false;
+	}
+	for (int t = tier_of(cur->w, cur->h) - 1; t >= 0; t--) {
+		int best = -1;
+		long best_off = 0;
+		for (int i = 0; i < n_dc_sizes; i++) {
+			int w = dc_sizes[i][0], h = dc_sizes[i][1];
+			long off = labs((long)w * h - TIERS[t].area);
+			if (w > 320 && tier_of(w, h) == t && (best < 0 || off < best_off)) {
+				best = i, best_off = off;
+			}
+		}
+		if (best >= 0) {
+			*out = *cur;
+			out->w = dc_sizes[best][0], out->h = dc_sizes[best][1];
 			return true;
 		}
 	}
@@ -107,6 +150,7 @@ live_dc_kind_t live_dc_parse(const char *text, size_t len, const live_quality_t 
 		}
 		out->kind = kind = LIVE_DC_QUALITY;
 		out->quality = q;
+		out->fixed = cJSON_IsTrue(cJSON_GetObjectItem(j, "fixed"));
 	}
 	cJSON_Delete(j);
 	return kind;

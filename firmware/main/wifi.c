@@ -9,6 +9,7 @@
 #include "esp_timer.h"
 #include "esp_random.h"
 #include "esp_log.h"
+#include "lwip/sockets.h"
 #include "esp_system.h"
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
@@ -28,6 +29,42 @@ void wifi_set_up_cb(void (*cb)(void)) { up_cb = cb; }
 bool wifi_up(void) { return s_up; }
 bool wifi_started(void) { return started; }
 int wifi_failures(void) { return failures; }
+
+static volatile int last_reason; /* wifi_err_reason_t of the last disconnect, 0 none */
+
+/* The reasons a join fails in the field, named; others as their number */
+static const char *reason_name(int r)
+{
+	switch (r) {
+	case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:
+	case WIFI_REASON_HANDSHAKE_TIMEOUT:
+	case WIFI_REASON_MIC_FAILURE:
+		return "wrong password?";
+	case WIFI_REASON_AUTH_EXPIRE: /* a router that refused the bench camera until its Wi-Fi was set again, 24 Oct 2026 */
+		return "authentication timed out, wrong password?";
+	case WIFI_REASON_AUTH_FAIL:
+		return "authentication refused";
+	case WIFI_REASON_CONNECTION_FAIL:
+		return "connection failed";
+	case WIFI_REASON_NO_AP_FOUND:
+		return "network not found";
+	case WIFI_REASON_ASSOC_TOOMANY:
+		return "router full";
+	case WIFI_REASON_BEACON_TIMEOUT:
+		return "signal lost";
+	case WIFI_REASON_ASSOC_LEAVE:
+		return "left";
+	default:
+		return "";
+	}
+}
+
+int wifi_last_reason(const char **name)
+{
+	int r = last_reason;
+	*name = reason_name(r);
+	return r;
+}
 
 int wifi_rssi(void)
 {
@@ -87,6 +124,50 @@ static void dns_backup_fill(void)
 	}
 }
 
+/* A router whose DNS does not answer (Windows' Internet Connection Sharing on a laptop hotspot, 23 Oct 2026): every
+ * lookup waited for its timeout before the public resolvers answered, and one photo upload took 3 minutes. One query
+ * to it once there is an IP; no answer: 8.8.8.8 and 1.1.1.1 go first, the router's stays as the fallback. */
+static bool dns_answers(uint32_t server)
+{
+	int s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (s < 0) {
+		return true; /* cannot tell: leave it */
+	}
+	struct timeval tv = { .tv_sec = 1, .tv_usec = 500000 };
+	setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+	struct sockaddr_in to = { .sin_family = AF_INET, .sin_port = htons(53), .sin_addr.s_addr = server };
+	/* pool.ntp.org, type A, recursion desired */
+	static const uint8_t q[] = { 0x43, 0x4d, 0x01, 0x00, 0, 1, 0, 0, 0, 0, 0, 0, 4, 'p', 'o', 'o', 'l', 3, 'n', 't', 'p',
+								 3, 'o', 'r', 'g', 0, 0, 1, 0, 1 };
+	bool ok = false;
+	for (int i = 0; i < 2 && !ok; i++) {
+		sendto(s, q, sizeof(q), 0, (struct sockaddr *)&to, sizeof(to));
+		uint8_t r[64];
+		int n = recv(s, r, sizeof(r), 0);
+		ok = n >= 12 && r[0] == q[0] && r[1] == q[1];
+	}
+	close(s);
+	return ok;
+}
+
+static void dns_check_task(void *arg)
+{
+	esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+	esp_netif_dns_info_t d = { 0 };
+	if (sta && esp_netif_get_dns_info(sta, ESP_NETIF_DNS_MAIN, &d) == ESP_OK && d.ip.u_addr.ip4.addr &&
+		d.ip.u_addr.ip4.addr != esp_ip4addr_aton("8.8.8.8")) {
+		char ip[16];
+		esp_ip4addr_ntoa(&d.ip.u_addr.ip4, ip, sizeof(ip));
+		if (!dns_answers(d.ip.u_addr.ip4.addr)) {
+			ESP_LOGW(TAG, "the router's DNS %s does not answer: 8.8.8.8 and 1.1.1.1 first", ip);
+			set_dns(sta, ESP_NETIF_DNS_FALLBACK, ip);
+			set_dns(sta, ESP_NETIF_DNS_MAIN, "8.8.8.8");
+			set_dns(sta, ESP_NETIF_DNS_BACKUP, "1.1.1.1");
+		}
+	}
+	vTaskDelete(NULL);
+}
+
 static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
 	if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
@@ -99,19 +180,23 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 			return;
 		}
 		failures++;
+		last_reason = data ? ((wifi_event_sta_disconnected_t *)data)->reason : 0;
 		/* Exponential back-off with +-20 % jitter, capped at 300 s */
 		int jitter = (int)(esp_random() % 41) - 20;
 		int64_t delay_ms = (int64_t)backoff_s * 1000 * (100 + jitter) / 100;
-		ESP_LOGW(TAG, "disconnected, retry in %d ms", (int)delay_ms);
+		ESP_LOGW(TAG, "disconnected (reason %d%s%s), retry in %d ms", last_reason, reason_name(last_reason)[0] ? ", " : "",
+				 reason_name(last_reason), (int)delay_ms);
 		esp_timer_start_once(retry_timer, delay_ms * 1000);
 		backoff_s = backoff_s * 2 > 300 ? 300 : backoff_s * 2;
 	} else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
 		backoff_s = 1;
 		failures = 0;
+		last_reason = 0;
 		s_up = true;
 		if (g_cfg.ip_mode != 1) {
 			dns_backup_fill();
 		}
+		xTaskCreate(dns_check_task, "dns-check", 3584, NULL, 3, NULL); /* no memory now: the lookups are only slower */
 		if (giveup_timer) {
 			esp_timer_stop(giveup_timer);
 		}
@@ -396,6 +481,8 @@ void button_task_start(void)
 	if (CONFIG_CAMOS_BUTTON_GPIO >= 0) {
 		gpio_config_t io = { .pin_bit_mask = 1ULL << CONFIG_CAMOS_BUTTON_GPIO, .mode = GPIO_MODE_INPUT, .pull_up_en = GPIO_PULLUP_ENABLE };
 		gpio_config(&io);
-		xTaskCreate(button_task, "button", 2560, NULL, 3, NULL);
+		/* 4 KB: the log line (forwarded to the remote log) and the NVS flag overflowed 2.5 KB when the button was held
+		 * on 4G (24 Oct 2026) */
+		xTaskCreate(button_task, "button", 4096, NULL, 3, NULL);
 	}
 }
