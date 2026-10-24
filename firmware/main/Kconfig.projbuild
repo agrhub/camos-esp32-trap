@@ -324,7 +324,11 @@ menu "CamOS trap camera"
         config CAMOS_MODEM_PWRKEY_GPIO
             int "PWRKEY GPIO (-1 = modem is always on)"
             depends on CAMOS_MODEM
-            default 47
+            default -1
+            help
+                The TDM2309 A7680C board starts by itself and needs no PWRKEY; GPIO47 is the supply switch
+                (CAMOS_MODEM_POWER_GPIO) by default. A breakout that needs PWRKEY: set its GPIO here, or the camera
+                setting modemPwrkey.
         config CAMOS_MODEM_PWRKEY_ACTIVE_HIGH
             bool "PWRKEY is asserted when the GPIO is high (NPN transistor between the GPIO and PWRKEY)"
             depends on CAMOS_MODEM
@@ -334,18 +338,19 @@ menu "CamOS trap camera"
                 (TDM2309) usually put an NPN transistor in front: GPIO high = PWRKEY low = asserted. If the
                 GPIO drives PWRKEY straight (through a 1k resistor), turn this off (GPIO low = asserted).
         config CAMOS_MODEM_POWER_GPIO
-            int "GPIO of a high-side switch on the modem 4 V rail (-1 = none)"
+            int "GPIO of the switch on the modem supply (-1 = none)"
             depends on CAMOS_MODEM
-            default -1
+            default 47
             help
-                P-MOSFET switch that cuts the modem supply through deep sleep (GPIO48 is the Freenove WS2812 LED,
-                so no default; GPIO3 / 45 / 46 on the Freenove header are strapping pins: usable with care) (the modem's own power-off
-                state still draws some mA on most breakouts). -1 when the modem is wired straight to the
-                battery. Held through deep sleep.
+                A P-MOSFET (AO3401A) between the cell and the modem's VCC, its gate driven by an NPN (C1815) from
+                this pin (docs/WIRING.md): the module is off whenever the ESP32 does not switch it on (a cell too low
+                for the ESP32, deep sleep, Wi-Fi in use). A board without the switch is found out at the first
+                switch-off (the module still answers AT): the radio is then switched off with AT+CFUN=0, as with
+                -1. Camera setting modemPower; a PWRKEY on the same GPIO wins. Held through deep sleep.
         config CAMOS_MODEM_POWER_ACTIVE_LOW
-            bool "The switch is on when the pin is low (P-MOSFET gate)"
-            depends on CAMOS_MODEM && CAMOS_MODEM_POWER_GPIO >= 0
-            default y
+            bool "The switch is on when the pin is low (P-MOSFET gate driven straight)"
+            depends on CAMOS_MODEM
+            default n
         config CAMOS_MODEM_CMUX
             bool "Try CMUX (AT commands and PPP on one UART) before plain PPP"
             depends on CAMOS_MODEM
@@ -387,11 +392,12 @@ menu "CamOS trap camera"
             default 21
             help
                 The ATGM336H draws about 25 mA while searching (datasheet value, not measured here), too much
-                for a GPIO: drive a P-MOSFET high-side switch (see docs/WIRING.md). Off through deep sleep.
+                for a GPIO: an NPN (C1815) switches its ground, high = on (docs/WIRING.md), or a P-MOSFET its
+                supply (CAMOS_GPS_POWER_ACTIVE_LOW). Off through deep sleep.
         config CAMOS_GPS_POWER_ACTIVE_LOW
             bool "The switch is on when the pin is low (P-MOSFET gate)"
             depends on CAMOS_GPS && CAMOS_GPS_POWER_GPIO >= 0
-            default y
+            default n
         config CAMOS_GPS_FIX_TIMEOUT_S
             int "Give up a fix after (s)"
             depends on CAMOS_GPS

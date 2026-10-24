@@ -218,6 +218,16 @@ typedef struct {
 #else
 #define DEFAULT_MODEM_PWRKEY -1
 #endif
+#ifdef CONFIG_CAMOS_MODEM_POWER_GPIO
+#define DEFAULT_MODEM_POWER CONFIG_CAMOS_MODEM_POWER_GPIO
+#else
+#define DEFAULT_MODEM_POWER -1
+#endif
+#ifdef CONFIG_CAMOS_MODEM_POWER_ACTIVE_LOW
+#define DEFAULT_MODEM_POWER_LOW 1
+#else
+#define DEFAULT_MODEM_POWER_LOW 0
+#endif
 #ifdef CONFIG_CAMOS_MODEM_FAST_BAUD
 #define DEFAULT_MODEM_FAST_BAUD CONFIG_CAMOS_MODEM_FAST_BAUD
 #else
@@ -249,6 +259,8 @@ static const int_field_t ints[] = {
 	{ "ipMode", "ip_mode", &g_cfg.ip_mode, 0, 0, 1, false },
 	/* the wiring stays when the settings go back to the defaults */
 	{ "modemPwrkey", "mdm_pwrkey", &g_cfg.modem_pwrkey, DEFAULT_MODEM_PWRKEY, -1, 48, true },
+	{ "modemPower", "mdm_power", &g_cfg.modem_power, DEFAULT_MODEM_POWER, -1, 48, true },
+	{ "modemPowerActiveLow", "mdm_pwr_low", &g_cfg.modem_power_low, DEFAULT_MODEM_POWER_LOW, 0, 1, true },
 	{ "modemFastBaud", "mdm_fastbaud", &g_cfg.modem_fast_baud, DEFAULT_MODEM_FAST_BAUD, 0, 3000000, true },
 	{ "gpsPowerActiveLow", "gps_pwr_low", &g_cfg.gps_pwr_low, DEFAULT_GPS_PWR_LOW, 0, 1, true },
 	{ "battDivider", "batt_div", &g_cfg.batt_div, DIVIDER_X100(CONFIG_CAMOS_BATT_R_TOP_K, CONFIG_CAMOS_BATT_R_BOTTOM_K), 100, 2000, true },

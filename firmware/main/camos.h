@@ -64,6 +64,8 @@ typedef struct {
 	int ip_mode;          /* 0 DHCP, 1 static (Wi-Fi) */
 	/* board wiring: Kconfig gives the defaults, NVS keeps what this board has through an OTA and a factory reset */
 	int modem_pwrkey;     /* PWRKEY GPIO, -1 = not wired (the module is always on, AT+CFUN switches the radio) */
+	int modem_power;      /* GPIO of the 4G supply switch, -1 = none (a switch that is not fitted is found out) */
+	int modem_power_low;  /* 1 = the switch is on when its pin is low (P-MOSFET gate), 0 = high (NPN on the gate) */
 	int modem_fast_baud;  /* UART rate after the first AT (0 = keep CAMOS_MODEM_BAUD) */
 	int gps_pwr_low;      /* 1 = the GPS switch is on when its pin is low (P-MOSFET), 0 = high (NPN / direct) */
 	int batt_div;         /* battery divider ratio x 100: (Rtop + Rbottom) / Rbottom, 200 = 100k/100k */
