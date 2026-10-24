@@ -244,7 +244,8 @@ For cameras nobody can plug a cable into (logfwd.c). Off unless FlyBot asks, and
 - Batches on `camos/{serial}/log`, QoS 0, every 2 s or at 3 KB:
   `{"v":1,"session":"1a2b3c4d","seq":7,"uptimeMs":812345,"at":1792396800000,"level":"info","lines":["I (812001) proto: ..."],"dropped":0}`;
   the last one has `"end":true`. `backlog: true` sends the log kept since boot (up to 24 KB) first. 4 KB/s at most
-  (12 KB burst), 1 MB a session; a live viewer goes first. Debug and verbose lines appear only for tags built with that
+  (12 KB burst), 1 MB a session; while a live viewer watches, one batch every 10 s (0.9.2; before, nothing until 24 KB
+  piled up). Debug and verbose lines appear only for tags built with that
   level (`CONFIG_LOG_MAXIMUM_LEVEL`).
 - Secrets never leave the camera: the device token, the Wi-Fi and access point passwords, the SIM PIN, the
   provisioning token and the label verify code are replaced by `***` in every line.

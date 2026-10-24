@@ -7,7 +7,7 @@
  *    by itself (60 minutes at most).
  *  - The lines come from the log ring the web console already keeps (web.c); every 2 s, or at 3 KB, one QoS 0 message
  *    on camos/<serial>/log: {v, session, seq, uptimeMs, at, lines: ["I (123) tag: message", ...], dropped}.
- *    4 KB/s at most (12 KB burst), 1 MB a session; a running live view goes first.
+ *    4 KB/s at most (12 KB burst), 1 MB a session; a running live view goes first (one batch every 10 s).
  *  - Secrets never leave the camera: the device token, Wi-Fi and portal passwords, the SIM PIN, the provisioning token
  *    and the label verify code are replaced by *** in every line (logfwd_core.c).
  *  - After a crash, a watchdog reset or a brownout, the next boot sends one `crash` event: the reason, the last 2 KB of
@@ -44,6 +44,7 @@ static const char *TAG = "logfwd";
 #define DIAG_EVERY_S 3600
 #define MQTT_DOWN_S 120
 #define AWAKE_MAX_S 600
+#define LIVE_PERIOD_MS 10000 /* while a live viewer watches: one batch this often */
 
 static SemaphoreHandle_t lock;
 static struct {
@@ -288,9 +289,16 @@ static bool forward_round(void)
 	if (!behind) {
 		return true;
 	}
-	/* a live viewer goes first, unless the ring is about to overwrite what was not sent */
+	/* a live viewer goes first: one batch every LIVE_PERIOD_MS then (at most 0.3 KB/s), more when the ring is about to
+	 * overwrite what was not sent. Holding the log until 24 KB piled up stopped it for many minutes while FlyBot's
+	 * camera page, which starts the live view, was open (24 Oct 2026) */
+	static int64_t last_live_ms;
+	int64_t now = esp_timer_get_time() / 1000;
 	if (live_streaming() && behind < 24 * 1024) {
-		return true;
+		if (now - last_live_ms < LIVE_PERIOD_MS) {
+			return true;
+		}
+		last_live_ms = now;
 	}
 	char *buf = malloc(BATCH_BYTES + 1);
 	if (!buf) {
