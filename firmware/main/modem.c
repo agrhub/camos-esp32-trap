@@ -481,6 +481,11 @@ static esp_modem_dce_t *new_dce(void)
 	dte.uart_config.cts_io_num = -1;
 	dte.uart_config.flow_control = ESP_MODEM_FLOW_CONTROL_NONE;
 	dte.uart_config.baud_rate = CONFIG_CAMOS_MODEM_BAUD;
+#if SOC_UART_SUPPORT_XTAL_CLK
+	/* not the APB clock: frequency scaling lowers it while the CPU idles, and the UART driver holds it up only
+	 * while it sends, so received bytes can come in garbled (the GPS UART lost every sentence that way, 25 Oct 2026) */
+	dte.uart_config.source_clk = UART_SCLK_XTAL;
+#endif
 	dte.uart_config.rx_buffer_size = 16384; /* 921600 baud is about 90 KB/s */
 	dte.uart_config.tx_buffer_size = 1024;
 	dte.dte_buffer_size = 2048;

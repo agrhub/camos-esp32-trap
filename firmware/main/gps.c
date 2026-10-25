@@ -25,6 +25,7 @@
 #include "esp_log.h"
 #include "esp_attr.h"
 #include "esp_timer.h"
+#include "esp_pm.h"
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -275,7 +276,25 @@ bool gps_fix(int timeout_s, gps_fix_t *out)
 		proto_flush(3000);
 		modem_radio_pause();
 	}
+	/* Out of automatic light sleep while the UART listens: asleep, the chip drops the NMEA bytes. With Wi-Fi and 4G
+	 * off (console `gps quiet`, 25 Oct 2026) not one sentence came in 270 s, then a photo (the camera holds the CPU
+	 * at full speed) let them in and the module, which had had its fix all along, gave 7 satellites at once; the
+	 * UART also runs from the XTAL clock (fix_once). */
+#if CONFIG_PM_ENABLE
+	static esp_pm_lock_handle_t pm_awake;
+	if (!pm_awake) {
+		esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "gps", &pm_awake);
+	}
+	if (pm_awake) {
+		esp_pm_lock_acquire(pm_awake);
+	}
+#endif
 	bool ok = fix_once(timeout_s, out);
+#if CONFIG_PM_ENABLE
+	if (pm_awake) {
+		esp_pm_lock_release(pm_awake);
+	}
+#endif
 	if (quiet) {
 		modem_radio_resume();
 		for (int i = 0; i < 30 && !proto_connected(); i++) {
@@ -302,7 +321,12 @@ static bool fix_once(int timeout_s, gps_fix_t *out)
 		.parity = UART_PARITY_DISABLE,
 		.stop_bits = UART_STOP_BITS_1,
 		.flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+#if SOC_UART_SUPPORT_XTAL_CLK
+		/* not the APB clock: with Wi-Fi and 4G off, frequency scaling lowers it and every sentence came in garbled */
+		.source_clk = UART_SCLK_XTAL,
+#else
 		.source_clk = UART_SCLK_DEFAULT,
+#endif
 	};
 	if (!uart_is_driver_installed(u)) {
 		if (uart_driver_install(u, 2048, 0, 0, NULL, 0) != ESP_OK || uart_param_config(u, &uc) != ESP_OK ||
