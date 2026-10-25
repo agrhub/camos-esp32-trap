@@ -46,6 +46,7 @@ typedef struct {
 	int power_mode;       /* power_mode_t from the portal / defaults; the shadow `power.mode` wins */
 	int cellular;         /* 1 = use 4G when a modem answers (APN "" = auto from the SIM) */
 	int gps;              /* 1 = take GPS fixes when the module is fitted */
+	char gps_systems[12]; /* satellite systems: "auto" (by region, default), "gps", "bds", "gps+bds", "gps+glonass" */
 	int led;              /* 1 = status LED on */
 	int batt_mon;         /* 1 = battery / solar dividers are wired (an unwired ADC pin floats and reads noise) */
 	int claimed;          /* 0 = self-registered and not claimed in FlyBot yet (CONTRACTS 2a.3) */
@@ -399,6 +400,8 @@ bool gps_available(void);
 bool gps_fix(int timeout_s, gps_fix_t *out);    /* power the module, wait for RMC valid (+GGA), power it down
                                                  * (no fix: kept on for 10 min, the next try starts warm) */
 void gps_sleep_prepare(void);                   /* before deep sleep: the module off */
+bool gps_quiet(void);                           /* console `gps quiet`: camera, Wi-Fi and 4G stay off for the fix */
+void gps_set_quiet(bool on);
 bool gps_last(gps_fix_t *out);                  /* last fix (RTC memory / NVS) */
 bool gps_fix_due(void);                         /* no fix in CAMOS_GPS_FIX_INTERVAL_H */
 void gps_json(cJSON *parent);                   /* location {lat, lng, fixAt} (CONTRACTS) */

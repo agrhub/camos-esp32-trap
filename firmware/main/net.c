@@ -298,7 +298,7 @@ static void to_4g(const char *why)
 static void watch_tick(void *arg)
 {
 	watch_s++;
-	if (watch_busy) {
+	if (watch_busy || gps_quiet()) { /* console `gps quiet` switched the network off on purpose */
 		return;
 	}
 	if (chosen == NET_WIFI) {

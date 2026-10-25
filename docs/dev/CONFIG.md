@@ -135,6 +135,7 @@ document is applied again at every MQTT connect, so FlyBot's form is the source 
 | `storage.sdSave` | bool | every photo also on the microSD card | `storage.sdSave` |
 | `led.enabled` | bool | the status LED | `led.enabled` |
 | `gps.enabled` | bool | daily GPS fixes when a module is fitted | `gps.enabled` (shadow only; `state` keeps its protocol 4 `gps` fix) |
+| `gps.systems` | `"auto"`, `"gps+bds"`, `"gps+glonass"`, `"gps"`, `"bds"` | satellite systems sent to the ATGM336H (`$PCAS04`, GPS RX wired to GPIO3); `auto` (default): GPS + BeiDou, GPS + GLONASS at latitude 55 and beyond | `gps.systems`; local key `gpsSystems` |
 | `console.language` | `"en"`, `"vi"` | language of the camera's own web pages | `console.language` |
 | `claimed` | bool | claim state (CONTRACTS 2a.4) | `claimed` |
 | `live.requested` | bool | a live session at the next wake (5 min) | `live.requested`, `live.supported`, `live.active` |

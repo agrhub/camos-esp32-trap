@@ -13,6 +13,10 @@
  *
  * No GPS fix: the position of the 4G cell (AT+CLBS, SIMCom's location service) is taken instead, `source: "cell"`
  * with its accuracy radius. It never replaces a GPS fix, and the GPS is tried again 6 h later.
+ *
+ * Satellite systems: with the module's RXD wired (CAMOS_GPS_TX_GPIO), each power-on sends $PCAS04 with the systems of
+ * the setting gpsSystems; "auto" picks them by region from the last position, GPS or 4G cell (nmea.h gnss_auto). A
+ * system the module never shows while it hears GPS well is one its variant lacks: it is dropped until a power-on.
  */
 #include <string.h>
 #include <stdlib.h>
@@ -124,11 +128,26 @@ bool gps_available(void)
 #define GPS_WARM_S 600
 static esp_timer_handle_t warm_timer;
 
+/* $PCAS04 sent since the module was powered on (0 = none); systems this module was seen to lack */
+static int gnss_sent;
+static RTC_DATA_ATTR uint8_t gnss_missing;
+/* a system counts as missing when, this long after it was asked for, GPS shows this many satellites and it none */
+#define GNSS_CHECK_S 120
+#define GNSS_CHECK_GPS 6
+
 static void gps_power(bool on)
 {
 	if (warm_timer) {
 		esp_timer_stop(warm_timer); /* not running: harmless */
 	}
+#if CONFIG_CAMOS_GPS_TX_GPIO >= 0
+	if (!on) {
+		/* the module off: no drive into its RXD (the UART takes the pin again for the next command) */
+		gpio_reset_pin(CONFIG_CAMOS_GPS_TX_GPIO);
+		gpio_set_pull_mode(CONFIG_CAMOS_GPS_TX_GPIO, GPIO_FLOATING);
+		gnss_sent = 0;
+	}
+#endif
 #if CONFIG_CAMOS_GPS_POWER_GPIO >= 0
 	int active_low = g_cfg.gps_pwr_low;
 	gpio_hold_dis(CONFIG_CAMOS_GPS_POWER_GPIO);
@@ -180,12 +199,51 @@ static void gps_keep_warm(void)
 	ESP_LOGI(TAG, "GPS kept on for %d min: the next try starts warm", GPS_WARM_S / 60);
 }
 
+/* console `gps quiet`: a fix with the camera, Wi-Fi and 4G off, to tell their noise from the antenna's reception */
+static volatile bool quiet_mode;
+bool gps_quiet(void) { return quiet_mode; }
+void gps_set_quiet(bool on) { quiet_mode = on; }
+
 void gps_sleep_prepare(void)
 {
 	if (gps_available()) {
 		gps_power(false);
 	}
 }
+
+/* The systems to ask for: the setting, or by region; without the ones this module lacks (then GPS + BeiDou, or GPS) */
+static int gnss_want(bool *by_region)
+{
+	int m = gnss_mask(g_cfg.gps_systems);
+	*by_region = !m;
+	if (!m) {
+		gps_fix_t f;
+		bool have = gps_last(&f);
+		m = gnss_auto(have, f.lat);
+	}
+	if (m & gnss_missing) {
+		m = (GNSS_GPS | GNSS_BDS) & ~gnss_missing;
+	}
+	return m ? m : GNSS_GPS;
+}
+
+#if CONFIG_CAMOS_GPS_TX_GPIO >= 0
+static void gnss_send(uart_port_t u, int mask, bool by_region)
+{
+	char cmd[20];
+	int n = gnss_pcas04(mask, cmd, sizeof(cmd));
+	if (!n || uart_set_pin(u, CONFIG_CAMOS_GPS_TX_GPIO, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE) != ESP_OK) {
+		return;
+	}
+	uart_write_bytes(u, cmd, n);
+	/* and the module's working mode: its $GPTXT answer (logged below) shows the command got through */
+	n = nmea_command("PCAS06,2", cmd, sizeof(cmd));
+	uart_write_bytes(u, cmd, n);
+	uart_wait_tx_done(u, pdMS_TO_TICKS(200));
+	gnss_sent = mask;
+	ESP_LOGI(TAG, "satellite systems %s (%s)", gnss_name(mask), by_region ? "by region" : "setting gpsSystems");
+}
+#endif
 
 /* One fix at a time: the scheduler's daily fix and a console or RPC request would share the UART and the first to
  * finish would switch the module off under the other (seen 22 Oct 2026: 166, then 67, then 7 sentences): `fixing` */
@@ -199,6 +257,13 @@ bool gps_fix(int timeout_s, gps_fix_t *out)
 	/* The 4G module's transmitter drowns the GPS: outdoors with 4G on, 2-3 satellites in view and no fix in three 300 s
 	 * tries (24 Oct 2026); with 4G off it had found 5 outdoors (22 Oct). Its radio is off for the fix and back after
 	 * (the cell position needs it), and the caller's reply or report waits for MQTT; not while a live viewer watches. */
+#if CONFIG_CAMOS_GPS_TX_GPIO >= 0
+	/* "auto" and no position yet: the 4G cell's tells the region (kept as the position until a GPS fix) */
+	gps_fix_t last;
+	if (!gnss_mask(g_cfg.gps_systems) && !gps_last(&last) && modem_up()) {
+		cell_fallback(NULL);
+	}
+#endif
 	bool quiet = net_type() == NET_4G && modem_up() && !live_streaming();
 	if (quiet) {
 		/* FlyBot takes the silence that follows as a fix, not an outage (event gps_fix: started, then done) */
@@ -241,7 +306,7 @@ static bool fix_once(int timeout_s, gps_fix_t *out)
 	};
 	if (!uart_is_driver_installed(u)) {
 		if (uart_driver_install(u, 2048, 0, 0, NULL, 0) != ESP_OK || uart_param_config(u, &uc) != ESP_OK ||
-			uart_set_pin(u, CONFIG_CAMOS_GPS_TX_GPIO, CONFIG_CAMOS_GPS_RX_GPIO, -1, -1) != ESP_OK) {
+			uart_set_pin(u, UART_PIN_NO_CHANGE, CONFIG_CAMOS_GPS_RX_GPIO, -1, -1) != ESP_OK) { /* TX: gnss_send */
 			ESP_LOGE(TAG, "UART %d init failed", u);
 			return false;
 		}
@@ -256,7 +321,13 @@ static bool fix_once(int timeout_s, gps_fix_t *out)
 	int li = 0, sentences = 0;
 	int64_t deadline = esp_timer_get_time() + (int64_t)timeout_s * 1000000, got_rmc_at = 0;
 	int64_t next_note = esp_timer_get_time() + 15000000;
-	int in_view = 0; /* GSV field 3, the largest of the talkers (GP, BD, GN): 0 means the antenna hears nothing */
+	int view[3] = { 0 }; /* GSV field 3 of each system (GP, BD / GB, GL): all 0 means the antenna hears nothing */
+	uint8_t shown = 0;   /* systems that listed a satellite in this try */
+	bool by_region;
+	int want = gnss_want(&by_region);
+	int64_t asked_at = 0;
+	uint32_t txt_seen[12]; /* hashes of the $GPTXT texts logged in this try */
+	int n_txt = 0;
 	int best_snr = 0; /* strongest satellite in this 15 s window, dB-Hz: under 20 weak, 30 and up good */
 	uint16_t strong[32]; /* satellites at 25 dB-Hz or more in this window (talker << 8 | id): a fix needs 4 */
 	int n_strong = 0;
@@ -264,8 +335,8 @@ static bool fix_once(int timeout_s, gps_fix_t *out)
 	while (esp_timer_get_time() < deadline) {
 		if (esp_timer_get_time() >= next_note) {
 			/* progress: no sentences = no module or wiring; sentences but 0 satellites = no sky view yet */
-			ESP_LOGI(TAG, "still searching: %d sentences, %d satellites in view, %d at 25 dB-Hz or more, %d in use, best %d dB-Hz",
-					 sentences, in_view, n_strong, fix.sats < 0 ? 0 : fix.sats, best_snr);
+			ESP_LOGI(TAG, "still searching: %d sentences, %d satellites in view (GPS %d, BeiDou %d, GLONASS %d), %d at 25 dB-Hz or more, %d in use, best %d dB-Hz",
+					 sentences, view[0] + view[1] + view[2], view[0], view[1], view[2], n_strong, fix.sats < 0 ? 0 : fix.sats, best_snr);
 			best_snr = 0;
 			n_strong = 0;
 			next_note += 15000000;
@@ -288,8 +359,11 @@ static bool fix_once(int timeout_s, gps_fix_t *out)
 							sat_id = atoi(p);
 						}
 						if (fi == 3) {
-							int v = atoi(p);
-							in_view = v > in_view ? v : in_view;
+							int sys = gnss_talker(line), v = atoi(p);
+							if (sys) {
+								view[sys == GNSS_GPS ? 0 : sys == GNSS_BDS ? 1 : 2] = v;
+								shown |= v > 0 ? sys : 0;
+							}
 						} else if (fi >= 7 && (fi - 7) % 4 == 0 && *p >= '0' && *p <= '9') {
 							int snr = atoi(p);
 							best_snr = snr > best_snr ? snr : best_snr;
@@ -308,6 +382,37 @@ static bool fix_once(int timeout_s, gps_fix_t *out)
 				if (t > 0) {
 					sentences++;
 				}
+				/* the module's own messages ($GPTXT: antenna OK / OPEN / SHORT, answers to $PCAS06), each text once */
+				if (t >= 0 && !strncmp(line + 3, "TXT,", 4)) {
+					uint32_t h = 5381;
+					for (const char *p = line; *p && *p != '*'; p++) {
+						h = h * 33 + (uint8_t)*p;
+					}
+					bool seen = false;
+					for (int k = 0; k < n_txt; k++) {
+						seen |= txt_seen[k] == h;
+					}
+					if (!seen && n_txt < (int)(sizeof(txt_seen) / sizeof(txt_seen[0]))) {
+						txt_seen[n_txt++] = h;
+						ESP_LOGI(TAG, "module: %s", line);
+					}
+				}
+#if CONFIG_CAMOS_GPS_TX_GPIO >= 0
+				if (t >= 0 && gnss_sent != want) { /* the module talks: it takes commands */
+					gnss_send(u, want, by_region);
+					asked_at = esp_timer_get_time();
+					shown = 0;
+				}
+				int lacking = want & ~GNSS_GPS & ~shown;
+				if (asked_at && lacking && view[0] >= GNSS_CHECK_GPS &&
+					esp_timer_get_time() - asked_at > (int64_t)GNSS_CHECK_S * 1000000) {
+					const char *name = lacking == GNSS_BDS ? "BeiDou" : lacking == GNSS_GLONASS ? "GLONASS" : "BeiDou / GLONASS";
+					ESP_LOGW(TAG, "no %s satellite in %d s with %d GPS ones in view: this module has no %s", name, GNSS_CHECK_S,
+							 view[0], name);
+					gnss_missing |= lacking;
+					want = gnss_want(&by_region);
+				}
+#endif
 				if (t == 1 && fix.valid) {
 					if (!got_rmc_at) {
 						got_rmc_at = esp_timer_get_time();
@@ -324,6 +429,8 @@ static bool fix_once(int timeout_s, gps_fix_t *out)
 			line[li++] = (char)c;
 		}
 	}
+	(void)want; /* without GPS RXD wired, no command */
+	(void)asked_at;
 	if (ok || !sentences) {
 		gps_power(false);
 	} else {

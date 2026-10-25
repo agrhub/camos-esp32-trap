@@ -15,7 +15,7 @@
  *   meta                      print the snapshot meta JSON only
  *   batt                      read the battery / solar ADCs, print the power decision
  *   mode auto|battery|powered power.mode (portal value; the shadow wins when it set one)
- *   gps [timeout s]           take a fix now
+ *   gps [quiet] [timeout s]   take a fix now; quiet: camera, Wi-Fi and 4G off for it, then a restart
  *   at <command>              send an AT command to the modem (command mode or CMUX only)
  *   live [status|start [min]|stop] cloud live view (ESP32-S3): state, viewer, fps, bitrate
  *   ota                       GET /api/device/ota and apply it when offered
@@ -330,17 +330,33 @@ static int cmd_usb(int argc, char **argv)
 
 static int cmd_gps(int argc, char **argv)
 {
-	int timeout = argc > 1 ? atoi(argv[1]) : CONFIG_CAMOS_GPS_FIX_TIMEOUT_S;
+	bool quiet = argc > 1 && !strcmp(argv[1], "quiet");
+	int timeout = argc > 1 + quiet ? atoi(argv[1 + quiet]) : CONFIG_CAMOS_GPS_FIX_TIMEOUT_S;
 	sched_keep_awake(timeout + 10);
-	gps_fix_t f;
-	if (!gps_fix(timeout, &f)) {
-		printf("no fix\n");
-		return 1;
+	if (quiet) {
+		/* nothing else on the air or on the board's clocks: the GPS hears only the sky (and the supply) */
+		printf("quiet fix: live view, motion, Wi-Fi and 4G off; the camera restarts after it\n");
+		gps_set_quiet(true);
+		live_stop();
+		wifi_stop();
+		modem_stop();
+		vTaskDelay(pdMS_TO_TICKS(2000)); /* motion lets the camera go */
 	}
-	char ts[25];
-	iso8601(f.fix_at, ts);
-	printf("fix %.6f, %.6f, %d sats, %s\n", f.lat, f.lng, f.sats, ts);
-	return 0;
+	gps_fix_t f;
+	bool ok = gps_fix(timeout, &f);
+	if (ok) {
+		char ts[25];
+		iso8601(f.fix_at, ts);
+		printf("fix %.6f, %.6f, %d sats, %s\n", f.lat, f.lng, f.sats, ts);
+	} else {
+		printf("no fix\n");
+	}
+	if (quiet) {
+		printf("restarting to bring the network back\n");
+		vTaskDelay(pdMS_TO_TICKS(3000));
+		esp_restart();
+	}
+	return ok ? 0 : 1;
 }
 
 static int cmd_at(int argc, char **argv)
@@ -686,7 +702,7 @@ void console_start(void)
 		{ .command = "batt", .help = "read battery / solar, print the power decision", .func = cmd_batt },
 		{ .command = "mode", .help = "mode auto|battery|powered", .func = cmd_mode },
 		{ .command = "usb", .help = "usb [auto|storage|webcam|off]: native USB port mode (at the next boot)", .func = cmd_usb },
-		{ .command = "gps", .help = "gps [timeout]: take a fix", .func = cmd_gps },
+		{ .command = "gps", .help = "gps [quiet] [timeout]: take a fix; quiet: camera, Wi-Fi and 4G off, then restart", .func = cmd_gps },
 		{ .command = "at", .help = "at <command>: send to the modem", .func = cmd_at },
 		{ .command = "live", .help = "live [status] | start [min] | stop", .func = cmd_live },
 		{ .command = "ota", .help = "check GET /api/device/ota and apply", .func = cmd_ota },

@@ -381,7 +381,12 @@ menu "CamOS trap camera"
         config CAMOS_GPS_TX_GPIO
             int "ESP TX -> GPS RXD (-1 = not wired; the firmware only listens)"
             depends on CAMOS_GPS
-            default -1
+            default 3
+            help
+                Lets the firmware choose the satellite systems ($PCAS04, setting gpsSystems: by region by
+                default). GPIO3 is a free header pin of the Freenove board; it is a strapping pin only for a
+                JTAG source chosen in eFuse, which these boards do not use. Not wired: the module keeps its own
+                setting.
         config CAMOS_GPS_BAUD
             int "Baud rate (ATGM336H default 9600)"
             depends on CAMOS_GPS
