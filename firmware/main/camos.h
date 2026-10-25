@@ -332,7 +332,7 @@ void photo_quality_json(cJSON *parent, const photo_quality_t *q); /* adds qualit
 /* Downloads url into the other OTA slot, checks the SHA-256 (hex) before it is made bootable. Restarts on success. */
 typedef void (*ota_progress_cb)(int pct, void *ctx); /* 25, 50, 75 while the image downloads */
 esp_err_t ota_apply(const char *url, const char *sha256_hex, char *err, size_t errn, ota_progress_cb progress, void *ctx);
-bool ota_running(void);            /* an image is downloading (motion detection pauses) */
+bool ota_running(void);            /* an image is downloading (motion detection pauses, no live view) */
 
 /* ------------------------------------------------------------------ MQTT agent (proto.c) */
 
