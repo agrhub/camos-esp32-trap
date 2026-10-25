@@ -1,6 +1,6 @@
 # Building from source
 
-Most users flash a release from the browser (README). Build from source to change pins, options or code.
+Most users flash a release from the browser: [../FLASHING.md](../FLASHING.md) is the step-by-step guide for a new board. Build from source to change pins, options or code.
 
 ## Boards (presets)
 
@@ -77,10 +77,14 @@ Needs gcc and cJSON (ESP-IDF's copy when `IDF_PATH` is set, else `libcjson-dev`)
 ## Mock camera, screenshots and diagrams
 
 - `node tools/mock/server.js` serves the setup page (`/portal`) and the web console (`/`) with fake data on
-  http://localhost:8099/, to work on the pages without a board. Options for screenshots are at the top of the file.
+  http://localhost:8099/, to work on the pages without a board. Options for screenshots are at the top of the file:
+  `?lang=vi`, `?gate=1` (activation form), `?unclaimed=1` (claim QR), `?net=4g` (console on 4G, fake IMEI / ICCID),
+  `?open=adv` and `?step=pick|joining|joined|wrongpw` (the setup page's steps).
 - Screenshots in `docs/img/` were taken from the mock with headless Chrome, for example:
   `chrome --headless=new --window-size=1280,640 --screenshot=console-live.png "http://localhost:8099/#live"`
-  (phone width: `http://localhost:8099/phone?src=%2Fportal`).
+  (phone width: `http://localhost:8099/phone?src=%2Fportal`, for example `--window-size=390,844` and
+  `"http://localhost:8099/phone?h=844&src=%2Fportal%3Fstep%3Dpick"`). Add `--virtual-time-budget=6000` so the page has
+  loaded its data before the shot. `docs/img/flash-page.png` is the same command on `docs/flash/index.html`.
 - Wiring diagram: `docs/img/wiring-overview.svg` is edited as SVG (the drawing of the field-camera wiring sheet); its
   PNG copy comes from the same headless Chrome command on the SVG. Keep its pins in step with the Kconfig defaults.
   `python tools/diagrams/wiring.py` draws `docs/img/trap-illustration.svg`.

@@ -72,7 +72,7 @@ mở được tên `.local`, khi đó dùng `http://<IP camera>/` (IP có trong 
 |---|---|
 | ![xem trực tiếp](docs/img/console-live-vi.png) | ![chuyển động](docs/img/console-motion-vi.png) |
 
-Ảnh chụp màn hình các trang khác (tiếng Anh) ở [README.md](README.md#5-the-cameras-web-page). *Hình trong các ảnh chụp màn
+Ảnh chụp màn hình các trang khác (tiếng Anh) ở [README.md](README.md#6-the-cameras-web-page). *Hình trong các ảnh chụp màn
 hình là hình vẽ tấm bẫy, không phải ảnh từ camera.* Mô tả từng trang: [docs/WEB_CONSOLE.md](docs/WEB_CONSOLE.md).
 
 **Xem trực tiếp trong FlyBot (khi không ở nhà).** Camera Freenove còn gửi hình trực tiếp lên trang camera của FlyBot qua
@@ -115,7 +115,7 @@ có người đang xem từ FlyBot, trang web của camera báo "bận" thay cho
 
 ## 8. Dành cho lập trình viên
 
-Xem phần "For developers" trong [README.md](README.md#8-for-developers) (tài liệu kỹ thuật bằng tiếng Anh).
+Xem phần "For developers" trong [README.md](README.md#10-for-developers) (tài liệu kỹ thuật bằng tiếng Anh).
 
 ## Giấy phép
 

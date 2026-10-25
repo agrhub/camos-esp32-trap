@@ -1,67 +1,284 @@
-# The camera's web page (web console, firmware 0.8.0)
+# The camera's web page (web console, firmware 0.9.2)
 
-`http://flybot-xxxxxx.local/` on the same Wi-Fi (mDNS; `xxxxxx` = the last 6 characters of the serial, lower case), or
-`http://<camera IP>/` (the IP is in the boot log, the serial `info` and the router, which lists the camera as
-`flybot-xxxxxx`). Android browsers often do not resolve `.local`: use the IP there. Served while the camera is
-awake: always in powered mode; in battery mode during the awake window, and for as long as the page is open (it pings
-the camera every 30 s, also on the sign-in form; the camera sleeps 2 minutes after the page is closed).
-Not over 4G. English by default, Vietnamese from the language menu (remembered on the camera and in the browser).
+Every camera has its own web page for the live picture, the photos on its memory card and all its settings. This page
+goes through it screen by screen. *The pictures inside the screenshots are drawings of a sticky card from a mock camera
+with made-up values, not camera photos.*
 
-## Sign-in
+- [Opening the web page](#opening-the-web-page) · [First visit: the admin password](#first-visit-the-admin-password)
+- [Live View](#live-view) · [Playback](#playback)
+- Configuration: [System](#system) · [Network](#network) · [Image](#image) · [Event](#event) · [Storage](#storage) ·
+  [Power & location](#power--location) · [Security](#security)
+- [Language](#language) · [Technical notes](#technical-notes)
 
-The first visit **activates** the camera: it asks for the admin password (8-64 characters, letters and digits) and keeps
-a salted, iterated SHA-256 of it in NVS. Later visits sign in with it. 5 wrong passwords lock sign-in for 5 minutes.
-Forgot it: while the camera runs, hold the BOOT button 10 s (until the LED turns red). That is a factory reset: the
-settings and the password go back to the defaults and the setup page opens; the next visit sets a new password. The
-registration with FlyBot stays. Holding it 3 s and releasing (LED blue) only opens the setup page, password kept.
+## Opening the web page
+
+1. Put the phone or computer on **the same Wi-Fi as the camera**.
+2. Open **`http://flybot-xxxxxx.local/`**, where `xxxxxx` is the last 6 characters of the serial number in lower case
+   (serial `ESP000000000001` gives `flybot-000001.local`). The setup page shows the exact name when it connects.
+3. Windows, macOS, iPhone and Linux open `.local` names; many Android browsers do not. There, open
+   `http://<camera IP>/`: the IP is in your router's list of devices (the camera appears as `flybot-xxxxxx`), on the
+   setup page right after Connect, and on the serial console (`info`).
+
+The web page works on the local Wi-Fi only, not over 4G and not from the Internet (from anywhere, use FlyBot). It is
+served while the camera is awake: always in powered mode; in battery mode during the awake window after a photo, and
+for as long as the page stays open (it pings the camera every 30 s; the camera sleeps 2 minutes after the page is
+closed).
+
+## First visit: the admin password
 
 ![activation](img/console-activate.png)
 
-Nothing of the console is shown before activation / sign-in: a camera that was never activated shows only the
-activation form. Sessions are a random `HttpOnly; SameSite=Strict` cookie, 30 minutes idle; every POST needs the header
-`X-Requested-With: camos` (no cross-site forms).
+The first visit **activates** the camera: choose the admin password (8-64 characters, letters and digits) and type it
+twice. Later visits ask for it. The user name is always `admin`.
 
-## Pages
+- 5 wrong passwords lock the sign-in for 5 minutes.
+- **Forgot it?** While the camera runs, hold the BOOT button **10 s**, until the LED turns red. That is a factory
+  reset: the settings and the password go back to the defaults and the setup page opens (join your Wi-Fi again,
+  [PORTAL.md](PORTAL.md)); the next visit sets a new password. The serial and the FlyBot registration stay.
+- **Sign out** at the top right ends the session; a session also ends after 30 minutes without use.
 
-| Top bar | Page | What it does |
-|---|---|---|
-| Live View | | MJPEG live picture (below), size QVGA..UXGA and quality, on-screen camera clock and name, frame rate and frame size, a MOTION badge while motion is detected, Save picture (the frame on screen as a JPEG download), Send to FlyBot (full-size capture + upload, also on the SD card), full screen; status side panel. |
-| Playback | | Photos on the microSD card by day: day list, 24-hour time line with a mark per photo (motion photos in red), list with time / trigger / size, viewer, previous / next, download, delete a photo or a whole day. |
-| Configuration | System > Device Information | model, serial, verify code, firmware, uptime, memory, camera time, LED, sensor, SD card; network, cloud, battery. |
-| | System > Time Settings | camera time, clock source, timezone and where it came from, manual override. |
-| | System > Maintenance & Upgrade | check FlyBot for a newer firmware (`GET /api/device/ota`), **upload a firmware file** (`.bin`, optional SHA-256), restart, factory reset. |
-| | System > Events | the last 64 events since the start (captures, motion, SD card, firmware, settings). |
-| | System > Log | the live log (ring buffer of 32 KB), pause, download, clear. |
-| | Network > Wi-Fi / TCP/IP | current connection, **DHCP or static address** (IP, mask, gateway, DNS), scan table, change network. |
-| | Network > 4G | modem state, APN (automatic from the SIM by default), SIM PIN. |
-| | Network > Cloud Platform | FlyBot / IoT Core state, claim QR while unclaimed, FlyBot address and IoT endpoint. |
-| | Image > Display | live picture next to every image control (below); changes show at once, Save keeps them, Restore goes back to the saved values, Defaults. |
-| | Event > Motion Detection | enable, sensitivity, cooldown, detection area drawn on the live picture (drag to draw, corner and edge handles to resize, drag inside to move), actions (save to SD, capture + upload), live change meter against the trigger level, trigger count, last motion. |
-| | Event > Capture Schedule | who sets the schedule (FlyBot detections or this camera), local interval and capture window, the next 8 captures. |
-| | Storage > Storage Management | card name, capacity, used / free, "save every photo to the card", format. |
-| | Power & location > Power & Schedule, GPS | power mode, interval, LED, battery divider, GPS fix. |
-| | Security > Account | change the admin password. |
+The top bar has three parts: **Live View**, **Playback** and **Configuration**, plus the language menu and Sign out.
 
-## Screenshots
+## Live View
 
-*The pictures inside these screenshots are drawings of a sticky card from a mock camera with made-up values, not
-camera photos.*
+![live view](img/console-live.png)
 
-| Live View | Playback |
+The live picture of the camera, about 5-10 frames a second on a good Wi-Fi.
+
+| Control | What it does |
 |---|---|
-| ![live view](img/console-live.png) | ![playback](img/console-playback.png) |
-| **Image (Display)** | **Motion Detection** |
-| ![image](img/console-image.png) | ![motion](img/console-motion.png) |
-| **Capture Schedule** | **Storage Management** |
-| ![schedule](img/console-schedule.png) | ![storage](img/console-storage.png) |
-| **Wi-Fi / TCP/IP** | **Cloud Platform** (and while unclaimed) |
-| ![network](img/console-network.png) | ![cloud](img/console-cloud.png) ![cloud unclaimed](img/console-cloud-unclaimed.png) |
-| **Device Information** | **Maintenance & Upgrade** |
-| ![system](img/console-system.png) | ![maintenance](img/console-maintenance.png) |
-| **Events** | **Account** |
-| ![events](img/console-events.png) | ![account](img/console-account.png) |
-| **Xem trực tiếp (Vietnamese)** | **Phát hiện chuyển động** |
+| Play / Stop | starts and stops the live picture (it also stops while the browser tab is hidden) |
+| Save picture | downloads the frame on screen as a JPEG |
+| Send to FlyBot | takes a full-size photo now, uploads it to FlyBot (FlyBot counts the flies on it) and keeps it on the SD card |
+| Size menu (VGA 640×480 …) | the live picture size, 320×240 to the sensor's largest; larger is sharper but slower |
+| Quality menu | High, Standard or Smooth (smaller frames, smoother on a weak Wi-Fi) |
+| Full screen | the picture alone on the screen |
+
+On the picture: the camera's clock and name (top left), the size, frame rate and frame size (top right), and a red
+**MOTION** badge while motion detection sees movement. The **Status** panel on the right shows the network, the cloud
+connection, the battery, the power mode, the next scheduled photo, motion detection and the SD card.
+
+One viewer at a time: a second viewer sees a still picture every 2 s until the first one leaves. While someone watches
+from FlyBot (cloud live view), this page shows "busy" instead.
+
+## Playback
+
+![playback](img/console-playback.png)
+
+The photos on the microSD card (or the USB drive), by day.
+
+1. Pick a **day** on the left (with the number of photos).
+2. The **time line** shows a mark for every photo of that day; motion photos are red. Click a mark, or a row in the list
+   under it (time, trigger, size).
+3. The viewer shows the photo. **Previous / Next** step through the day, **Download** saves it, **Delete** removes it,
+   **Delete the day** removes the whole day.
+
+The trigger tells why the photo was taken: **Schedule**, **On demand** (Send to FlyBot, or FlyBot asked), **Boot**,
+**Motion**.
+
+## Configuration
+
+Configuration has a menu on the left, in groups. A grey **default** badge next to a setting means it still has the
+value that came with the firmware. **Save** under each panel keeps that panel's settings; some say "a restart is needed"
+and offer to restart the camera.
+
+### System
+
+**Device Information**
+
+![device information](img/console-system.png)
+
+Read only, refreshed every 5 s: model, **serial number** and **verify code** (to claim the camera in FlyBot), firmware
+version and build date, uptime, free memory, camera time, LED state, sensor and photo size, SD card; the network
+(Wi-Fi or 4G, signal, IP, local name, public IP, MAC); the cloud (connected, server, certificate, claimed or not); the
+battery, the solar panel, the power mode and the GPS position.
+
+**Time Settings**
+
+![time settings](img/console-time.png)
+
+The camera's clock, where it came from (`sntp` Internet time, `flybot`, `modem` 4G network time, `gps`, or `rtc` kept through deep sleep) and the timezone with its source
+(the farm in FlyBot, the GPS position or the IP address). Leave **override** empty to keep the automatic timezone;
+type one (for example `Asia/Ho_Chi_Minh`) only if the automatic one is wrong. Schedules and photo names use this time.
+
+**Maintenance & Upgrade**
+
+![maintenance](img/console-maintenance.png)
+
+| Panel | What it does |
+|---|---|
+| Firmware upgrade | shows the running version; **Check & upgrade** asks FlyBot for a newer firmware, downloads it, checks it and restarts into it |
+| Upload a firmware file | installs a firmware file from your computer: the `-update.bin` of a [release](https://github.com/agrhub/camos-esp32-trap/releases) (or `camos-esp32.bin` of your own build), optionally with its SHA-256 from the release page. It takes about 15 s over Wi-Fi; the camera restarts into it. A firmware that cannot reach the network or this page goes back to the previous one by itself at the next restart. |
+| Maintenance | **Restart**, and **Factory reset**: every setting and the admin password back to the defaults; the serial, verify code, certificate and FlyBot registration stay |
+
+**Events**
+
+![events](img/console-events.png)
+
+The last 64 events since the camera started: photos taken and uploaded, motion, SD card, firmware, settings saved.
+Motion events have a red dot. FlyBot keeps the full history.
+
+**Log**
+
+![log](img/console-log.png)
+
+The camera's live log, as on the serial console. **Follow** keeps the newest line in view, **Pause** stops the scrolling,
+**Download** saves it as a text file (send it along when you report a problem), **Clear** empties the screen.
+
+### Network
+
+**Wi-Fi / TCP/IP**
+
+![wi-fi](img/console-network.png)
+
+| Panel | What it does |
+|---|---|
+| Current connection | the Wi-Fi name, signal (dBm) and channel, IP address, local name (`flybot-xxxxxx.local`), public IP, mask, gateway, MAC |
+| TCP/IP | **Automatic (DHCP)** (default) or **Static**: IP, mask, gateway and DNS. Applied at the next restart. A wrong static address makes the camera unreachable: hold BOOT 3 s for the setup page, or type `set ipMode 0` on the serial console. |
+| Change Wi-Fi network | the networks the camera hears (click one, or **Scan**), the password, **Connect**. The camera restarts onto the new network; if it cannot join it, the setup network `CAM-xxxx` comes back after about a minute. |
+
+**4G** (only on a camera built with the 4G module)
+
+![4g](img/console-4g.png)
+
+| Setting | What it does |
+|---|---|
+| Current connection | on 4G: the operator, the signal (CSQ 0-31; under about 10 is weak), the IP, the module's IMEI and the SIM's ICCID; on Wi-Fi: "not on 4G now" |
+| Use 4G when a SIM is inserted | on by default; off: the camera never dials |
+| APN | empty (default): chosen from the SIM's operator ([APN.md](APN.md)); type one only for an operator that is not in the table |
+| SIM PIN | only for a SIM with a PIN lock |
+
+Applied at the next restart.
+
+**Cloud Platform**
+
+| Claimed | Not yet claimed |
+|---|---|
+| ![cloud](img/console-cloud.png) | ![cloud unclaimed](img/console-cloud-unclaimed.png) |
+
+The FlyBot connection: connected or not, the device certificate, the thing name, the live view channel and its state
+(ready, a viewer is watching). A camera that is not yet claimed shows its claim QR code, serial and verify code here.
+**FlyBot address** and **IoT Core endpoint**: usually nothing to change: the camera registers itself. Change them only
+when told to (your own FlyBot server).
+
+### Image
+
+**Display**
+
+![image settings](img/console-image.png)
+
+The live picture next to every image control: changes show on the picture at once. **Save** keeps them for every photo,
+**Restore** goes back to the saved values, **Defaults** to the factory values. Leaving the page without saving restores
+the saved values. Settings sent from FlyBot override the ones set here.
+
+| Group | Settings |
+|---|---|
+| Picture | brightness, contrast, saturation, sharpness, orientation (flip, mirror: turn the picture if the camera hangs upside down), white balance (auto, sunny, cloudy, office, home), effect, noise reduction |
+| Exposure & gain | exposure (auto or a manual value), exposure compensation (brighter / darker in auto), gain (auto or manual), gain ceiling (how bright auto may push a dark scene; 32× default), night mode for live view (slower, brighter in a very dark place; photos are not affected) |
+| Capture | JPEG quality of the photos, capture resolution (largest by default: 2560×1920 on the OV5640) |
+
+For a sticky card the defaults are a good start. Set the orientation so the card is upright, then check focus and
+brightness on the live picture.
+
+### Event
+
+**Motion Detection** (only while the camera is in powered mode)
+
+![motion detection](img/console-motion.png)
+
+| Setting | What it does |
+|---|---|
+| Enable motion detection | on / off |
+| Status, Change now | whether it is watching, and a meter of how much of the area changes now against the trigger level |
+| Sensitivity | 1-100: higher reacts to smaller changes |
+| Wait between triggers (s) | at most one trigger per this many seconds |
+| Detection area | draw it on the picture: drag to draw, drag the corner and edge handles to resize, drag inside to move; **Whole picture** resets it |
+| On motion | **Save the picture to the SD card** and/or **Capture a full photo and send it to FlyBot** |
+
+It runs only when the camera is in powered mode (a battery camera sleeps), and pauses while someone watches through
+FlyBot. It compares pictures; it does not recognise insects, people or objects (the counting is done by FlyBot).
+
+**Capture Schedule**
+
+![capture schedule](img/console-schedule.png)
+
+Who sets the schedule and when the next photos are due.
+
+- **Set by FlyBot**: a claimed camera follows the schedule set in FlyBot; it is shown here read only. Change it in FlyBot.
+- **Set by this camera** (not claimed yet, or no schedule from FlyBot): **Capture interval** in minutes and the
+  **capture window** (From - To, camera time; From = To means all day; a window that ends before it starts crosses
+  midnight). For a sticky card, daylight hours are enough (the camera has no infrared light).
+- **Next captures**: the next 8 photo times.
+
+An unclaimed camera takes at most one photo an hour. In battery mode the camera sleeps between photos.
+
+### Storage
+
+**Storage Management**
+
+![storage](img/console-storage.png)
+
+| Panel | What it does |
+|---|---|
+| Card | the microSD card: name, capacity, used, free, the number of photos (a link to Playback), **Format the card** (erases every photo) |
+| Storage Management | **Save every photo to the card** (on by default): every photo is also kept on the card, even when the upload fails. Below 5 % free the oldest day is deleted. |
+| USB port | what the board's native USB port does (applied after a restart). **Automatic** (default): plugged into a computer, the camera is a USB drive (its SD card) and a webcam; with a USB flash drive on the port, the photos go to the drive instead of the card. **Drive**, **Webcam** or **Off** (USB log console) choose one. See [Native USB port](#native-usb-port-card-reader-webcam-or-usb-drive). |
+
+Use a FAT32 microSD card (32 GB is plenty). Photos are named `/DCIM/YYYYMMDD/HHMMSSx.JPG` (x: S schedule, R on demand,
+B boot, M motion).
+
+### Power & location
+
+**Power & Schedule**
+
+![power](img/console-power.png)
+
+| Setting | What it does |
+|---|---|
+| Battery panel | battery voltage, charge and charging state, solar panel voltage, the mode the camera runs in now, the next photo |
+| Power mode | **auto** (default): without a battery divider always online (a camera on USB / mains); with one, always online on a full or charging battery (live view and photos on demand work), and deep sleep between photos when the battery is low. **battery**: always sleep between photos (longest battery life; the web page and live view only in the awake window). **powered**: always online. |
+| Capture interval (minutes) | as on the Capture Schedule page |
+| Status LED | on / off |
+| Battery / solar divider fitted | on once the dividers of [WIRING.md](WIRING.md) are wired: the camera reads its battery and solar voltage |
+| Always connected from / Back to battery mode below (mV) | the battery levels where **auto** switches (4050 / 3850 mV) |
+
+**GPS** (only on a camera built with GPS)
+
+![gps](img/console-gps.png)
+
+| Setting | What it does |
+|---|---|
+| Position, At | the last position (a link to the map) and when it was taken; FlyBot puts the trap on its map with it |
+| On | on by default; the camera takes one position a day and powers the GPS module off in between |
+| Satellite systems | which satellites the GPS module uses. **Automatic by region** (default): GPS + BeiDou (Vietnam and most places), GPS + GLONASS from latitude 55° up. Or fix it to GPS + BeiDou, GPS + GLONASS, GPS only or BeiDou only. Needs the module's RXD pin wired to GPIO3 (as in [WIRING.md](WIRING.md)); without that wire the module keeps its own choice. |
+| Get position now | looks for satellites now (up to 2 minutes; outdoors, with a clear view of the sky) |
+
+The first position after a long time off can take a few minutes; indoors there is usually none.
+
+### Security
+
+**Account**
+
+![account](img/console-account.png)
+
+Change the admin password: the current one, then the new one twice (8-64 characters, letters and digits). Forgot it:
+see [First visit](#first-visit-the-admin-password).
+
+## Language
+
+The web page is in English; the language menu at the top right (also on the sign-in form) switches it to **Tiếng
+Việt**. The choice is remembered on the camera (the setup page uses it too) and in the browser.
+
+| Xem trực tiếp | Phát hiện chuyển động |
+|---|---|
 | ![live vi](img/console-live-vi.png) | ![motion vi](img/console-motion-vi.png) |
+
+## Technical notes
+
+The rest of this page is for the curious and for developers: how the live picture, the image settings, the SD card,
+the USB port, motion detection and the firmware upload work, with the measurements behind them. The local API is in
+[dev/CONFIG.md](dev/CONFIG.md). Sessions are a random `HttpOnly; SameSite=Strict` cookie, 30 minutes idle; every POST
+needs the header `X-Requested-With: camos`. The password is kept as a salted, iterated SHA-256 in NVS.
 
 ## Live picture on the LAN (MJPEG)
 

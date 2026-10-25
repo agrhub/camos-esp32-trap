@@ -25,65 +25,139 @@ will follow in `docs/img/trap-assembled.jpg`.)*
   (26.050 ₫/USD, the Vietcombank rate of 21 Oct 2026). The reference build of the wiring page (IP65 box, sticky card,
   active GPS antenna): about US$61.
 - The full list with shop links and the prices read on 17 and 24 Oct 2026: [docs/BOM.md](docs/BOM.md).
-- Wiring diagrams for the field camera: [docs/WIRING.md](docs/WIRING.md). Putting it in the box and on the post:
-  [docs/ASSEMBLY.md](docs/ASSEMBLY.md).
+- A computer with Chrome or Edge (to flash the firmware), a phone (to set up the Wi-Fi), a microSD card (FAT32,
+  optional but recommended) and an account on [FlyBot](https://flybot.agrhub.com).
 
-## 2. Put the firmware on the board (3 steps, nothing to install)
+**Setting up a camera, in short:**
+
+| Step | What | Guide | Time |
+|---|---|---|---|
+| 2 | Wire the field camera and put it in its box (skip for a Wi-Fi camera on USB) | [WIRING.md](docs/WIRING.md), [ASSEMBLY.md](docs/ASSEMBLY.md) | an afternoon |
+| 3 | Put the firmware on the board | [FLASHING.md](docs/FLASHING.md) | 5 min |
+| 4 | Connect it to Wi-Fi (a 4G SIM needs nothing) | [PORTAL.md](docs/PORTAL.md) | 2 min |
+| 5 | Claim it in FlyBot | section 5 below | 1 min |
+| 6 | Set the admin password and check the picture on its web page | [WEB_CONSOLE.md](docs/WEB_CONSOLE.md) | 5 min |
+| 7 | Hang it in the orchard, then follow the flies in FlyBot | section 7 below | |
+
+## 2. Build the trap
+
+**A Wi-Fi camera** needs no wiring: the board, its camera and a USB power supply (any 5 V phone charger, 1 A or more).
+
+**The field camera** (4G + GPS + battery + solar) is wired on a small prototype board inside the trap box. Wired as
+drawn, the firmware needs no settings (0.9.2 and later); only tick "Battery / solar divider fitted" once the dividers
+are in (setup page or web console).
+
+![wiring overview](docs/img/wiring-overview.png)
+
+- Every wire, pin by pin, with the 4G power switch and the battery dividers: [docs/WIRING.md](docs/WIRING.md).
+- The parts with shop links and prices: [docs/BOM.md](docs/BOM.md).
+- Putting it in the box, the sticky card, the antennas and the post: [docs/ASSEMBLY.md](docs/ASSEMBLY.md).
+
+Flash the board (step 3) before it goes into the box: it is easier to reach the USB port and the buttons.
+
+## 3. Put the firmware on the board (3 steps, nothing to install)
+
+![the web flasher](docs/img/flash-page.png)
 
 1. Open **https://agrhub.github.io/camos-esp32-trap/flash/** in **Chrome or Edge** on a computer.
-2. Plug the board into the computer with a USB-C cable (the port marked **CH340** / UART).
+2. Plug the board into the computer with a USB-C data cable (the port marked **CH340** / UART).
 3. Click **Install** next to your board, pick the COM port, confirm. It takes about a minute.
 
 Use **Install** for a new camera. For a camera that already works, use **Update**: it keeps its settings and its
-registration with FlyBot. A running camera can also update itself from its web page (Maintenance & Upgrade).
+registration with FlyBot. A running camera can also update itself from its web page (Maintenance & Upgrade) or from
+FlyBot.
 
-**Without the web flasher:** download `camos-esp32-trap-freenove-v<version>-install.bin` from
-[Releases](https://github.com/agrhub/camos-esp32-trap/releases) and write it at address 0:
+The full guide, with the port that does not show up, download mode, flashing without the web page
+(`esptool` + the release file) and building from source with `tools\build.ps1`: **[docs/FLASHING.md](docs/FLASHING.md)**.
 
-```
-python -m esptool --chip esp32s3 --port COM7 write_flash 0x0 camos-esp32-trap-freenove-v0.9.1-install.bin
-```
+## 4. Connect it to Wi-Fi (or 4G)
 
-(`esptool` comes with `pip install esptool`; on Linux the port is `/dev/ttyUSB0`.)
+With a SIM card in the 4G module, the camera goes online by itself (it picks the APN from the SIM): skip to step 5.
+For Wi-Fi, use your phone:
 
-## 3. Connect it to Wi-Fi (or 4G)
+| 1. Join `CAM-xxxx` | 2. Pick your Wi-Fi | 3. It connects | 4. Online |
+|---|---|---|---|
+| ![setup page](docs/img/portal-wifi.png) | ![network picked](docs/img/portal-pick.png) | ![connecting](docs/img/portal-joining.png) | ![connected](docs/img/portal-joined.png) |
 
-With a SIM card in the 4G module, the camera goes online by itself (it picks the APN from the SIM). For Wi-Fi:
+1. Power the camera. The LED **breathes blue**: the camera opens its own Wi-Fi `CAM-xxxx`. On your phone, join
+   **`CAM-xxxx`**, password **`camos1234`**. The setup page opens by itself (else open `http://192.168.4.1`).
+2. Tap your Wi-Fi (2.4 GHz), type its password, tap **Connect**.
+3. The camera tries your network and the page counts the seconds.
+4. **Connected**: the camera restarts onto your Wi-Fi. The LED blinks yellow, then a green blip: it is online. Note the
+   local name on the page, `http://flybot-xxxxxx.local/`: that is the camera's web page (step 6).
+
+A wrong password: the page says so and you type it again. "Advanced settings" on the same page has the 4G APN, the photo
+interval, the power mode, the timezone and the FlyBot address; every field already has a working default. Every step,
+every advanced setting and what to do when it fails: **[docs/PORTAL.md](docs/PORTAL.md)**.
+
+To open the setup page again later (a new router, a new password): **hold the BOOT button 3 s** while the camera runs and
+release it when the LED turns blue. Every setting stays.
+
+## 5. Claim it on FlyBot
 
 | | |
 |---|---|
-| ![setup page: Wi-Fi list](docs/img/portal-wifi.png) | 1. Power the camera. The LED **breathes blue**: the camera opens its own Wi-Fi `CAM-xxxx`. <br>2. On your phone, join **`CAM-xxxx`**, password **`camos1234`**. The setup page opens by itself (else open `http://192.168.4.1`). <br>3. Tap your Wi-Fi, type its password, tap **Connect**. <br>4. The LED blinks yellow, then a green blip: the camera is online. If the password was wrong, the `CAM-xxxx` network comes back after about a minute with a message. |
+| ![unclaimed camera with its QR code](docs/img/portal-unclaimed.png) | A new camera registers itself with FlyBot and waits for its owner. Until it is claimed it is "Unclaimed" and sends at most one photo an hour. <br><br>1. Sign in at **https://flybot.agrhub.com** (on a computer or a phone). <br>2. On the Cameras page choose **Add Camera** and scan the QR code shown on the camera's setup page or web page, or type the **serial number** and the **verify code** printed next to it (also on the web page's Device Information). <br>3. Give it a name; its GPS position (or a drag on the **Field Map**) puts it on the map. <br>4. The camera now follows the photo schedule set in FlyBot. |
 
-"Advanced settings" on the same page has the 4G APN, the photo interval, the power mode, the timezone and the FlyBot
-address. Every field already has a working default: change nothing unless you need to.
-[More about the setup page](docs/PORTAL.md).
-
-![advanced settings](docs/img/portal-advanced.png)
-
-## 4. Claim it on FlyBot
-
-| | |
-|---|---|
-| ![unclaimed camera with its QR code](docs/img/portal-unclaimed.png) | A new camera registers itself with FlyBot and waits for its owner. Until it is claimed it is "Unclaimed" and sends at most one photo an hour. <br><br>1. Sign in at **https://flybot.agrhub.com**. <br>2. Choose **Add camera** and scan the QR code shown on the camera's setup page or web page, or type the **serial number** and the **verify code** printed next to it. <br>3. The camera now follows the schedule set in FlyBot. |
-
-## 5. The camera's web page
+## 6. The camera's web page
 
 When the camera is on your Wi-Fi, open **`http://flybot-xxxxxx.local/`** in a browser on the same Wi-Fi, where
-`xxxxxx` is the last 6 characters of the serial number in lower case (serial `ESP32S3-0A1B2C` gives
-`flybot-0a1b2c.local`). The setup page and the serial `info` command show the exact name. Windows, macOS, iPhone and
-Linux open it; many Android browsers do not resolve `.local` names, so there use `http://<camera IP>/` (the IP is in
-your router's list, where the camera appears as `flybot-xxxxxx`, or on the camera's Wi-Fi page). The first visit asks you to set the **admin password** (8-64 characters, letters and digits).
+`xxxxxx` is the last 6 characters of the serial number in lower case (serial `ESP000000000001` gives
+`flybot-000001.local`). Many Android browsers do not resolve `.local` names: there use `http://<camera IP>/` (the IP is
+in your router's list, where the camera appears as `flybot-xxxxxx`).
 
-| Live View | Playback | Image settings |
+![first visit: set the admin password](docs/img/console-activate.png)
+
+The first visit asks you to set the **admin password** (8-64 characters, letters and digits). Then:
+
+| Page | What you do there | |
 |---|---|---|
-| ![live view](docs/img/console-live.png) | ![playback](docs/img/console-playback.png) | ![image](docs/img/console-image.png) |
-| **Motion detection** | **Capture schedule** | **Storage** |
-| ![motion](docs/img/console-motion.png) | ![schedule](docs/img/console-schedule.png) | ![storage](docs/img/console-storage.png) |
-| **Network** | **System** | **Tiếng Việt** |
-| ![network](docs/img/console-network.png) | ![system](docs/img/console-system.png) | ![vietnamese](docs/img/console-live-vi.png) |
+| **Live View** | watch the live picture, focus the lens, save a picture, send a photo to FlyBot now | ![live](docs/img/console-live.png) |
+| **Playback** | the photos on the memory card, by day and on a time line; download or delete | ![playback](docs/img/console-playback.png) |
+| System > **Device Information** | serial, verify code, firmware, network, cloud, battery at a glance | ![device](docs/img/console-system.png) |
+| System > **Time Settings** | the camera's clock and timezone (automatic) | ![time](docs/img/console-time.png) |
+| System > **Maintenance & Upgrade** | update the firmware (from FlyBot or a file), restart, factory reset | ![maintenance](docs/img/console-maintenance.png) |
+| System > **Events**, **Log** | what the camera did lately; the live log to send along with a problem report | ![events](docs/img/console-events.png) |
+| Network > **Wi-Fi / TCP/IP** | the connection, a static IP, change the Wi-Fi | ![wi-fi](docs/img/console-network.png) |
+| Network > **4G** | operator and signal, APN, SIM PIN | ![4g](docs/img/console-4g.png) |
+| Network > **Cloud Platform** | the FlyBot connection, the claim QR | ![cloud](docs/img/console-cloud.png) |
+| Image > **Display** | brightness, contrast, orientation, white balance, exposure, photo quality and size, with the live picture beside them | ![image](docs/img/console-image.png) |
+| Event > **Motion Detection** | motion detection with an area drawn on the picture (mains-powered cameras) | ![motion](docs/img/console-motion.png) |
+| Event > **Capture Schedule** | who sets the schedule, the interval and the daily window, the next photos | ![schedule](docs/img/console-schedule.png) |
+| Storage > **Storage Management** | the memory card, format, and the native USB port (USB drive, card reader, webcam) | ![storage](docs/img/console-storage.png) |
+| Power & location > **Power & Schedule** | battery and solar, power mode (auto / battery / powered), LED, battery dividers | ![power](docs/img/console-power.png) |
+| Power & location > **GPS** | the position, the satellite systems (automatic: GPS + BeiDou in Vietnam), get a position now | ![gps](docs/img/console-gps.png) |
+| Security > **Account** | change the admin password | ![account](docs/img/console-account.png) |
+| Language menu | English or **Tiếng Việt** | ![vietnamese](docs/img/console-live-vi.png) |
 
-*The pictures in these screenshots are drawings of a sticky card, not camera photos.* Every page:
-[docs/WEB_CONSOLE.md](docs/WEB_CONSOLE.md).
+*The pictures in these screenshots are drawings of a sticky card from a mock camera, not camera photos.* Every page and
+every setting, explained: **[docs/WEB_CONSOLE.md](docs/WEB_CONSOLE.md)**.
+
+**Before you hang the camera**, open Live View and check three things: the sticky card fills most of the picture,
+it is sharp (turn the lens of the OV5640 module gently to focus), and it is upright (Image > Display > orientation).
+
+## 7. Daily use
+
+**What the camera does by itself.** It takes a photo of the sticky card on the schedule set in FlyBot (a camera running its own
+schedule takes one an hour, all day, until you set a window), keeps a copy on the memory card, and uploads it. FlyBot
+counts the fruit flies on every photo. On battery it sleeps between photos and wakes on time; on mains or a full,
+charging battery it stays online. Once a day it takes a GPS position, so FlyBot puts the trap on the map by itself.
+
+**What you do in FlyBot** (https://flybot.agrhub.com, on a computer or a phone), from anywhere:
+
+- follow the fly counts of each trap; set an alert threshold per camera and get an email or a Telegram message when a trap reaches it, or when a camera goes offline;
+- look at the photos with their counts, and take a new one with **Capture now**;
+- watch the live picture (Freenove board, see below);
+- change a camera's photo schedule and power mode (battery and solar, or mains);
+- update the firmware of a camera;
+- see every trap on the **Field Map**.
+
+**What you do on the camera's web page** (on the same Wi-Fi only): set it up, check the picture and the focus, change the
+Wi-Fi or a 4G setting, browse the photos on the card, read the log when something is wrong.
+
+**Changing the sticky card.** Replace the card when it is full or as your pest-control plan says; put the new card in
+the same place so the picture stays framed. A photo on demand (Live View > Send to FlyBot, or in FlyBot) starts the new
+card's count.
 
 **Live view in FlyBot (away from home).** The Freenove camera can also send its live picture to FlyBot's camera page
 over the Internet (Amazon Kinesis Video Streams WebRTC), one viewer at a time. The quality menu under the picture
@@ -95,7 +169,14 @@ and a scheduled photo due in that time is skipped. FlyBot hands the camera its l
 (flybot.agrhub.com does); with older firmware FlyBot offers a photo and the camera's web page instead.
 Details: [docs/dev/LIVE_VIEW.md](docs/dev/LIVE_VIEW.md).
 
-## 6. What the LED says
+**The photos on the card.** Playback on the web page, or take the card out (power off first), or plug the board's native
+USB port into a computer: the card shows up as a USB drive and the camera as a webcam
+([WEB_CONSOLE.md](docs/WEB_CONSOLE.md#native-usb-port-card-reader-webcam-or-usb-drive)).
+
+**Firmware updates.** FlyBot offers new firmware to the camera; or use Maintenance & Upgrade on the web page. The
+camera keeps its settings and registration, and goes back to the previous firmware by itself if a new one cannot connect.
+
+## 8. What the LED says
 
 | LED (top of the board) | Meaning |
 |---|---|
@@ -110,7 +191,7 @@ Details: [docs/dev/LIVE_VIEW.md](docs/dev/LIVE_VIEW.md).
 
 Details: [docs/LED.md](docs/LED.md).
 
-## 7. Troubleshooting
+## 9. Troubleshooting
 
 - **It does not join my Wi-Fi.** After about a minute it opens `CAM-xxxx` again and the setup page says why. Check the
   password; the camera needs a 2.4 GHz network (not 5 GHz only).
@@ -120,6 +201,9 @@ Details: [docs/LED.md](docs/LED.md).
 - **The picture is black.** At night that is normal: the camera has no infrared light. Set a capture window for the
   daylight hours (Capture Schedule). In daylight, check that nothing covers the lens and that the ribbon cable of the
   camera is pushed in fully.
+- **The picture is blurred.** Focus the OV5640's lens on the card (turn it gently, watching Live View).
+- **No GPS position.** The GPS needs a clear view of the sky; indoors there is usually none. The first position can take
+  a few minutes. GPS > Get position now tries at once.
 - **The BOOT button.** While the camera runs, **hold it 3 seconds and release when the LED turns blue**: the camera
   opens setup mode (`CAM-xxxx`) and keeps every setting and the web page password. **Hold it 10 seconds, until the LED
   turns red**, for a factory reset: settings and the web page password go back to the defaults, then setup mode opens.
@@ -128,16 +212,18 @@ Details: [docs/LED.md](docs/LED.md).
   to the web page asks for a new password.
 - **I want to start over.** Web page > Maintenance & Upgrade > Factory reset (keeps the registration), or flash the
   **Install** image again (erases everything; the camera then needs to be reset in FlyBot before it can register again).
-- **The camera is "Unclaimed" in FlyBot.** Claim it (section 4). Until then it sends at most one photo an hour.
+- **The camera is "Unclaimed" in FlyBot.** Claim it (section 5). Until then it sends at most one photo an hour.
+- **Still stuck?** Web page > System > Log > Download, and send the file with your question.
 
-## 8. For developers
+## 10. For developers
 
 Build from source, settings and build options, the device protocol, factory provisioning, host tests, power-budget
 calculations and the mock camera used for the screenshots:
 
-- [docs/dev/BUILD.md](docs/dev/BUILD.md): ESP-IDF build, presets, Kconfig, defaults, tests, releases, the mock camera
+- [docs/FLASHING.md](docs/FLASHING.md) (section C) and [docs/dev/BUILD.md](docs/dev/BUILD.md): ESP-IDF build, presets, Kconfig, defaults, tests, releases, the mock camera
+- [docs/dev/CONFIG.md](docs/dev/CONFIG.md): settings layers, the local JSON API, the serial console, NVS keys
 - [docs/dev/protocol-v1.md](docs/dev/protocol-v1.md) and [docs/dev/PROTOCOL_ADDITIONS.md](docs/dev/PROTOCOL_ADDITIONS.md): MQTT / HTTPS protocol
-- [docs/dev/FACTORY.md](docs/dev/FACTORY.md): pre-provisioning a fleet with certificates
+- [docs/dev/FACTORY.md](docs/dev/FACTORY.md) and [tools/README.md](tools/README.md): pre-provisioning a fleet with certificates
 - [docs/dev/POWER_BUDGET.md](docs/dev/POWER_BUDGET.md), [docs/dev/LIVE_VIEW.md](docs/dev/LIVE_VIEW.md), [docs/dev/PINPROBE.md](docs/dev/PINPROBE.md)
 - [CONTRIBUTING.md](CONTRIBUTING.md)
 
