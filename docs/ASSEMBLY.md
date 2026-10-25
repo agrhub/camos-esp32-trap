@@ -24,7 +24,7 @@ are mounted inside its lid. The steps below also apply to a plain IP65 box (item
    distance, Live View in the web console, turn the lens until the card's grid is sharp, then lock it (its lock ring or
    a drop of glue). A fixed lens focused far away (the Freenove kit's) is sharp only from about 50 cm.
 4. **Field camera only:** place the LiPo flat at the bottom (foam tape), the charger and the prototype board with the
-   3.3 V regulator and the screw terminals beside it, the 4G board against a side wall with its antenna (FPC antennas
+   5 V boost board and the screw terminals beside it, the 4G board against a side wall with its antenna (FPC antennas
    stick to the inside of the lid, away from the battery), the GPS board with its patch antenna **facing up** under the
    lid. Keep the GPS antenna 10 cm or more from the LTE antenna.
 5. **Cables.** The USB or solar cable enters at the bottom (water runs down, not in), through the housing's own opening

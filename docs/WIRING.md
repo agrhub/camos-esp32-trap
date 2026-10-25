@@ -24,12 +24,13 @@ Free header pins used by the firmware:
 | Battery voltage (ADC1_CH0) | 1 | `CAMOS_BATT_ADC_GPIO` | middle of a 100k / 100k divider from BAT+ to GND, 100 nF to GND |
 | Solar voltage (ADC1_CH1) | 2 | `CAMOS_SOLAR_ADC_GPIO` | middle of a 100k / 33k divider from the panel + to GND (GPIO2 also has the board's small LED: it may glow faintly) |
 | GPS TX -> ESP RX (UART2) | 14 | `CAMOS_GPS_RX_GPIO` | ATGM336H TX |
+| ESP TX -> GPS RX (UART2) | 3 | `CAMOS_GPS_TX_GPIO` | ATGM336H RX: the firmware chooses the satellite systems (section 3) |
 | GPS power switch | 21 | `CAMOS_GPS_POWER_GPIO` | base of the C1815 on the GPS ground, through 1k (high = GPS on) |
 | ESP TX -> modem RXD (UART1) | 41 | `CAMOS_MODEM_TX_GPIO` | A7680C RXD |
 | ESP RX <- modem TXD (UART1) | 42 | `CAMOS_MODEM_RX_GPIO` | A7680C TXD |
 | 4G power switch | 47 | `CAMOS_MODEM_POWER_GPIO` | base of the C1815 that drives the AO3401 gate, through 1k (high = 4G on); see section 2 |
 | Charger CHRG (optional) | not used | `CAMOS_CHARGING_GPIO` = -1 | GPIO46 (input only) |
-| 3.3 V supply | 3V3 pin | | the 3.3 V regulator output (BOM item 15) |
+| 5 V supply | 5V pin | | the 5 V boost board output (BOM item 15) |
 | Ground | GND pins | | every module's GND |
 
 Wired as on this page, the camera needs no setting (firmware 0.9.2 and later): these are the defaults. A board without
@@ -40,14 +41,14 @@ default), `modemFastBaud`, `gpsPowerActiveLow` (`1` for a P-MOSFET on the GPS su
 `solarDivider` (ratio x 100: `500` for the 30k/7.5k "voltage sensor" module). Set them on the serial console
 (`set battDivider 500`) or with `POST /api/config`, then restart. See [CONFIG.md](dev/CONFIG.md).
 
-**Feed the board at its 3V3 pin from a 3.3 V auto buck-boost regulator, not at 5 V**: from a LiPo (3.3-4.2 V) the
-board's own 5 V regulator path has no headroom, and a 5 V boost board only adds a second conversion. The regulator of
-BOM item 15 (2-15 V in, 3.3 V 0.6 A out) covers the board on 4G. The ESP32-S3 with Wi-Fi peaks around 500 mA and the
-OV5640 adds about 150 mA at full size (datasheet values): a camera that also runs Wi-Fi from the cell is safer with the
-1.3 A TPS63020 (item 15b). **If the regulator board has an EN pin, tie EN to its VCC (input)**: left open, the module
-stays off.
+**Feed the board at its 5V pin from a 5 V boost board** (BOM item 15, 1 A or more). The mini board of the BOM ships
+set to 12 V: set its A / B pads for 5 V and measure 5.0-5.2 V before it is connected; the board's own regulator makes the 3.3 V. The ESP32-S3 with Wi-Fi peaks around 500 mA and the
+OV5640 adds about 150 mA at full size (datasheet values). A 3.3 V auto buck-boost of 0.6 A on the 3V3 pin was tried:
+with 3.8 V in it gave 3.3 V unloaded and 1.8 V with the board on it, and the board did not run; a 5 V boost on the 5V
+pin ran the same board from the same old cell (25 Oct 2026). Unplug the boost's output before plugging USB into the
+board.
 
-The regulator, the two dividers, the capacitors and two screw terminals (KF301-2P: the LiPo and the solar panel) go on
+The boost board, the two dividers, the capacitors and two screw terminals (KF301-2P: the LiPo and the solar panel) go on
 a double-sided 7 x 9 cm prototype board (BOM items 24, 25), so the cell and the panel can be changed without
 soldering.
 
@@ -87,10 +88,10 @@ and sends `AT+CPOF` before a deep sleep.
 
 | ATGM336H pin | Connect to | Notes |
 |---|---|---|
-| VCC | BAT+, with the 4G module | ATGM336H boards with their own regulator take 3.3-5 V (check yours); on the cell, the GPS does not draw on the 3.3 V regulator while the 4G module transmits |
+| VCC | BAT+, with the 4G module | ATGM336H boards with their own regulator take 3.3-5 V (check yours); on the cell, the GPS does not draw on the board's supply while the 4G module transmits |
 | GND | collector of an NPN C1815; emitter to GND | the firmware switches the GPS on only for a fix: GPIO21 high = on |
 | TX | GPIO14 | NMEA at 9600 baud |
-| RX | not connected | the firmware only listens |
+| RX | GPIO3 | the firmware sends the satellite systems at each power-on (below) |
 | PPS | not connected | |
 | antenna | active patch antenna, IPEX | face up, 10 cm or more from the LTE antenna and the panel |
 
@@ -99,15 +100,23 @@ the GPS supply instead (AO3401 from 3V3, gate low = on) needs `set gpsPowerActiv
 The module has no backup cell: every fix is a cold start, about 35 s under open sky (datasheet value), longer under
 trees.
 
+**Satellite systems.** Through RX the firmware sends `$PCAS04` each time it powers the module: by default (`gpsSystems`
+`auto`) GPS + BeiDou, the most satellites over Vietnam and Asia, and good everywhere since BeiDou-3; GPS + GLONASS at
+55 degrees north or south and beyond. The region comes from the last position, or from the 4G cell before the first
+fix. To choose by hand: web console (Power & location > GPS > Satellite systems), the serial console
+(`set gpsSystems gps+bds`; also `gps`, `bds`, `gps+glonass`, `auto`) or FlyBot (`gps.systems`). A module variant that
+lacks a system (an ATGM336H-5N31 is GPS + BeiDou only) is found out: no satellite of it in 2 minutes while 6 GPS ones
+are in view, and the firmware falls back to GPS + BeiDou. The search log counts the satellites of each system.
+RX not wired: the module keeps its own setting.
+
 ## 4. Power: solar -> charger -> LiPo -> rails
 
 | From | To | Notes |
 |---|---|---|
 | Solar panel + / - | screw terminal -> charger IN+ / IN- | 6 V 2 W panel with a TP4056 board; a CN3791 board needs the panel voltage it is made for (the boards sold in Vietnam are 9 V versions). A small panel that cannot give the charger its full current sags to just above the cell: the camera then reports `charge: "slow"` |
 | Charger B+ / B- | screw terminal -> LiPo + / - | a flat LiPo (BOM item 12) or an old phone battery; protected cell, or the charger's DW01 protection |
-| Charger OUT+ (= BAT+) | the 4G switch (AO3401 source) -> modem VCC, GPS VCC, regulator VIN, battery divider | thick, short wires to the modem |
-| Regulator EN | regulator VIN | only on boards that have an EN pin: without it the regulator stays off |
-| Regulator 3.3 V OUT | board 3V3 | |
+| Charger OUT+ (= BAT+) | the 4G switch (AO3401 source) -> modem VCC, GPS VCC, boost IN+, battery divider | thick, short wires to the modem |
+| Boost OUT+ | board 5V | 5.0-5.2 V, measured before connecting |
 | Panel + | solar divider 100k / 33k -> GPIO2 | 6.5 V reads as 1.6 V on the pin |
 | BAT+ | battery divider 100k / 100k -> GPIO1 | 4.2 V reads as 2.1 V; 100 nF from GPIO1 to GND |
 

@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="1090" viewBox="0 -90 1320 1090" style="--paper:#ffffff;--fg:#16202b;--muted:#5a6573;--line:#d3d9e1;--accent:#1f4fbf;--accent-soft:#e6edfb;--w-bat:#cf2f2f;--w-3v3:#7a3fc0;--w-gnd:#2a2f36;--w-uart:#138a4a;--w-gps:#1f6fd1;--w-sense:#0d8a8c;--w-solar:#a8551b;--font-body:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;--font-mono:Consolas,'DejaVu Sans Mono',monospace;">
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="1090" viewBox="0 -90 1320 1090" style="--paper:#ffffff;--fg:#16202b;--muted:#5a6573;--line:#d3d9e1;--accent:#1f4fbf;--accent-soft:#e6edfb;--w-bat:#cf2f2f;--w-3v3:#7a3fc0;--w-5v:#d9730d;--w-gnd:#2a2f36;--w-uart:#138a4a;--w-gps:#1f6fd1;--w-sense:#0d8a8c;--w-solar:#a8551b;--font-body:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;--font-mono:Consolas,'DejaVu Sans Mono',monospace;">
 <rect x="0" y="-90" width="1320" height="1090" fill="#ffffff"/>
 <text x="24" y="-54" style="fill:var(--fg);font-family:var(--font-body)" font-size="22" font-weight="700">4G trap wiring (firmware 0.9.2: these pins are the defaults, nothing to set)</text>
-<g transform="translate(0 -90)"><line x1="24" y1="66" x2="50" y2="66" style="stroke:var(--w-bat)" stroke-width="4" stroke-linecap="round"/><text x="58" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">BAT+ 3.7-4.2 V</text><line x1="184.8" y1="66" x2="210.8" y2="66" style="stroke:var(--w-3v3)" stroke-width="4" stroke-linecap="round"/><text x="218.8" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">3.3 V regulator to the ESP32</text><line x1="446.40000000000003" y1="66" x2="472.40000000000003" y2="66" style="stroke:var(--w-gnd)" stroke-width="4" stroke-linecap="round"/><text x="480.40000000000003" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">GND</text><line x1="528" y1="66" x2="554" y2="66" style="stroke:var(--w-uart)" stroke-width="4" stroke-linecap="round"/><text x="562" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">4G UART</text><line x1="638.4" y1="66" x2="664.4" y2="66" style="stroke:var(--w-gps)" stroke-width="4" stroke-linecap="round"/><text x="672.4" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">GPS UART and switches</text><line x1="849.6" y1="66" x2="875.6" y2="66" style="stroke:var(--w-sense)" stroke-width="4" stroke-linecap="round"/><text x="883.6" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">battery sense GPIO1</text><line x1="1046.4" y1="66" x2="1072.4" y2="66" style="stroke:var(--w-solar)" stroke-width="4" stroke-linecap="round"/><text x="1080.4" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">charge input GPIO2</text></g>
+<g transform="translate(0 -90)"><line x1="24" y1="66" x2="50" y2="66" style="stroke:var(--w-bat)" stroke-width="4" stroke-linecap="round"/><text x="58" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">BAT+ 3.7-4.2 V</text><line x1="184.8" y1="66" x2="210.8" y2="66" style="stroke:var(--w-5v)" stroke-width="4" stroke-linecap="round"/><text x="218.8" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">5 V boost to the ESP32</text><line x1="446.40000000000003" y1="66" x2="472.40000000000003" y2="66" style="stroke:var(--w-gnd)" stroke-width="4" stroke-linecap="round"/><text x="480.40000000000003" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">GND</text><line x1="528" y1="66" x2="554" y2="66" style="stroke:var(--w-uart)" stroke-width="4" stroke-linecap="round"/><text x="562" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">4G UART</text><line x1="638.4" y1="66" x2="664.4" y2="66" style="stroke:var(--w-gps)" stroke-width="4" stroke-linecap="round"/><text x="672.4" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">GPS UART and switches</text><line x1="849.6" y1="66" x2="875.6" y2="66" style="stroke:var(--w-sense)" stroke-width="4" stroke-linecap="round"/><text x="883.6" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">battery sense GPIO1</text><line x1="1046.4" y1="66" x2="1072.4" y2="66" style="stroke:var(--w-solar)" stroke-width="4" stroke-linecap="round"/><text x="1080.4" y="70" style="fill:var(--fg);font-family:var(--font-body)" font-size="13">charge input GPIO2</text></g>
 
         <style>
           .box { fill: var(--paper); stroke: var(--line); stroke-width: 1.5; }
@@ -141,18 +141,15 @@
         <circle class="pin" cx="700" cy="330" r="4"/><circle class="pin" cx="700" cy="404" r="4"/>
         <circle class="pin" cx="940" cy="360" r="4"/>
 
-        <!-- ===== 3.3 V regulator (auto buck-boost, EN tied to IN+) ===== -->
+        <!-- ===== 5 V boost board (to the board's 5V pin) ===== -->
         <rect class="box" x="700" y="480" width="240" height="130" rx="8"/>
         <text class="p" x="716" y="524">IN+</text>
-        <text class="p" x="716" y="554">EN</text>
         <text class="p" x="716" y="584">IN−</text>
-        <path class="ink" d="M700 520 H690 V550 H700"/>
-        <circle class="dot" cx="690" cy="520" r="3"/>
         <text class="p" x="924" y="524" text-anchor="end">OUT+</text>
         <text class="p" x="924" y="584" text-anchor="end">OUT−</text>
-        <text class="t" x="830" y="552" text-anchor="middle">3.3 V regulator</text>
-        <text class="s" x="830" y="572" text-anchor="middle">auto buck-boost</text>
-        <text class="s" x="820" y="600" text-anchor="middle">EN to IN+ · measure 3.3 V first</text>
+        <text class="t" x="830" y="552" text-anchor="middle">5 V boost board</text>
+        <text class="s" x="830" y="572" text-anchor="middle">3.7 V → 5 V, 1 A or more</text>
+        <text class="s" x="820" y="600" text-anchor="middle">set and measure 5.0–5.2 V first</text>
         <path class="w bat" d="M610 520 H634 a6 6 0 0 1 12 0 H700"/>
         <path class="w gnd" d="M640 580 H700"/>
         <circle class="dot" cx="610" cy="520" r="5"/><circle class="dot" cx="640" cy="580" r="5"/>
@@ -164,10 +161,11 @@
         <text class="t" x="716" y="700">GPS module ATGM336H</text>
         <text class="s" x="716" y="722">GPS antenna facing the sky</text>
         <text class="s" x="716" y="742">10–20 cm from the 4G antenna</text>
-        <text class="p" x="716" y="776">RX, PPS</text><text class="pn" x="776" y="776">not connected</text>
+        <text class="p" x="716" y="776">PPS</text><text class="pn" x="756" y="776">not connected</text>
         <text class="p" x="716" y="804">VCC</text>
         <text class="p" x="812" y="822" text-anchor="middle">GND</text>
         <text class="p" x="924" y="764" text-anchor="end">TX</text>
+        <text class="p" x="924" y="804" text-anchor="end">RX</text>
         <circle class="pin" cx="812" cy="830" r="4"/>
         <path class="w bat" d="M610 800 H634 a6 6 0 0 1 12 0 H700"/>
         <circle class="dot" cx="610" cy="800" r="5"/><circle class="pin" cx="700" cy="800" r="4"/>
@@ -211,12 +209,13 @@
         <text class="wl" fill="var(--w-gps)" x="990" y="222" text-anchor="middle">IO47→C1815</text>
         <circle class="pin" cx="1040" cy="230" r="4"/>
         <text class="p" x="1056" y="894">IO21</text><text class="pn" x="1096" y="894">GPS power</text>
-        <text class="p" x="1056" y="524">3V3</text><text class="pn" x="1088" y="524">3.3 V supply in</text>
+        <text class="p" x="1056" y="524">5V</text><text class="pn" x="1088" y="524">5 V supply in</text>
         <text class="p" x="1056" y="584">GND</text>
+        <text class="p" x="1056" y="804">IO3</text><text class="pn" x="1088" y="804">TX to GPS</text>
         <text class="p" x="1056" y="764">IO14</text><text class="pn" x="1096" y="764">RX from GPS</text>
         <rect class="ink" x="1145" y="946" width="50" height="14" rx="4"/>
         <text class="s" x="1170" y="918" text-anchor="middle">USB in for flashing / logs:</text>
-        <text class="s" x="1170" y="936" text-anchor="middle">disconnect the 3.3 V wire</text>
+        <text class="s" x="1170" y="936" text-anchor="middle">disconnect the 5 V wire</text>
         <circle class="pin" cx="1040" cy="140" r="4"/><circle class="pin" cx="1040" cy="180" r="4"/>
         <circle class="pin" cx="1040" cy="360" r="4"/><circle class="pin" cx="1040" cy="520" r="4"/>
         <circle class="pin" cx="1040" cy="580" r="4"/>
@@ -230,11 +229,14 @@
         <text class="wl" fill="var(--w-uart)" x="990" y="172" text-anchor="middle">TXD→IO42</text>
         <path class="w sense" d="M944 360 H1036"/>
         <text class="wl" fill="var(--w-sense)" x="990" y="352" text-anchor="middle">sense</text>
-        <path class="w v33" d="M944 520 H1036"/>
-        <text class="wl" fill="var(--w-3v3)" x="990" y="512" text-anchor="middle">3.3 V</text>
+        <path class="w v5" d="M944 520 H1036"/>
+        <text class="wl" fill="var(--w-5v)" x="990" y="512" text-anchor="middle">5 V</text>
         <path class="w gnd" d="M944 580 H1036"/>
         <text class="wl" fill="var(--w-gnd)" x="990" y="572" text-anchor="middle">GND</text>
         <path class="w gps" d="M944 760 H1036"/>
         <text class="wl" fill="var(--w-gps)" x="990" y="752" text-anchor="middle">TX→IO14</text>
+        <path class="w gps" d="M944 800 H1036"/>
+        <text class="wl" fill="var(--w-gps)" x="990" y="792" text-anchor="middle">IO3→RX</text>
+        <circle class="pin" cx="940" cy="800" r="4"/><circle class="pin" cx="1040" cy="800" r="4"/>
       
 </svg>

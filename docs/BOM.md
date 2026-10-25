@@ -38,14 +38,13 @@ Wiring: [WIRING.md](WIRING.md). Assembly: [ASSEMBLY.md](ASSEMBLY.md).
 | 9 | 4G antenna, FPC 3 dBi, IPEX | 1 | [hshop.vn: anten 4G FPC IPEX](https://hshop.vn/anten-4g-3dbi-53-24mm-fpc-ipex-tx4g-fpc-5324-antenna-ziisor) | 20.000 | 690-960 and 1700-2700 MHz; stick it inside the lid |
 | 9b | or 4G antenna 700-2700 MHz 5 dBi, SMA, 3 m cable | 1 | [nshopvn.com: anten 700-2700MHz](https://nshopvn.com/product/anten-4g-3g-2g-gprs-nb-gsm-bang-tan-700-2700mhz-5dbi/) | 66.000 (*out of stock*) | outside the box; needs an IPEX-to-SMA pigtail if the modem has IPEX |
 | 10 | **GPS module ATGM336H** (GPS + BeiDou) | 1 | [thegioiic.com: ATGM336H](https://thegioiic.com/atgm336h-gps-dual-mode-module) | 173.280 (*out of stock*) | also [icdayroi.com](https://icdayroi.com/module-gps-bds-atgm336h) at 250.000; antenna not mentioned (the module of the hanging trap came with its antenna, so item 11 is not needed there) |
-| 11 | Active GPS antenna 25 x 25 mm, IPEX | 1 | [linhkienthuduc.com: anten GPS 25x25](https://linhkienthuduc.com/san-pham/anten-gps-25x25mm-active-antenna/) | 65.000 | 3-5 V active patch. Worth it in the hanging trap too: outdoors the antenna that came with the module heard 2-5 satellites and gave no fix in 300 s (24 Oct 2026) |
+| 11 | Active GPS antenna 25 x 25 mm, IPEX | 1 | [linhkienthuduc.com: anten GPS 25x25](https://linhkienthuduc.com/san-pham/anten-gps-25x25mm-active-antenna/) | 65.000 | 3-5 V active patch, for a module mounted deep inside a box. Not needed in the hanging trap: the antenna that came with the module gives a fix in seconds outdoors (7 satellites, 25 Oct 2026; the misses before were a firmware UART clock bug, fixed in 0.9.2) |
 | 12 | **LiPo pouch cell 3.7 V 2000 mAh 103450** (10 x 34 x 50 mm) | 1 | [Shopee: pin tép 103450 2000mAh](https://shopee.vn/Pin-t%C3%A9p-3.7V-2000mAh-103450-d%C3%B9ng-cho-loa-Bluetooth-%C4%90%E1%BB%8Bnh-v%E1%BB%8B-GPS-Camera-h%C3%A0nh-tr%C3%ACnh-i.853237848.28122587321) | 72.000 (2000 mAh variant) | flat, so it fits the lid of the hanging trap; an old phone battery (3.7-3.85 V Li-ion / LiPo) does the same. Protection not stated on the page: the charger's DW01 protects it. Also [thegioiic.com: Lipo 103450](https://thegioiic.com/pin-sac-lipo-103450-2000mah-3-7v) at 49.875 (*out of stock* on 17 Oct) |
 | 12b | or 18650 cell 2000 mAh + 1-cell holder | 1 + 1 | [hshop.vn: 18650 2000mAh](https://hshop.vn/pin-sac-18650-li-ion-rechargeable-battery-3-7v-2000mah-10c-sunpower), [icdayroi.com: holder](https://icdayroi.com/hop-de-pin-18650-loai-1-cell) | 35.000 + 4.000 | bulkier than item 12; the cell page does not mention a protection circuit: the charger's DW01 protects it |
 | 13 | Solar panel 6 V 2 W, 136 x 110 mm | 1 | [thegioiic.com: tấm NLMT 2W 6V](https://thegioiic.com/tam-nang-luong-mat-troi-2w-6v) | 83.220 | also [icdayroi.com](https://icdayroi.com/pin-nang-luong-mat-troi-6v-2w) at 120.000 |
 | 14 | Charger TP4056 with DW01 protection, USB-C | 1 | [thegioiic.com: TP4056 Type-C có bảo vệ](https://thegioiic.com/tp4056-mach-sac-pin-usb-type-c-1a-co-bao-ve) | 6.270 | works with the 6 V panel (its open-circuit voltage stays under the TP4056's 8 V limit); no MPPT |
 | 14b | or CN3791 MPPT solar charger | 1 | [thegioiic.com: CN3791](https://thegioiic.com/cn3791-mach-sac-pin-nang-luong-mat-troi) | 67.260 (*out of stock*) | **the boards found are the 9 V version: use them with a 9 V panel**, not the 6 V one |
-| 15 | **3.3 V auto buck-boost regulator** (2-15 V in, 3.3 V 0.6 A out) | 1 | [Shopee: mạch ổn áp tự động 3V3](https://shopee.vn/product/134796651/7206993963) | 23.100 (variant "3V3 Có chân En") | feeds the board's 3V3 pin from the cell (instead of a 5 V boost board on the 5V pin). **A board with an EN pin stays off until EN is tied to its VCC (input).** 0.6 A covers the board on 4G; with Wi-Fi and the camera at full size the peaks come close to it: item 15b then |
-| 15b | or 3.3 V buck-boost TPS63020 (1.8-5.5 V in, 1.3 A) | 1 | [thegioiic.com: TPS63020 3.3V](https://thegioiic.com/tps63020-mach-on-ap-dc-dc-3-3v-1-3a) | 53.000 (*out of stock*) | the same job with more current |
+| 15 | **5 V boost board, mini DC-DC 5 / 8 / 9 / 12 V** (2.5 V in and up; 5 V 1 A from a 3.7 V cell, per the listing) | 1 | [thegioiic.com: mạch tăng áp mini 5V 8V 9V 12V](https://www.thegioiic.com/mach-tang-ap-dc-dc-mini-dau-ra-5v-8v-9v-12v) | 5.700 | feeds the board's **5V pin** from the cell; the board's own regulator makes the 3.3 V. **It ships set to 12 V: set its A / B pads to 0 / 0 (5 V, table on the listing) and measure 5.0-5.2 V before connecting.** Its LED draws about 1 mA (under 1 mA without it): remove it for a longer deep sleep. Not a 3.3 V regulator on the 3V3 pin: the 0.6 A auto buck-boost sold for it fell to 1.8 V under the board's load (25 Oct 2026), while a 5 V boost ran the same board on the same old cell |
 | 16 | **P-MOSFET AO3401A** (or SI2301 / AO3407), SOT-23 | 1-2 | [thegioiic.com: AO3401A](https://thegioiic.com/ao3401a-mosfet-kenh-p-30v-4a-sot23) | 2.772 each | **the 4G module's power switch** (4 A): with it the module is off whenever the ESP32 is not running, instead of draining the cell ([WIRING.md](WIRING.md), section 2). A second one switches the GPS in the reference wiring. A SOT-23 to 2.54 mm adapter makes it easy to solder on item 24 |
 | 17 | NPN transistor MMBT3904, S8050 or C1815 | 1-2 | [thegioiic.com: MMBT3904](https://thegioiic.com/mmbt3904-1am-transistor-npn-40v-0-2a-3-chan-sot-23) | 399 | drives the gate of the 4G switch (item 16) from GPIO47; in the hanging trap a C1815 also switches the GPS ground. Never the 4G supply itself: 150-200 mA at most, the module peaks at 2 A |
 | 18 | Resistor kit 1/4 W 1 %, 600 pieces (30 values) | 1 | [thegioiic.com: bộ 600 điện trở](https://thegioiic.com/bo-600-dien-tro-1-4w-1-5-vong-mau) | 39.900 | needs 100k x4, 33k x1, 1k x2; check the kit's value list (not confirmed on the page) |
@@ -53,22 +52,23 @@ Wiring: [WIRING.md](WIRING.md). Assembly: [ASSEMBLY.md](ASSEMBLY.md).
 | 20 | Ceramic capacitor 100 nF, pack of 10 | 1 | [banlinhkien.com: tụ gốm 104](https://banlinhkien.com/tu-gom-104-100nf-50v-10c-p6652092.html) | 2.000 | modem VCC and the two ADC pins |
 | 22 | Jumper wires 20 cm male-female, 40 pieces | 1 | [hshop.vn: dây cắm đực-cái](https://hshop.vn/day-camtest-board-duc-coi20cm40soi) | 30.000 | use thicker wire (0.5 mm2) from the cell to the modem |
 | 23 | Nano SIM with a data plan (Viettel, MobiFone, Vinaphone) | 1 | carrier, e.g. [4g.viettel.vn/data](https://4g.viettel.vn/data) | not read | the camera picks the APN from the SIM ([APN.md](APN.md)) |
-| 24 | Prototype board FR4, double-sided, 7 x 9 cm, 2.54 mm | 1 | [Shopee: PCB đục lỗ 2 mặt](https://shopee.vn/PCB-%C4%90%E1%BB%A5c-L%E1%BB%97-FR4-2.54mm-(5x7)-(7x9)-2-M%E1%BA%B7t-i.35490992.58015909114) | 24.000 (7 x 9) | carries the regulator, the dividers, the capacitors and the terminals ([WIRING.md](WIRING.md)) |
+| 24 | Prototype board FR4, double-sided, 7 x 9 cm, 2.54 mm | 1 | [Shopee: PCB đục lỗ 2 mặt](https://shopee.vn/PCB-%C4%90%E1%BB%A5c-L%E1%BB%97-FR4-2.54mm-(5x7)-(7x9)-2-M%E1%BA%B7t-i.35490992.58015909114) | 24.000 (7 x 9) | carries the boost board, the dividers, the capacitors and the terminals ([WIRING.md](WIRING.md)) |
 | 25 | Screw terminal KF301-2P, 5.08 mm, pack of 10 | 1 | [Shopee: domino KF301](https://shopee.vn/%C4%90%E1%BA%A7u-Terminal-Domino-2P-3P-4P-2-3-4-Ch%C3%A2n-KF301-2P-KF301-3P-KF301-4P-5.08mm-300V-16A-i.1510124588.29331553149) | 18.000 (2P, 10 pieces) | on the prototype board: one for the LiPo, one for the solar panel |
 
-## 3. Totals (prices read on 17 and 24 Oct 2026)
+## 3. Totals (prices read on 17, 24 and 25 Oct 2026)
 
 | Build | Parts priced in VND | Plus |
 |---|---|---|
-| **Field camera in the hanging solar trap** (items 1, 1a, 6c, 8, 10, 12, 14, 15, 16 x1, 17 x2, 18, 19, 20, 24, 25) | **962.160 ₫** | the trap housing US$3.00 (item 3); SIM and data plan (not read); optional: microSD, the 6 V 2 W panel and an active GPS antenna (items 2, 13, 11) +251.960 ₫. The 4G and GPS modules came with their antennas; no sticky card or lure holder: the housing is the trap |
+| **Field camera in the hanging solar trap** (items 1, 1a, 6c, 8, 10, 12, 14, 15, 16 x1, 17 x2, 18, 19, 20, 24, 25) | **944.760 ₫** | the trap housing US$3.00 (item 3); SIM and data plan (not read); optional: microSD, the 6 V 2 W panel and an active GPS antenna (items 2, 13, 11) +251.960 ₫. The 4G and GPS modules came with their antennas; no sticky card or lure holder: the housing is the trap |
 | **Wi-Fi camera in the same housing** (items 1, 1a) | **419.640 ₫** | the housing US$3.00; a USB charger and cable (not read); optional microSD (item 2) 103.740 ₫ |
 | Reference Wi-Fi camera of [WIRING.md](WIRING.md) (items 1, 1a, 2, 3a, 5, 6) | 848.700 ₫ | a USB charger and cable (not read); with the Freenove board instead of items 1 + 1a: 429.060 ₫ + US$19.99 |
-| Reference field camera of [WIRING.md](WIRING.md), IP65 box, 3.3 V regulator (the Wi-Fi items + 8, 9, 10, 11, 12, 13, 14, 15, 16 x1, 17, 18, 19, 20, 22, 24, 25) | 1.580.141 ₫ (848.700 + 731.441) | SIM and data plan (not read) |
+| Reference field camera of [WIRING.md](WIRING.md), IP65 box, 5 V boost board (the Wi-Fi items + 8, 9, 10, 11, 12, 13, 14, 15, 16 x1, 17, 18, 19, 20, 22, 24, 25) | 1.562.741 ₫ (848.700 + 714.041) | SIM and data plan (not read) |
 
 The totals take the first option of each row, one pack where parts come in packs, and the prices as shown, including
 items that were out of stock that day. The hanging trap that was first built (the photos) had the Freenove board, an
 18650 cell and a 5 V boost board on the board's 5V pin (448.954 ₫ of parts plus the board and the housing); this list
-replaces the boost board with the 3.3 V regulator (item 15) and the cell with a flat LiPo (item 12).
+keeps the boost board (item 15) and replaces the cell with a flat LiPo (item 12). A 3.3 V regulator on the 3V3 pin was
+tried in its place and could not carry the board (item 15).
 
 ## 4. International alternatives (prices read on 17 Oct 2026)
 
@@ -81,5 +81,5 @@ replaces the boost board with the 3.3 V regulator (item 15) and the cell with a 
 
 ## 5. For the bench
 
-A USB-C cable to the board's CH340 port (flashing and the serial console), a multimeter (check the 3V3 rail and the
+A USB-C cable to the board's CH340 port (flashing and the serial console), a multimeter (check the 5 V and 3V3 rails and the
 battery reading before closing the box), and for the AI-Thinker ESP32-CAM a USB-serial adapter (CP2102 / CH340, 5 V).
