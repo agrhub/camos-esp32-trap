@@ -371,11 +371,14 @@ bool store_set_pem(const char *cert, const char *key)
 	}
 	put_str("cert", cert);
 	put_str("key", key);
+	/* copies first: the registration passes g_cfg.key itself, and freeing it before the copy left a garbled key in RAM
+	 * (MQTT failed with PK_PARSE_KEY_FAILED until a restart read it back from NVS, 26 Oct 2026) */
+	char *c = strdup(cert), *k = strdup(key);
 	free(g_cfg.cert);
 	free(g_cfg.key);
-	g_cfg.cert = strdup(cert);
-	g_cfg.key = strdup(key);
-	return g_cfg.cert && g_cfg.key;
+	g_cfg.cert = c;
+	g_cfg.key = k;
+	return c && k;
 }
 
 bool store_set_key(const char *key_pem)
@@ -384,9 +387,10 @@ bool store_set_key(const char *key_pem)
 		return false;
 	}
 	put_str("key", key_pem);
+	char *k = strdup(key_pem); /* key_pem may be g_cfg.key itself */
 	free(g_cfg.key);
-	g_cfg.key = strdup(key_pem);
-	return g_cfg.key != NULL;
+	g_cfg.key = k;
+	return k != NULL;
 }
 
 void store_erase_all(void)
