@@ -275,7 +275,7 @@ esp_err_t cam_stream_start(int width, int height, int quality);
 esp_err_t cam_stream_start_yuv(int width, int height); /* YUV422 frames for the live view encoder */
 esp_err_t cam_stream_start_live_jpeg(int width, int height, int quality); /* JPEG for the live view data channel */
 void cam_stream_stop(void);
-void cam_dma_reserve_init(void);                 /* at boot: hold the JPEG mode's 16 KB internal DMA block (cam.c) */
+void cam_dma_reserve_init(void);                 /* at boot: the static 16 KB DMA buffer to the camera driver (cam.c) */
 
 /* ------------------------------------------------------------------ FlyBot device API (flybot.c, CONTRACTS section 2) */
 

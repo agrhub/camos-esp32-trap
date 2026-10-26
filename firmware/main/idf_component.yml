@@ -1,6 +1,9 @@
 dependencies:
   idf: ">=5.3"
-  espressif/esp32-camera: "^2.0.0"
+  # esp32-camera 2.1.8 with one addition (vendor/esp32-camera/CAMOS.md): esp_camera_set_dma_buffer, a static DMA buffer
+  espressif/esp32-camera:
+    version: "^2.0.0"
+    override_path: "../vendor/esp32-camera"
   # 4G: SIMCom A7680C over PPP (A76xx AT set, SIM7600 DCE profile). Built into both targets; used when CAMOS_MODEM is on.
   espressif/esp_modem: "^1.4.0"
   # Status LED: WS2812 on the Freenove board (GPIO48), RMT backend
