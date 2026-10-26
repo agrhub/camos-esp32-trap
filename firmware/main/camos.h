@@ -47,6 +47,7 @@ typedef struct {
 	int cellular;         /* 1 = use 4G when a modem answers (APN "" = auto from the SIM) */
 	int gps;              /* 1 = take GPS fixes when the module is fitted */
 	char gps_systems[12]; /* satellite systems: "auto" (by region, default), "gps", "bds", "gps+bds", "gps+glonass" */
+	char net_prefer[8];   /* network: "auto" (Wi-Fi first, 4G when it fails; default), "wifi" (never 4G), "4g" (4G only) */
 	int led;              /* 1 = status LED on */
 	int batt_mon;         /* 1 = battery / solar dividers are wired (an unwired ADC pin floats and reads noise) */
 	int claimed;          /* 0 = self-registered and not claimed in FlyBot yet (CONTRACTS 2a.3) */

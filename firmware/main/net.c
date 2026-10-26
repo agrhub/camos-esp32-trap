@@ -192,9 +192,21 @@ static bool start_4g(void)
 	return false;
 }
 
+static void watch_start(void);
+static bool fourg_failed; /* network.prefer 4g and the 4G did not come up: Wi-Fi for this boot */
+
 static void modem_task(void *arg)
 {
-	start_4g();
+	if (!start_4g() && !strcmp(g_cfg.net_prefer, "4g") && g_cfg.wifi_ssid[0]) {
+		/* "4g" must not cut the camera off: on Wi-Fi it can still be reached and switched back (on 26 Oct 2026 the 4G of
+		 * the trap did not come up and rc.16 stayed offline) */
+		ESP_LOGW(TAG, "network.prefer 4g but no 4G: Wi-Fi %s for this boot", g_cfg.wifi_ssid);
+		fourg_failed = true;
+		chosen = NET_WIFI;
+		wifi_set_up_cb(on_up);
+		wifi_start_sta();
+		watch_start();
+	}
 	vTaskDelete(NULL);
 }
 
@@ -304,7 +316,7 @@ static void watch_tick(void *arg)
 	}
 	if (chosen == NET_WIFI) {
 		/* wifi.c clears wifi_new at the first IP; a check-in wake never goes to 4G (it sleeps again instead) */
-		bool can_4g = has_4g && (joined || !wifi_new) && !sched_checkin();
+		bool can_4g = has_4g && (joined || !wifi_new) && !sched_checkin() && strcmp(g_cfg.net_prefer, "wifi") && !fourg_failed;
 		if (!joined) {
 			if (wifi_up()) {
 				joined = true;
@@ -376,15 +388,18 @@ void net_start(void)
 		return;
 	}
 	started = true;
-	if (g_cfg.wifi_ssid[0]) {
+	/* network.prefer "4g": straight to 4G, the Wi-Fi settings kept (a weak Wi-Fi carried the photos but not the live
+	 * view, 26 Oct 2026) */
+	bool only_4g = !strcmp(g_cfg.net_prefer, "4g") && modem_available();
+	if (g_cfg.wifi_ssid[0] && !only_4g) {
 		chosen = NET_WIFI;
-		ESP_LOGI(TAG, "Wi-Fi %s first%s", g_cfg.wifi_ssid, modem_available() ? ", 4G if it gives no IP" : "");
+		ESP_LOGI(TAG, "Wi-Fi %s first%s", g_cfg.wifi_ssid, modem_available() && strcmp(g_cfg.net_prefer, "wifi") ? ", 4G if it gives no IP" : "");
 		wifi_set_up_cb(on_up);
 		wifi_start_sta();
 		watch_start();
 	} else if (modem_available()) {
 		chosen = NET_4G;
-		ESP_LOGI(TAG, "4G on (APN %s)", g_cfg.apn[0] ? g_cfg.apn : "auto from the SIM");
+		ESP_LOGI(TAG, "4G on (APN %s)%s", g_cfg.apn[0] ? g_cfg.apn : "auto from the SIM", only_4g ? ", network.prefer 4g" : "");
 		xTaskCreate(modem_task, "modem-up", 6144, NULL, 4, NULL); /* PPP bring-up takes 10-30 s */
 	} else {
 		ESP_LOGE(TAG, "no network configured (portal: Wi-Fi or APN)");

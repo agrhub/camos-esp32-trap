@@ -200,6 +200,7 @@ static const str_field_t fields[] = {
 	{ "captureSize", "cap_size", g_cfg.capture_size, sizeof(g_cfg.capture_size), false, "max", false },
 	{ "usbMode", "usb_mode", g_cfg.usb_mode, sizeof(g_cfg.usb_mode), false, "auto", false },
 	{ "gpsSystems", "gps_sys", g_cfg.gps_systems, sizeof(g_cfg.gps_systems), false, "auto", false },
+	{ "netPrefer", "net_pref", g_cfg.net_prefer, sizeof(g_cfg.net_prefer), false, "auto", false },
 	{ "staticIp", "st_ip", g_cfg.static_ip, sizeof(g_cfg.static_ip), false, "", false },
 	{ "staticMask", "st_mask", g_cfg.static_mask, sizeof(g_cfg.static_mask), false, "255.255.255.0", false },
 	{ "staticGateway", "st_gw", g_cfg.static_gw, sizeof(g_cfg.static_gw), false, "", false },
@@ -529,6 +530,9 @@ bool store_apply_kv(const char *key, const char *value)
 			return false;
 		}
 		if (!strcmp(key, "usbMode") && value[0] && !usb_mode_valid(value)) {
+			return false;
+		}
+		if (!strcmp(key, "netPrefer") && value[0] && strcmp(value, "auto") && strcmp(value, "wifi") && strcmp(value, "4g")) {
 			return false;
 		}
 		if (!strcmp(key, "gpsSystems") && value[0] && strcmp(value, "auto") && !gnss_mask(value)) {

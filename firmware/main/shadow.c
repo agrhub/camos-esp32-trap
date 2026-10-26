@@ -42,6 +42,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "camos.h"
 
 static const char *TAG = "shadow";
@@ -533,6 +534,13 @@ static void apply_remote(const char *obj, const cJSON *item, cJSON *errors)
 	}
 }
 
+/* network.prefer changed: the camera restarts on the network asked for, once the reported state is out */
+static void net_restart(void *arg)
+{
+	remember_reboot_reason("network");
+	esp_restart();
+}
+
 char *shadow_apply(const char *json, int len, bool persist)
 {
 	cJSON *root = cJSON_ParseWithLength(json, len);
@@ -595,6 +603,21 @@ char *shadow_apply(const char *json, int len, bool persist)
 				disabled_hint = false; /* the shadow decides from now on */
 			} else {
 				add_error(errors, "disabled", "BAD_VALUE");
+			}
+		} else if (!strcmp(k, "network") && cJSON_IsObject(item)) {
+			const char *pref = cJSON_GetStringValue(cJSON_GetObjectItem(item, "prefer"));
+			if (pref && persist && strcmp(pref, g_cfg.net_prefer)) {
+				if (store_apply_kv("netPrefer", pref)) {
+					ESP_LOGI(TAG, "network %s from now on: restart in 5 s", pref);
+					static esp_timer_handle_t t;
+					const esp_timer_create_args_t a = { .callback = net_restart, .name = "net-pref" };
+					if (t || esp_timer_create(&a, &t) == ESP_OK) {
+						esp_timer_start_once(t, 5000000);
+						sched_keep_awake(10);
+					}
+				} else {
+					add_error(errors, "network.prefer", "BAD_VALUE");
+				}
 			}
 		} else if (!strcmp(k, "live") && cJSON_IsObject(item)) {
 			const cJSON *r = cJSON_GetObjectItem(item, "requested");
@@ -770,6 +793,7 @@ char *shadow_reported_json(void)
 	cJSON *g = cJSON_AddObjectToObject(o, "gps");
 	cJSON_AddBoolToObject(g, "enabled", g_cfg.gps);
 	cJSON_AddStringToObject(g, "systems", g_cfg.gps_systems);
+	cJSON_AddStringToObject(cJSON_AddObjectToObject(o, "network"), "prefer", g_cfg.net_prefer);
 	char *s = cJSON_PrintUnformatted(o);
 	cJSON_Delete(o);
 	return s;
