@@ -184,3 +184,70 @@ int64_t cclk_to_epoch(const char *answer)
 	int64_t utc = local - (sign == '-' ? -1 : 1) * (int64_t)q * 15 * 60;
 	return utc >= 1735689600 ? utc : 0;
 }
+
+static const struct {
+	const char *name;
+	int mask;
+} gnss_names[] = {
+	{ "gps", GNSS_GPS },
+	{ "bds", GNSS_BDS },
+	{ "gps+bds", GNSS_GPS | GNSS_BDS },
+	{ "gps+glonass", GNSS_GPS | GNSS_GLONASS },
+};
+#define N_GNSS (sizeof(gnss_names) / sizeof(gnss_names[0]))
+
+int gnss_mask(const char *name)
+{
+	for (size_t i = 0; name && i < N_GNSS; i++) {
+		if (!strcmp(gnss_names[i].name, name)) {
+			return gnss_names[i].mask;
+		}
+	}
+	return 0;
+}
+
+const char *gnss_name(int mask)
+{
+	for (size_t i = 0; i < N_GNSS; i++) {
+		if (gnss_names[i].mask == mask) {
+			return gnss_names[i].name;
+		}
+	}
+	return "?";
+}
+
+int gnss_auto(bool have_pos, double lat)
+{
+	return GNSS_GPS | (have_pos && (lat >= 55 || lat <= -55) ? GNSS_GLONASS : GNSS_BDS);
+}
+
+int gnss_talker(const char *line)
+{
+	if (!line || line[0] != '$' || strncmp(line + 3, "GSV,", 4)) {
+		return 0;
+	}
+	if (!strncmp(line + 1, "GP", 2)) return GNSS_GPS;
+	if (!strncmp(line + 1, "BD", 2) || !strncmp(line + 1, "GB", 2)) return GNSS_BDS;
+	if (!strncmp(line + 1, "GL", 2)) return GNSS_GLONASS;
+	return 0;
+}
+
+int nmea_command(const char *body, char *buf, int n)
+{
+	unsigned char sum = 0;
+	for (const char *p = body; *p; p++) {
+		sum ^= (unsigned char)*p;
+	}
+	int len = snprintf(buf, n, "$%s*%02X\r\n", body, sum);
+	return len > 0 && len < n ? len : 0;
+}
+
+int gnss_pcas04(int mask, char *buf, int n)
+{
+	if (mask < 1 || mask > 7) {
+		return 0;
+	}
+	char body[16];
+	snprintf(body, sizeof(body), "PCAS04,%d", mask);
+	return nmea_command(body, buf, n);
+}

@@ -43,6 +43,10 @@ esp_err_t live_start(int minutes, char *err, size_t errn)
 		strlcpy(err, "paused by FlyBot", errn);
 		return ESP_ERR_NOT_ALLOWED;
 	}
+	if (ota_running()) {
+		strlcpy(err, "a firmware update is downloading", errn);
+		return ESP_ERR_INVALID_STATE; /* BUSY: the viewer asks again after the update */
+	}
 	if (!g_cfg.kvs_channel[0] || !g_cfg.kvs_region[0]) {
 		strlcpy(err, "no kvs.channelName / region (pair first)", errn);
 		return ESP_ERR_NOT_SUPPORTED;

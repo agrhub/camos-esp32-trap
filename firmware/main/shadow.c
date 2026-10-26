@@ -17,6 +17,7 @@
  *   storage.sdSave               v1 addition: every photo also on the microSD card
  *   led.enabled                  v1 addition: the status LED
  *   gps.enabled                  v1 addition: daily GPS fixes when the module is fitted
+ *   gps.systems                  "auto" (by region) | "gps" | "bds" | "gps+bds" | "gps+glonass" (needs GPS RXD wired)
  *   console.language             v1 addition: "en" | "vi", the camera's own web pages
  *   live.requested               v1 addition: FlyBot asks for a live session at the next wake
  *   kvs.channelName              v1 addition: the KVS signaling channel (stored in NVS)
@@ -41,6 +42,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "camos.h"
 
 static const char *TAG = "shadow";
@@ -469,6 +471,7 @@ static const struct {
 	{ "storage", "sdSave", "sdSave", R_BOOL, 0, 0, NULL },
 	{ "led", "enabled", "ledEnabled", R_BOOL, 0, 0, NULL },
 	{ "gps", "enabled", "gps", R_BOOL, 0, 0, NULL },
+	{ "gps", "systems", "gpsSystems", R_ENUM, 0, 0, (const char *const[]){ "auto", "gps", "bds", "gps+bds", "gps+glonass", NULL } },
 	{ "console", "language", "uiLang", R_ENUM, 0, 0, (const char *const[]){ "en", "vi", NULL } },
 };
 #define N_REMOTE (sizeof(remote) / sizeof(remote[0]))
@@ -529,6 +532,13 @@ static void apply_remote(const char *obj, const cJSON *item, cJSON *errors)
 			add_error(errors, path, "BAD_VALUE");
 		}
 	}
+}
+
+/* network.prefer changed: the camera restarts on the network asked for, once the reported state is out */
+static void net_restart(void *arg)
+{
+	remember_reboot_reason("network");
+	esp_restart();
 }
 
 char *shadow_apply(const char *json, int len, bool persist)
@@ -593,6 +603,21 @@ char *shadow_apply(const char *json, int len, bool persist)
 				disabled_hint = false; /* the shadow decides from now on */
 			} else {
 				add_error(errors, "disabled", "BAD_VALUE");
+			}
+		} else if (!strcmp(k, "network") && cJSON_IsObject(item)) {
+			const char *pref = cJSON_GetStringValue(cJSON_GetObjectItem(item, "prefer"));
+			if (pref && persist && strcmp(pref, g_cfg.net_prefer)) {
+				if (store_apply_kv("netPrefer", pref)) {
+					ESP_LOGI(TAG, "network %s from now on: restart in 5 s", pref);
+					static esp_timer_handle_t t;
+					const esp_timer_create_args_t a = { .callback = net_restart, .name = "net-pref" };
+					if (t || esp_timer_create(&a, &t) == ESP_OK) {
+						esp_timer_start_once(t, 5000000);
+						sched_keep_awake(10);
+					}
+				} else {
+					add_error(errors, "network.prefer", "BAD_VALUE");
+				}
 			}
 		} else if (!strcmp(k, "live") && cJSON_IsObject(item)) {
 			const cJSON *r = cJSON_GetObjectItem(item, "requested");
@@ -765,7 +790,10 @@ char *shadow_reported_json(void)
 	shadow_image_json(o);
 	shadow_additions_json(o);
 	/* not in shadow_additions_json: the state message has its own protocol 4 gps {lat, lon, fix, ts} */
-	cJSON_AddBoolToObject(cJSON_AddObjectToObject(o, "gps"), "enabled", g_cfg.gps);
+	cJSON *g = cJSON_AddObjectToObject(o, "gps");
+	cJSON_AddBoolToObject(g, "enabled", g_cfg.gps);
+	cJSON_AddStringToObject(g, "systems", g_cfg.gps_systems);
+	cJSON_AddStringToObject(cJSON_AddObjectToObject(o, "network"), "prefer", g_cfg.net_prefer);
 	char *s = cJSON_PrintUnformatted(o);
 	cJSON_Delete(o);
 	return s;

@@ -46,6 +46,8 @@ typedef struct {
 	int power_mode;       /* power_mode_t from the portal / defaults; the shadow `power.mode` wins */
 	int cellular;         /* 1 = use 4G when a modem answers (APN "" = auto from the SIM) */
 	int gps;              /* 1 = take GPS fixes when the module is fitted */
+	char gps_systems[12]; /* satellite systems: "auto" (by region, default), "gps", "bds", "gps+bds", "gps+glonass" */
+	char net_prefer[8];   /* network: "auto" (Wi-Fi first, 4G when it fails; default), "wifi" (never 4G), "4g" (4G only) */
 	int led;              /* 1 = status LED on */
 	int batt_mon;         /* 1 = battery / solar dividers are wired (an unwired ADC pin floats and reads noise) */
 	int claimed;          /* 0 = self-registered and not claimed in FlyBot yet (CONTRACTS 2a.3) */
@@ -64,6 +66,8 @@ typedef struct {
 	int ip_mode;          /* 0 DHCP, 1 static (Wi-Fi) */
 	/* board wiring: Kconfig gives the defaults, NVS keeps what this board has through an OTA and a factory reset */
 	int modem_pwrkey;     /* PWRKEY GPIO, -1 = not wired (the module is always on, AT+CFUN switches the radio) */
+	int modem_power;      /* GPIO of the 4G supply switch, -1 = none (a switch that is not fitted is found out) */
+	int modem_power_low;  /* 1 = the switch is on when its pin is low (P-MOSFET gate), 0 = high (NPN on the gate) */
 	int modem_fast_baud;  /* UART rate after the first AT (0 = keep CAMOS_MODEM_BAUD) */
 	int gps_pwr_low;      /* 1 = the GPS switch is on when its pin is low (P-MOSFET), 0 = high (NPN / direct) */
 	int batt_div;         /* battery divider ratio x 100: (Rtop + Rbottom) / Rbottom, 200 = 100k/100k */
@@ -163,6 +167,8 @@ const char *modem_apn(void);       /* the APN in use (the user's or auto from th
 bool modem_start(void);            /* power on, AT sync, PPP; returns false when no modem answers or no SIM */
 void modem_stop(void);             /* PPP down, AT+CPOF, PWRKEY, power rail off */
 void modem_park(void);             /* always-on module unused (Wi-Fi): its radio off, AT+CFUN=0 */
+void modem_radio_pause(void);      /* 4G radio off for a while (a GPS fix): modem_stop, the watchdog waits */
+bool modem_radio_resume(void);     /* and back: modem_start, PPP and MQTT again */
 bool modem_up(void);
 bool modem_cell_location(double *lat, double *lng, int *acc_m); /* AT+CLBS: the 4G cell's position */
 int modem_rssi(void);
@@ -269,7 +275,7 @@ esp_err_t cam_stream_start(int width, int height, int quality);
 esp_err_t cam_stream_start_yuv(int width, int height); /* YUV422 frames for the live view encoder */
 esp_err_t cam_stream_start_live_jpeg(int width, int height, int quality); /* JPEG for the live view data channel */
 void cam_stream_stop(void);
-void cam_dma_reserve_init(void);                 /* at boot: hold the JPEG mode's 16 KB internal DMA block (cam.c) */
+void cam_dma_reserve_init(void);                 /* at boot: the static 16 KB DMA buffer to the camera driver (cam.c) */
 
 /* ------------------------------------------------------------------ FlyBot device API (flybot.c, CONTRACTS section 2) */
 
@@ -327,6 +333,7 @@ void photo_quality_json(cJSON *parent, const photo_quality_t *q); /* adds qualit
 /* Downloads url into the other OTA slot, checks the SHA-256 (hex) before it is made bootable. Restarts on success. */
 typedef void (*ota_progress_cb)(int pct, void *ctx); /* 25, 50, 75 while the image downloads */
 esp_err_t ota_apply(const char *url, const char *sha256_hex, char *err, size_t errn, ota_progress_cb progress, void *ctx);
+bool ota_running(void);            /* an image is downloading (motion detection pauses, no live view) */
 
 /* ------------------------------------------------------------------ MQTT agent (proto.c) */
 
@@ -334,6 +341,7 @@ void proto_start(void);
 void proto_fast_retry(int seconds);             /* short reconnect back-off for a while (a fresh certificate) */
 bool proto_connected(void);
 void proto_publish_event(cJSON *evt);           /* takes ownership */
+void proto_publish_low_power(int sleep_s);      /* low_power: voltage, percent, charging, critical (+ sleepS before a protective sleep) */
 void proto_publish_state(bool retained_online);
 void proto_publish_reported(const char *json);
 bool proto_publish_log(const char *json);       /* camos/<serial>/log, QoS 0, only while connected */
@@ -354,6 +362,8 @@ void sched_start(void);
 void sched_init_lock(void);                     /* the camera lock alone (portal mode console) */
 void sched_changed(void);                       /* settings changed: recompute the next capture */
 bool sched_run(void (*fn)(void));              /* run fn on the scheduler's task (12 KB stack) soon; false if busy */
+bool sched_job_pending(void);                  /* a sched_run request waits for the scheduler's task */
+bool sched_checkin(void);                      /* this wake is a check-in (battery mode on Wi-Fi): requests only, no 4G */
 void sched_keep_awake(int seconds);             /* live view / console: no deep sleep for this long */
 time_t sched_next_capture(void);                /* 0 when none */
 void sched_wake_hint(time_t at);                /* nextWakeAt from the FlyBot snapshot response */
@@ -366,15 +376,21 @@ int battery_mv(void);                           /* last cell voltage in mV, -1 u
 int battery_pct(void);
 int solar_mv(void);                             /* solar / charger input in mV, -1 unknown */
 bool battery_charging(void);                    /* charger status pin or solar input present */
+bool battery_charging_fast(void);               /* charging, the input at full voltage (not a sagging panel) */
+const char *battery_charge_name(void);          /* "yes", "slow", "no" or "unknown" */
 bool battery_low_due(void);                     /* true once per 6 h while below CAMOS_BATT_LOW_MV */
 bool battery_critical(void);
-void battery_json(cJSON *parent);               /* adds battery {voltage, percent, mv, pct, charging, solarMv} when known */
+bool battery_protect(void);                     /* critical and not charging: no photos, sleep an hour at a time */
+bool battery_protect_notice_due(void);          /* once per spell of battery_protect: the warning before its first sleep */
+void battery_json(cJSON *parent);               /* adds battery {voltage, percent, mv, pct, charging, charge, solarMv} */
 
 power_mode_t power_effective(void);             /* auto resolved by battery voltage with hysteresis */
 const char *power_mode_name(power_mode_t m);
 bool power_mode_parse(const char *s, power_mode_t *out);
 bool power_may_deep_sleep(void);                /* effective mode is battery (and deep sleep is built in) */
-void power_json(cJSON *parent);                 /* power {mode, effective, highMv, lowMv} */
+bool power_eco(void);                           /* online on a cell not full and not charging at full input */
+const char *power_level_name(void);             /* "full", "eco" (power_eco) or "saver" (battery mode) */
+void power_json(cJSON *parent);                 /* power {mode, effective, level, highMv, lowMv} */
 
 /* ------------------------------------------------------------------ GPS (gps.c) */
 
@@ -387,7 +403,12 @@ typedef struct {
 } gps_fix_t;
 
 bool gps_available(void);
-bool gps_fix(int timeout_s, gps_fix_t *out);    /* power the module, wait for RMC valid (+GGA), power it down */
+bool gps_fix(int timeout_s, gps_fix_t *out);    /* power the module, wait for RMC valid (+GGA), power it down
+                                                 * (no fix: kept on for 10 min, the next try starts warm) */
+void gps_sleep_prepare(void);                   /* before deep sleep: the module off */
+bool gps_fix_yielding(int timeout_s);           /* gps_fix that stops when a sched_run request comes (the daily fix) */
+bool gps_quiet(void);                           /* console `gps quiet`: camera, Wi-Fi and 4G stay off for the fix */
+void gps_set_quiet(bool on);
 bool gps_last(gps_fix_t *out);                  /* last fix (RTC memory / NVS) */
 bool gps_fix_due(void);                         /* no fix in CAMOS_GPS_FIX_INTERVAL_H */
 void gps_json(cJSON *parent);                   /* location {lat, lng, fixAt} (CONTRACTS) */

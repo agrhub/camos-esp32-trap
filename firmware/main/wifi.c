@@ -66,6 +66,22 @@ int wifi_last_reason(const char **name)
 	return r;
 }
 
+/* The AP as the camera sees it: RSSI, channel, PHY mode (b/g/n), at the IP and again 10 s later (a battery wake
+ * reported 15-25 dB less than a powered camera at the same router, 26 Oct 2026) */
+static void log_ap(const char *when)
+{
+	wifi_ap_record_t ap;
+	if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
+		ESP_LOGI(TAG, "AP %s: rssi %d, channel %d, phy %s%s%s, country %.2s", when, ap.rssi, ap.primary, ap.phy_11b ? "b" : "",
+				 ap.phy_11g ? "g" : "", ap.phy_11n ? "n" : "", ap.country.cc);
+	}
+}
+
+static void log_ap_later(void *arg)
+{
+	log_ap("10 s after the IP");
+}
+
 int wifi_rssi(void)
 {
 	wifi_ap_record_t ap;
@@ -208,6 +224,13 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 		char ip[16];
 		wifi_ip(ip, sizeof(ip));
 		ESP_LOGI(TAG, "got IP %s (rssi %d), console http://%s/ or http://%s.local/", ip, wifi_rssi(), ip, local_hostname());
+		log_ap("at the IP");
+		static esp_timer_handle_t ap_timer;
+		const esp_timer_create_args_t a = { .callback = log_ap_later, .name = "ap-log" };
+		if (ap_timer || esp_timer_create(&a, &ap_timer) == ESP_OK) {
+			esp_timer_stop(ap_timer);
+			esp_timer_start_once(ap_timer, 10000000);
+		}
 		if (up_cb) {
 			up_cb(); /* protocol 1: reconnect MQTT right away after a network change */
 		}

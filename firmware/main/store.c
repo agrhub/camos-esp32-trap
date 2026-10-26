@@ -26,6 +26,7 @@
 #include "esp_log.h"
 #include "camos.h"
 #include "camos_defaults.h"
+#include "nmea.h"
 
 static const char *TAG = "store";
 cfg_t g_cfg;
@@ -198,6 +199,8 @@ static const str_field_t fields[] = {
 	{ "motionRoi", "mo_roi", g_cfg.motion_roi, sizeof(g_cfg.motion_roi), false, "0,0,100,100", false },
 	{ "captureSize", "cap_size", g_cfg.capture_size, sizeof(g_cfg.capture_size), false, "max", false },
 	{ "usbMode", "usb_mode", g_cfg.usb_mode, sizeof(g_cfg.usb_mode), false, "auto", false },
+	{ "gpsSystems", "gps_sys", g_cfg.gps_systems, sizeof(g_cfg.gps_systems), false, "auto", false },
+	{ "netPrefer", "net_pref", g_cfg.net_prefer, sizeof(g_cfg.net_prefer), false, "auto", false },
 	{ "staticIp", "st_ip", g_cfg.static_ip, sizeof(g_cfg.static_ip), false, "", false },
 	{ "staticMask", "st_mask", g_cfg.static_mask, sizeof(g_cfg.static_mask), false, "255.255.255.0", false },
 	{ "staticGateway", "st_gw", g_cfg.static_gw, sizeof(g_cfg.static_gw), false, "", false },
@@ -217,6 +220,16 @@ typedef struct {
 #define DEFAULT_MODEM_PWRKEY CONFIG_CAMOS_MODEM_PWRKEY_GPIO
 #else
 #define DEFAULT_MODEM_PWRKEY -1
+#endif
+#ifdef CONFIG_CAMOS_MODEM_POWER_GPIO
+#define DEFAULT_MODEM_POWER CONFIG_CAMOS_MODEM_POWER_GPIO
+#else
+#define DEFAULT_MODEM_POWER -1
+#endif
+#ifdef CONFIG_CAMOS_MODEM_POWER_ACTIVE_LOW
+#define DEFAULT_MODEM_POWER_LOW 1
+#else
+#define DEFAULT_MODEM_POWER_LOW 0
 #endif
 #ifdef CONFIG_CAMOS_MODEM_FAST_BAUD
 #define DEFAULT_MODEM_FAST_BAUD CONFIG_CAMOS_MODEM_FAST_BAUD
@@ -249,6 +262,8 @@ static const int_field_t ints[] = {
 	{ "ipMode", "ip_mode", &g_cfg.ip_mode, 0, 0, 1, false },
 	/* the wiring stays when the settings go back to the defaults */
 	{ "modemPwrkey", "mdm_pwrkey", &g_cfg.modem_pwrkey, DEFAULT_MODEM_PWRKEY, -1, 48, true },
+	{ "modemPower", "mdm_power", &g_cfg.modem_power, DEFAULT_MODEM_POWER, -1, 48, true },
+	{ "modemPowerActiveLow", "mdm_pwr_low", &g_cfg.modem_power_low, DEFAULT_MODEM_POWER_LOW, 0, 1, true },
 	{ "modemFastBaud", "mdm_fastbaud", &g_cfg.modem_fast_baud, DEFAULT_MODEM_FAST_BAUD, 0, 3000000, true },
 	{ "gpsPowerActiveLow", "gps_pwr_low", &g_cfg.gps_pwr_low, DEFAULT_GPS_PWR_LOW, 0, 1, true },
 	{ "battDivider", "batt_div", &g_cfg.batt_div, DIVIDER_X100(CONFIG_CAMOS_BATT_R_TOP_K, CONFIG_CAMOS_BATT_R_BOTTOM_K), 100, 2000, true },
@@ -356,11 +371,14 @@ bool store_set_pem(const char *cert, const char *key)
 	}
 	put_str("cert", cert);
 	put_str("key", key);
+	/* copies first: the registration passes g_cfg.key itself, and freeing it before the copy left a garbled key in RAM
+	 * (MQTT failed with PK_PARSE_KEY_FAILED until a restart read it back from NVS, 26 Oct 2026) */
+	char *c = strdup(cert), *k = strdup(key);
 	free(g_cfg.cert);
 	free(g_cfg.key);
-	g_cfg.cert = strdup(cert);
-	g_cfg.key = strdup(key);
-	return g_cfg.cert && g_cfg.key;
+	g_cfg.cert = c;
+	g_cfg.key = k;
+	return c && k;
 }
 
 bool store_set_key(const char *key_pem)
@@ -369,9 +387,10 @@ bool store_set_key(const char *key_pem)
 		return false;
 	}
 	put_str("key", key_pem);
+	char *k = strdup(key_pem); /* key_pem may be g_cfg.key itself */
 	free(g_cfg.key);
-	g_cfg.key = strdup(key_pem);
-	return g_cfg.key != NULL;
+	g_cfg.key = k;
+	return k != NULL;
 }
 
 void store_erase_all(void)
@@ -515,6 +534,12 @@ bool store_apply_kv(const char *key, const char *value)
 			return false;
 		}
 		if (!strcmp(key, "usbMode") && value[0] && !usb_mode_valid(value)) {
+			return false;
+		}
+		if (!strcmp(key, "netPrefer") && value[0] && strcmp(value, "auto") && strcmp(value, "wifi") && strcmp(value, "4g")) {
+			return false;
+		}
+		if (!strcmp(key, "gpsSystems") && value[0] && strcmp(value, "auto") && !gnss_mask(value)) {
 			return false;
 		}
 		if (!strncmp(key, "static", 6) && value[0] && !ip4_ok(value)) {

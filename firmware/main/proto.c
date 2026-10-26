@@ -197,6 +197,22 @@ bool proto_flush(int timeout_ms)
 	return false;
 }
 
+/* low_power (protocol 5): the cell's voltage and percent, whether it charges, whether it is critical; sleep_s > 0 when the
+ * camera is about to sleep that long to protect it (FlyBot warns the owner) */
+void proto_publish_low_power(int sleep_s)
+{
+	char id[27];
+	cJSON *e = evt_new("low_power", id);
+	cJSON_AddNumberToObject(e, "voltage", battery_mv() / 1000.0); /* volts */
+	cJSON_AddNumberToObject(e, "percent", battery_pct());
+	cJSON_AddBoolToObject(e, "charging", battery_charging());
+	cJSON_AddBoolToObject(e, "critical", battery_critical());
+	if (sleep_s > 0) {
+		cJSON_AddNumberToObject(e, "sleepS", sleep_s);
+	}
+	proto_publish_event(e);
+}
+
 /* Protocol 7 */
 static void publish_telemetry(void)
 {
@@ -350,6 +366,19 @@ static void rpc_ota(const char *id)
 	}
 }
 
+/* ota.apply on the scheduler task, like snapshot.now: the download takes minutes and held every other RPC behind it
+ * (a gps.fix timed out in the queue, 24 Oct 2026); scheduled and motion photos wait for it meanwhile */
+static char ota_id[48];
+static volatile bool ota_pending;
+
+static void ota_job(void)
+{
+	char id[48];
+	strlcpy(id, ota_id, sizeof(id));
+	rpc_ota(id);
+	ota_pending = false;
+}
+
 typedef struct {
 	char id[48];
 	int timeout;
@@ -426,12 +455,14 @@ static void rpc_handle(const char *json, TickType_t received)
 			gps_job_t *j = calloc(1, sizeof(*j));
 			if (j) {
 				strlcpy(j->id, id, sizeof(j->id));
-				j->timeout = cJSON_IsNumber(tmo) ? (int)tmo->valuedouble : CONFIG_CAMOS_GPS_FIX_TIMEOUT_S;
+				/* at least the build's wait: FlyBot asks 120 s, too short for a cold start with few satellites */
+				int asked = cJSON_IsNumber(tmo) ? (int)tmo->valuedouble : 0;
+				j->timeout = asked > CONFIG_CAMOS_GPS_FIX_TIMEOUT_S ? (asked > 600 ? 600 : asked) : CONFIG_CAMOS_GPS_FIX_TIMEOUT_S;
 				sched_keep_awake(j->timeout + 10);
 			}
 			/* its own task: a fix takes up to minutes and would hold the queue (a reboot behind it timed out,
 			 * 22 Oct 2026) */
-			if (!j || xTaskCreate(gps_rpc_task, "rpc-gps", 6144, j, 4, NULL) != pdPASS) {
+			if (!j || xTaskCreate(gps_rpc_task, "rpc-gps", 8192, j, 4, NULL) != pdPASS) {
 				free(j);
 				rpc_reply(id, NULL, "INTERNAL", "no memory for the fix");
 			}
@@ -457,7 +488,16 @@ static void rpc_handle(const char *json, TickType_t received)
 		logfwd_stop("rpc");
 		rpc_reply(id, NULL, NULL, NULL);
 	} else if (!strcmp(method, "ota.apply")) {
-		rpc_ota(id);
+		if (ota_pending) {
+			rpc_reply(id, NULL, "BUSY", "an update is already running");
+		} else {
+			strlcpy(ota_id, id, sizeof(ota_id));
+			ota_pending = true;
+			if (!sched_run(ota_job)) {
+				ota_pending = false;
+				rpc_reply(id, NULL, "BUSY", "the camera is busy");
+			}
+		}
 	} else if (!strcmp(method, "reboot")) {
 		rpc_reply(id, NULL, NULL, NULL);
 		proto_flush(3000);
@@ -607,10 +647,7 @@ static void on_connected(void)
 		proto_publish_reported_now();
 	}
 	if (battery_low_due()) {
-		char id[27];
-		cJSON *e = evt_new("low_power", id);
-		cJSON_AddNumberToObject(e, "voltage", battery_mv() / 1000.0); /* volts */
-		proto_publish_event(e);
+		proto_publish_low_power(0);
 	}
 	static bool booted;
 	if (!booted) {

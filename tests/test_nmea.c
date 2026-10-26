@@ -91,6 +91,29 @@ int main(void)
 	CHECK(nmea_epoch(2000, 3, 1, 0, 0, 0) == 951868800);
 	CHECK(nmea_epoch(2026, 13, 1, 0, 0, 0) == 0);
 
+	/* satellite systems: $PCAS04 with the checksums of the ATGM336H notes (wiki.millerjs.org/atgm336h) */
+	char cmd[24];
+	CHECK(gnss_pcas04(1, cmd, sizeof(cmd)) == 14 && !strcmp(cmd, "$PCAS04,1*18\r\n"));
+	CHECK(gnss_pcas04(2, cmd, sizeof(cmd)) && !strcmp(cmd, "$PCAS04,2*1B\r\n"));
+	CHECK(gnss_pcas04(3, cmd, sizeof(cmd)) && !strcmp(cmd, "$PCAS04,3*1A\r\n"));
+	CHECK(gnss_pcas04(5, cmd, sizeof(cmd)) && !strcmp(cmd, "$PCAS04,5*1C\r\n"));
+	CHECK(gnss_pcas04(0, cmd, sizeof(cmd)) == 0 && gnss_pcas04(8, cmd, sizeof(cmd)) == 0);
+	CHECK(gnss_pcas04(3, cmd, 10) == 0);
+	CHECK(nmea_command("PCAS10,2", cmd, sizeof(cmd)) && !strcmp(cmd, "$PCAS10,2*1E\r\n")); /* cold restart, from the notes */
+	CHECK(nmea_command("PCAS00", cmd, sizeof(cmd)) && !strcmp(cmd, "$PCAS00*01\r\n"));
+	CHECK(gnss_mask("gps+bds") == (GNSS_GPS | GNSS_BDS) && gnss_mask("gps+glonass") == (GNSS_GPS | GNSS_GLONASS));
+	CHECK(gnss_mask("auto") == 0 && gnss_mask("glonass") == 0 && gnss_mask(NULL) == 0);
+	CHECK(!strcmp(gnss_name(GNSS_GPS | GNSS_BDS), "gps+bds") && !strcmp(gnss_name(7), "?"));
+	CHECK(gnss_auto(false, 0) == (GNSS_GPS | GNSS_BDS));
+	CHECK(gnss_auto(true, 10.97) == (GNSS_GPS | GNSS_BDS));     /* Mekong delta */
+	CHECK(gnss_auto(true, 48.85) == (GNSS_GPS | GNSS_BDS));     /* Paris */
+	CHECK(gnss_auto(true, 59.33) == (GNSS_GPS | GNSS_GLONASS)); /* Stockholm */
+	CHECK(gnss_auto(true, -55.0) == (GNSS_GPS | GNSS_GLONASS));
+	CHECK(gnss_talker("$GPGSV,3,1,10,...") == GNSS_GPS);
+	CHECK(gnss_talker("$BDGSV,2,1,07,...") == GNSS_BDS && gnss_talker("$GBGSV,2,1,07,...") == GNSS_BDS);
+	CHECK(gnss_talker("$GLGSV,1,1,03,...") == GNSS_GLONASS);
+	CHECK(gnss_talker("$GNGSA,A,3,...") == 0 && gnss_talker("$GAGSV,1,1,01,...") == 0 && gnss_talker("$GP") == 0);
+
 	(void)rmc_ok; (void)gga_ok; (void)rmc_void; (void)gp_rmc;
 	printf("%s: %d failure(s)\n", __FILE__, fails);
 	return fails ? 1 : 0;

@@ -25,7 +25,7 @@ are English by default; the language link switches to Vietnamese and the choice 
 | `GET /info` | protocol 12.3: `{serial, model, fw, wifiScan: [{ssid, rssi, secure}]}` |
 | `POST /provision` | protocol 12.3: `{ssid, password, provisionToken?, endpoint?, apn?, apiBase?}` -> `{"ok":true}`, restarts |
 | `POST /api/config` (new keys in 0.4.0) | `sdSave`, `schedFrom`, `schedTo` (minutes after midnight), `motion`, `motionSens` (1-100), `motionCooldown` (s), `motionRoi` (`"x,y,w,h"` percent), `motionSd`, `motionUpload`, `ipMode` (0 DHCP, 1 static), `staticIp`, `staticMask`, `staticGateway`, `staticDns` (also accepted by the web console) |
-| `POST /api/config` (board wiring) | `modemPwrkey` (GPIO, -1 = not wired: the module stays on and `AT+CFUN` switches its radio), `modemFastBaud` (UART rate after the first AT, 0 = keep 115200), `gpsPowerActiveLow` (`true` for a P-MOSFET switch, `false` for an NPN switch or a GPIO powering the module), `battDivider` and `solarDivider` (the divider ratio (Rtop + Rbottom) / Rbottom x 100, 100-2000: 200 for 100k/100k, 403 for 100k/33k, 500 for the 30k/7.5k "voltage sensor" module). Defaults come from Kconfig; a factory reset keeps these values and an OTA image built with other defaults does not change them |
+| `POST /api/config` (board wiring) | `modemPower` (GPIO of the 4G supply switch, 47 by default, -1 none: a switch that is not fitted is found out and the radio is then switched with `AT+CFUN`), `modemPowerActiveLow` (`true` for a P-MOSFET gate driven straight, `false` for the NPN of the wiring sheet, the default), `modemPwrkey` (GPIO, -1 = not wired, the default), `modemFastBaud` (UART rate after the first AT, 0 = keep 115200), `gpsPowerActiveLow` (`true` for a P-MOSFET switch, `false` for an NPN switch or a GPIO powering the module, the default), `battDivider` and `solarDivider` (the divider ratio (Rtop + Rbottom) / Rbottom x 100, 100-2000: 200 for 100k/100k, 403 for 100k/33k, 500 for the 30k/7.5k "voltage sensor" module). Defaults come from Kconfig; a factory reset keeps these values and an OTA image built with other defaults does not change them |
 
 ## 3. Web console API (http://<camera IP>/)
 
@@ -135,6 +135,8 @@ document is applied again at every MQTT connect, so FlyBot's form is the source 
 | `storage.sdSave` | bool | every photo also on the microSD card | `storage.sdSave` |
 | `led.enabled` | bool | the status LED | `led.enabled` |
 | `gps.enabled` | bool | daily GPS fixes when a module is fitted | `gps.enabled` (shadow only; `state` keeps its protocol 4 `gps` fix) |
+| `gps.systems` | `"auto"`, `"gps+bds"`, `"gps+glonass"`, `"gps"`, `"bds"` | satellite systems sent to the ATGM336H (`$PCAS04`, GPS RX wired to GPIO3); `auto` (default): GPS + BeiDou, GPS + GLONASS at latitude 55 and beyond | `gps.systems`; local key `gpsSystems` |
+| `network.prefer` | `"auto"`, `"wifi"`, `"4g"` | `auto` (default): Wi-Fi first, 4G when it gives no IP or no cloud; `wifi`: never 4G; `4g`: 4G only, the Wi-Fi settings kept, and Wi-Fi for a boot whose 4G does not come up. A change restarts the camera 5 s after it is saved | `network.prefer`; local key `netPrefer` |
 | `console.language` | `"en"`, `"vi"` | language of the camera's own web pages | `console.language` |
 | `claimed` | bool | claim state (CONTRACTS 2a.4) | `claimed` |
 | `live.requested` | bool | a live session at the next wake (5 min) | `live.requested`, `live.supported`, `live.active` |

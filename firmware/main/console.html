@@ -168,6 +168,7 @@ const I18N = {
   brightness: 'Độ sáng', contrast: 'Độ tương phản', saturation: 'Độ bão hòa', jpegQuality: 'Chất lượng JPEG', imageNote: 'Thay đổi hiện ngay trên hình trực tiếp; bấm Lưu để giữ cho mọi lần chụp. Cài đặt từ cloud (FlyBot) sẽ ghi đè cài đặt ở đây.',
   resolution: 'Độ phân giải chụp', bySensor: 'theo cảm biến', resMax: 'Lớn nhất ({0})',
   gpsFix: 'Lấy vị trí ngay', gpsFixing: 'Đang tìm vệ tinh (tối đa 2 phút)…', location: 'Vị trí', fixAt: 'Lúc', noFix: 'Chưa có', gpsNote: 'Camera lấy vị trí mỗi ngày một lần; module GPS tắt nguồn giữa các lần.',
+  gpsSys: 'Hệ vệ tinh', gpsSysAuto: 'Tự động theo khu vực', gpsSysNote: 'Cần nối chân RXD của module GPS vào GPIO3. Tự động: GPS + BeiDou (Việt Nam và hầu hết các nơi), GPS + GLONASS từ vĩ độ 55 trở lên.',
   fwUpdate: 'Nâng cấp firmware', running: 'Đang chạy', checkUpdate: 'Kiểm tra & nâng cấp', updateStarted: 'Đang hỏi FlyBot; nếu có bản mới camera sẽ tải, kiểm tra SHA-256 rồi khởi động lại. Xem Nhật ký.',
   maintenance: 'Bảo trì', reboot: 'Khởi động lại', factory: 'Khôi phục cài đặt gốc', confirmReboot: 'Khởi động lại camera?',
   confirmFactory: 'Đưa mọi cài đặt về mặc định và xóa mật khẩu admin? Camera giữ serial, mã xác minh và chứng chỉ.', factoryDone: 'Đã khôi phục. Camera đang khởi động lại…',
@@ -245,6 +246,7 @@ const I18N = {
   brightness: 'Brightness', contrast: 'Contrast', saturation: 'Saturation', jpegQuality: 'JPEG quality', imageNote: 'Changes show on the live picture at once; Save keeps them for every capture. Settings from the cloud (FlyBot) override these.',
   resolution: 'Capture resolution', bySensor: 'by sensor', resMax: 'Largest ({0})',
   gpsFix: 'Get position now', gpsFixing: 'Looking for satellites (up to 2 minutes)…', location: 'Position', fixAt: 'At', noFix: 'None yet', gpsNote: 'The camera takes one position a day; the GPS module is powered off in between.',
+  gpsSys: 'Satellite systems', gpsSysAuto: 'Automatic by region', gpsSysNote: 'Needs the RXD pin of the GPS module wired to GPIO3. Automatic: GPS + BeiDou (Vietnam and most places), GPS + GLONASS from latitude 55 up.',
   fwUpdate: 'Firmware upgrade', running: 'Running', checkUpdate: 'Check & upgrade', updateStarted: 'Asking FlyBot; when a newer build exists the camera downloads it, checks its SHA-256 and restarts. See the Log.',
   maintenance: 'Maintenance', reboot: 'Restart', factory: 'Factory reset', confirmReboot: 'Restart the camera?',
   confirmFactory: 'Return every setting to the defaults and clear the admin password? The camera keeps its serial, verify code and certificate.', factoryDone: 'Reset done. The camera is restarting…',
@@ -866,10 +868,12 @@ const PAGES = {
   async gps(el, st) {
     const cfg = await api('config');
     const draw = (s) => kv([[t('location'), s.location ? `<a href="https://www.openstreetmap.org/?mlat=${s.location.lat}&mlon=${s.location.lng}#map=17/${s.location.lat}/${s.location.lng}" target="_blank" rel="noopener">${s.location.lat}, ${s.location.lng}</a>` : t('noFix')], [t('fixAt'), esc(s.location ? s.location.fixAt : t('none'))]]);
-    el.innerHTML = panel(t('pGps'), `<div id="gKv">${draw(st)}</div>` + row(t('on'), chk('gOn', cfg.gps), badge(cfg, 'gps')) + `<p class="note">${t('gpsNote')}</p>`,
+    el.innerHTML = panel(t('pGps'), `<div id="gKv">${draw(st)}</div>` + row(t('on'), chk('gOn', cfg.gps), badge(cfg, 'gps'))
+      + row(t('gpsSys'), sel('gSys', cfg.gpsSystems || 'auto', [['auto', t('gpsSysAuto')], ['gps+bds', 'GPS + BeiDou'], ['gps+glonass', 'GPS + GLONASS'], ['gps', 'GPS'], ['bds', 'BeiDou']]), badge(cfg, 'gpsSystems'))
+      + `<p class="note">${t('gpsNote')} ${t('gpsSysNote')}</p>`,
       `<button class="btn primary" id="gFix">${t('gpsFix')}</button>${saveBar('gSave')}`);
     $('#gFix').onclick = async () => { try { await api('gps', {}); say($('#gSaveMsg'), t('gpsFixing'), true); every(5000, async () => { $('#gKv').innerHTML = draw(await api('status')); }); } catch (err) { say($('#gSaveMsg'), err.message); } };
-    $('#gSave').onclick = () => saveCfg({ gps: $('#gOn').checked }, $('#gSaveMsg'));
+    $('#gSave').onclick = () => saveCfg({ gps: $('#gOn').checked, gpsSystems: $('#gSys').value }, $('#gSaveMsg'));
   },
 
   async account(el) {

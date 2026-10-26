@@ -6,11 +6,13 @@
  *
  *   power on   PWRKEY asserted 1.5 s (datasheet: >= 1 s), then AT every second for CAMOS_MODEM_BOOT_WAIT_S
  *   data       CMUX first (AT + PPP on one UART, so CSQ can still be read), plain PPP when CMUX fails
- *   power off  AT+CPOF (esp_modem_power_down), then PWRKEY 3 s if it still answers, then the rail switch
+ *   power off  the supply switch (setting modemPower, GPIO47 by default); with PWRKEY wired AT+CPOF
+ *              (esp_modem_power_down), then PWRKEY 3 s if it still answers
  *
- * A breakout with neither PWRKEY nor a rail switch wired (setting modemPwrkey and POWER_GPIO -1, e.g. the TDM2309 A7680C board,
- * which powers up by itself) could not be switched on again after AT+CPOF: there "power off" is AT+CFUN=0 (radio
- * off, the module keeps answering AT) and the start turns the radio back on with AT+CFUN=1.
+ * The TDM2309 A7680C board powers up by itself and has no PWRKEY (setting modemPwrkey -1, the default): after AT+CPOF
+ * nothing could switch it on again. Its supply switch cuts it instead; a board without the switch is found out the
+ * first time the switch goes off (the module still answers AT), and then "power off" is AT+CFUN=0 (radio off, the
+ * module keeps answering AT) and the start turns the radio back on with AT+CFUN=1.
  *
  * Without CAMOS_MODEM (ESP32-CAM preset) every function is a stub and the network is Wi-Fi.
  */
@@ -45,8 +47,14 @@ static volatile bool s_up;
 static bool cmux_mode;
 static int last_csq = 99;
 static char imei[32], iccid[32], oper[40];
-/* nothing wired can switch the module on again: never AT+CPOF it (see the top of the file) */
-#define NO_POWER_CONTROL (g_cfg.modem_pwrkey < 0 && CONFIG_CAMOS_MODEM_POWER_GPIO < 0)
+/* The supply switch (setting modemPower, GPIO47 by default): -1 not known yet, 0 not fitted (the module still
+ * answered AT with the switch off), 1 fitted. Kept through deep sleep; found out again after a power-up. */
+static RTC_DATA_ATTR int8_t s_rail = -1;
+
+static bool rail_pin(void)
+{
+	return g_cfg.modem_power >= 0 && g_cfg.modem_power != g_cfg.modem_pwrkey && s_rail != 0;
+}
 static bool registered;
 
 static void gpio_out(int pin, int level)
@@ -61,20 +69,17 @@ static void gpio_out(int pin, int level)
 
 static void rail(bool on)
 {
-#if CONFIG_CAMOS_MODEM_POWER_GPIO >= 0
-	int active_low =
-#ifdef CONFIG_CAMOS_MODEM_POWER_ACTIVE_LOW
-		1;
-#else
-		0;
-#endif
-	gpio_out(CONFIG_CAMOS_MODEM_POWER_GPIO, on != active_low);
+	if (!rail_pin()) {
+		return;
+	}
+	gpio_out(g_cfg.modem_power, on != (g_cfg.modem_power_low != 0));
 	if (on) {
 		vTaskDelay(pdMS_TO_TICKS(200)); /* the 4 V rail and its bulk capacitor */
+	} else {
+		gpio_hold_en(g_cfg.modem_power); /* also through deep sleep */
 	}
-#endif
-	(void)on;
 }
+
 
 static void pwrkey(int ms)
 {
@@ -383,12 +388,33 @@ static void recover(bool reset)
 	}
 }
 
+/* The radio off on purpose (a GPS fix): the watchdog below does not count it as a 4G that carries no data */
+static volatile bool s_paused;
+
+void modem_radio_pause(void)
+{
+	s_paused = true;
+	ESP_LOGI(TAG, "4G radio off for a GPS fix");
+	modem_stop();
+}
+
+bool modem_radio_resume(void)
+{
+	bool ok = modem_start();
+	if (ok) {
+		net_4g_restarted();
+	}
+	s_paused = false;
+	ESP_LOGI(TAG, "4G radio back after the GPS fix%s", ok ? "" : ": no network, the watchdog takes over");
+	return ok;
+}
+
 static void watchdog_task(void *arg)
 {
 	int down = 0, tries = 0;
 	for (;;) {
 		vTaskDelay(pdMS_TO_TICKS(10000));
-		if (net_type() != NET_4G || !proto_provisioned() || proto_connected()) {
+		if (s_paused || net_type() != NET_4G || !proto_provisioned() || proto_connected()) {
 			down = 0;
 			if (proto_connected()) {
 				tries = 0;
@@ -455,6 +481,11 @@ static esp_modem_dce_t *new_dce(void)
 	dte.uart_config.cts_io_num = -1;
 	dte.uart_config.flow_control = ESP_MODEM_FLOW_CONTROL_NONE;
 	dte.uart_config.baud_rate = CONFIG_CAMOS_MODEM_BAUD;
+#if SOC_UART_SUPPORT_XTAL_CLK
+	/* not the APB clock: frequency scaling lowers it while the CPU idles, and the UART driver holds it up only
+	 * while it sends, so received bytes can come in garbled (the GPS UART lost every sentence that way, 25 Oct 2026) */
+	dte.uart_config.source_clk = UART_SCLK_XTAL;
+#endif
 	dte.uart_config.rx_buffer_size = 16384; /* 921600 baud is about 90 KB/s */
 	dte.uart_config.tx_buffer_size = 1024;
 	dte.dte_buffer_size = 2048;
@@ -489,6 +520,29 @@ static bool reach_at(void)
 	return dce && find_at(CONFIG_CAMOS_MODEM_BOOT_WAIT_S);
 }
 
+/* Right after rail(false), with the AT channel open: does the module still answer (at any of its rates, or in CMUX)?
+ * Then no switch is fitted (the module is wired straight to the cell) and the caller switches its radio off with
+ * AT+CFUN=0 instead. True when the module is off. */
+static bool rail_cut(void)
+{
+	if (!rail_pin()) {
+		return false;
+	}
+	if (s_rail == 1) {
+		return true;
+	}
+	vTaskDelay(pdMS_TO_TICKS(500)); /* the bulk capacitor holds the module up for a few ms only */
+	bool answers = find_at(N_RATES + 1) || resume_command_mode();
+	s_rail = answers ? 0 : 1;
+	if (answers) {
+		ESP_LOGW(TAG, "4G module still on with GPIO%d off: no supply switch fitted, AT+CFUN=0 switches its radio",
+				 g_cfg.modem_power);
+	} else {
+		ESP_LOGI(TAG, "4G supply switch on GPIO%d: module off", g_cfg.modem_power);
+	}
+	return !answers;
+}
+
 /* An always-on module (no PWRKEY, no rail switch) registers by itself at power-up and would stay on the network all
  * the time, through every deep sleep, while Wi-Fi carries the traffic. Its radio goes off (AT+CFUN=0) once per
  * power-up: the flag lives in RTC memory, which a deep sleep keeps; modem_start turns the radio on again. */
@@ -496,11 +550,23 @@ static RTC_DATA_ATTR bool s_parked;
 
 void modem_park(void)
 {
-	if (!NO_POWER_CONTROL || dce || s_parked || CONFIG_CAMOS_MODEM_TX_GPIO < 0 || CONFIG_CAMOS_MODEM_RX_GPIO < 0 ||
-		store_get_flag("modem_absent")) {
+	if (rail_pin() && s_rail == 1) {
+		rail(false); /* switched off: nothing to park */
+		return;
+	}
+	if ((g_cfg.modem_pwrkey >= 0 && !rail_pin()) || dce || s_parked || CONFIG_CAMOS_MODEM_TX_GPIO < 0 ||
+		CONFIG_CAMOS_MODEM_RX_GPIO < 0 || store_get_flag("modem_absent")) {
 		return;
 	}
 	dce = new_dce();
+	if (dce && rail_pin()) {
+		rail(false); /* not known yet whether a switch is fitted: off, and listen */
+		if (rail_cut()) {
+			esp_modem_destroy(dce);
+			dce = NULL;
+			return;
+		}
+	}
 	if (dce && reach_at() && esp_modem_at(dce, "AT+CFUN=0", NULL, 10000) == ESP_OK) {
 		s_parked = true;
 		ESP_LOGI(TAG, "4G radio off while Wi-Fi is in use (AT+CFUN=0)");
@@ -548,7 +614,7 @@ bool modem_start(void)
 	}
 	esp_modem_at(dce, "ATE0", NULL, 1000);
 	go_fast();
-	if (NO_POWER_CONTROL) {
+	if (g_cfg.modem_pwrkey < 0 && s_rail != 1) {
 		esp_modem_at(dce, "AT+CFUN=1", NULL, 10000); /* the radio, off since the last modem_stop or modem_park */
 		s_parked = false;
 	}
@@ -671,9 +737,14 @@ void modem_stop(void)
 			esp_modem_set_mode(dce, ESP_MODEM_MODE_COMMAND);
 			vTaskDelay(pdMS_TO_TICKS(500));
 		}
-		if (NO_POWER_CONTROL) {
+		bool off = false;
+		if (rail_pin() && g_cfg.modem_pwrkey < 0) {
+			rail(false); /* the supply switch (no AT+CPOF: without PWRKEY nothing could undo it) */
+			off = rail_cut();
+		}
+		if (!off && g_cfg.modem_pwrkey < 0) {
 			s_parked = esp_modem_at(dce, "AT+CFUN=0", NULL, 10000) == ESP_OK; /* radio off; AT+CPOF could not be undone */
-		} else {
+		} else if (!off) {
 			if (esp_modem_power_down(dce) != ESP_OK) { /* AT+CPOF */
 				pwrkey(3000);                          /* datasheet: >= 2.5 s for power off */
 			}
@@ -681,13 +752,16 @@ void modem_stop(void)
 		}
 		esp_modem_destroy(dce);
 		dce = NULL;
+		if (off && CONFIG_CAMOS_MODEM_TX_GPIO >= 0) {
+			/* an idle-high TX line would feed the switched-off module through its RX pin */
+			gpio_reset_pin(CONFIG_CAMOS_MODEM_TX_GPIO);
+			gpio_pullup_dis(CONFIG_CAMOS_MODEM_TX_GPIO);
+			gpio_set_direction(CONFIG_CAMOS_MODEM_TX_GPIO, GPIO_MODE_INPUT);
+		}
 	}
 	s_up = false;
 	cmux_mode = false;
 	rail(false);
-#if CONFIG_CAMOS_MODEM_POWER_GPIO >= 0
-	gpio_hold_en(CONFIG_CAMOS_MODEM_POWER_GPIO);
-#endif
 	if (g_cfg.modem_pwrkey >= 0) {
 		gpio_hold_en(g_cfg.modem_pwrkey);
 	}
@@ -715,6 +789,8 @@ const char *modem_apn(void) { return ""; }
 bool modem_start(void) { ESP_LOGW(TAG, "no modem in this build (CAMOS_MODEM)"); return false; }
 void modem_stop(void) {}
 void modem_park(void) {}
+void modem_radio_pause(void) {}
+bool modem_radio_resume(void) { return false; }
 bool modem_up(void) { return false; }
 bool modem_cell_location(double *lat, double *lng, int *acc_m) { (void)lat; (void)lng; (void)acc_m; return false; }
 int modem_rssi(void) { return 0; }

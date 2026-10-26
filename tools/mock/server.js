@@ -9,7 +9,9 @@
  *   node tools/mock/server.js [port]          (default 8099), then http://localhost:8099/
  *
  * Query options for screenshots: ?lang=vi (Vietnamese), ?gate=1 (activation form), ?unclaimed=1 (claim QR),
- * ?open=adv (portal: open "Advanced settings"); /phone?h=844&src=<url-encoded path> shows a page 390 px wide.
+ * ?net=4g (console: the camera on 4G, fake IMEI / ICCID), ?open=adv (portal: open "Advanced settings"),
+ * ?step=pick|joining|joined|wrongpw (portal: a network picked and a password typed, then Connect and the result);
+ * /phone?h=844&src=<url-encoded path> shows a page 390 px wide.
  */
 'use strict';
 const http = require('http');
@@ -20,7 +22,8 @@ const url = require('url');
 const ROOT = path.join(__dirname, '..', '..', 'firmware', 'main');
 const PORT = +process.argv[2] || 8099;
 const SERIAL = 'ESP000000000001', CODE = 'ABC123', MODEL = 'AIC-FREENOVE-S3CAM';
-let flags = { gate: false, unclaimed: false };
+const FW = '0.9.2';
+let flags = { gate: false, unclaimed: false, net: 'wifi', step: '' }, joinPolls = 0;
 
 const START = Date.now(), T0 = Date.UTC(2026, 9, 17, 3, 20, 0); /* a fixed morning: 10:20 in Asia/Ho_Chi_Minh */
 const utcNow = () => new Date(T0 + Date.now() - START);
@@ -62,20 +65,23 @@ function qrSvg(text) {
 
 /* ------------------------------------------------------------------ fake device */
 const config = () => ({
-  serial: SERIAL, model: MODEL, fw: '0.4.0', hostname: 'flybot-000001', usbMode: 'auto', ssid: 'Orchard-AP', password: true, apn: '', simPin: false, apiBase: 'https://flybot.agrhub.com',
+  serial: SERIAL, model: MODEL, fw: FW, hostname: 'flybot-000001', usbMode: 'auto', ssid: 'Orchard-AP', password: true, apn: '', simPin: false, apiBase: 'https://flybot.agrhub.com',
   token: !flags.unclaimed, provisionToken: false, iotHost: 'example-ats.iot.ap-southeast-2.amazonaws.com', thingName: 'cam-' + SERIAL, kvsChannel: 'cam-' + SERIAL,
   kvsRegion: 'ap-southeast-2', roleAlias: '', credHost: '', claimUrl: `https://flybot.agrhub.com/claim?sn=${SERIAL}`, timezone: 'Asia/Ho_Chi_Minh', apPassword: false,
   verifyCode: CODE, uiLang: 'en', motionRoi: '20,15,60,70', staticIp: '', staticMask: '255.255.255.0', staticGateway: '', staticDns: '',
-  intervalMin: 30, powerMode: 'auto', cellular: true, gps: true, ledEnabled: true, batteryMonitor: true, claimed: !flags.unclaimed, sdSave: true, schedFrom: 330, schedTo: 1110,
+  intervalMin: 30, powerMode: 'auto', cellular: true, gps: true, gpsSystems: 'auto', ledEnabled: true, batteryMonitor: true, claimed: !flags.unclaimed, sdSave: true, schedFrom: 330, schedTo: 1110,
   motion: true, motionSens: 60, motionCooldown: 60, motionUpload: false, motionSd: true, ipMode: 0,
-  defaults: ['apn', 'apiBase', 'iotHost', 'kvsRegion', 'timezone', 'powerMode', 'cellular', 'gps', 'ledEnabled', 'sdSave', 'motionUpload', 'motionSd', 'ipMode'],
+  defaults: ['apn', 'apiBase', 'iotHost', 'kvsRegion', 'timezone', 'powerMode', 'cellular', 'gps', 'gpsSystems', 'ledEnabled', 'sdSave', 'motionUpload', 'motionSd', 'ipMode', 'usbMode'],
   defaultsFile: 'defaults.example.json', cert: !flags.unclaimed, key: true, paired: !flags.unclaimed, registered: !flags.unclaimed, hasModem: true, hasGps: true, hasLive: false,
   apSsid: 'CAM-0001', wifiError: '', regError: '', labelQr: `CAMOS:1;SN:${SERIAL};VC:${CODE};M:${MODEL};;`, timezoneAuto: 'Asia/Ho_Chi_Minh', timezoneSource: 'farm',
 });
 const status = () => ({
-  model: MODEL, serial: SERIAL, verifyCode: CODE, fw: '0.4.0', built: 'Oct 17 2026 09:00:00', uptimeS: 3 * 86400 + 5 * 3600 + 17 * 60, heapFreeKB: 124, psramFreeKB: 7931,
+  model: MODEL, serial: SERIAL, verifyCode: CODE, fw: FW, built: 'Oct 25 2026 09:00:00', uptimeS: 3 * 86400 + 5 * 3600 + 17 * 60, heapFreeKB: 124, psramFreeKB: 7931,
   time: { synced: true, local: local(), utc: utcNow().toISOString().slice(0, 19) + 'Z', timezone: 'Asia/Ho_Chi_Minh' },
-  net: { type: 'wifi', connected: true, ip: '192.168.1.50', hostname: 'flybot-000001', rssi: -58, ssid: 'Orchard-AP', channel: 6, mask: '255.255.255.0', gateway: '192.168.1.1', mac: '02:00:00:00:00:01', apn: '' },
+  net: flags.net === '4g'
+    ? { type: '4g', connected: true, ip: '10.0.0.23', rssi: -79, mac: '02:00:00:00:00:01', apn: 'v-internet',
+      cell: { operator: 'Viettel', csq: 17, registered: true, imei: '860000000000001', iccid: '8984000000000000001' } }
+    : { type: 'wifi', connected: true, ip: '192.168.1.50', hostname: 'flybot-000001', rssi: -58, ssid: 'Orchard-AP', channel: 6, mask: '255.255.255.0', gateway: '192.168.1.1', mac: '02:00:00:00:00:01', apn: '' },
   cloud: { connected: !flags.unclaimed, host: 'example-ats.iot.ap-southeast-2.amazonaws.com', port: 8883, certificate: true, paired: !flags.unclaimed, thing: 'cam-' + SERIAL, apiBase: 'https://flybot.agrhub.com', kvsChannel: 'cam-' + SERIAL },
   live: { supported: true, window: false, state: 'joined', channel: 'cam-' + SERIAL, credentials: 'iot', viewer: false, sessions: 0 },
   image: { brightness: 0, contrast: 50, saturation: 50, jpegQuality: 85, shadowVersion: 12, w: 2560, h: 1920, sensor: 'OV5640' },
@@ -102,7 +108,7 @@ const schedule = () => ({ source: 'local', claimed: true, clockSynced: true, ite
   next: ['10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00'].map((t) => ({ at: '2026-10-17 ' + t, id: 'interval' })), intervalMin: 30, schedFrom: 330, schedTo: 1110, powerEffective: 'powered' });
 const scan = [['Orchard-AP', -52, 6, true], ['FarmHouse', -61, 1, true], ['Orchard-AP-5G', -67, 36, true], ['Pump-Station', -74, 11, true], ['Guest', -79, 6, false], ['Neighbour', -86, 3, true]]
   .map(([ssid, rssi, channel, secure]) => ({ ssid, rssi, channel, secure }));
-const logs = `I (1023) camos: camos-esp32-trap ${MODEL} fw 0.4.0 serial ${SERIAL}
+const logs = `I (1023) camos: camos-esp32-trap ${MODEL} fw ${FW} serial ${SERIAL}
 I (1031) camos: flash 16 MB, PSRAM 8192 KB
 I (1164) sd: card SD32G, 29820 MB, 29102 MB free
 I (5198) web: web console at http://192.168.1.50/ (admin password set)
@@ -123,20 +129,24 @@ function page(res, file, q) {
   let html = fs.readFileSync(path.join(ROOT, file), 'utf8');
   const lang = q.lang === 'vi' ? 'vi' : 'en';
   const pre = `<script>try{localStorage.clear();localStorage.setItem('camosLang','${lang}')}catch(e){}</script>`;
-  const post = q.open === 'adv' ? `<script>setTimeout(()=>{const d=document.getElementById('adv');if(d){d.open=true;d.scrollIntoView();}},1200)</script>` : '';
+  let post = q.open === 'adv' ? `<script>setTimeout(()=>{const d=document.getElementById('adv');if(d){d.open=true;d.scrollIntoView();}},1200)</script>` : '';
+  if (q.step) { /* portal: pick the first network, type a made-up password, and Connect for the later steps */
+    post += `<script>setTimeout(()=>{document.querySelector('.net[data-i="0"]').click();document.getElementById('password').value='example-pass';
+      ${q.step === 'pick' ? '' : "document.getElementById('connect').click();"}},1200)</script>`;
+  }
   html = html.replace('<head>', '<head>' + pre).replace('</body>', post + '</body>');
   send(res, 200, 'text/html; charset=utf-8', html);
 }
 http.createServer((req, res) => {
   const u = url.parse(req.url, true), p = u.pathname, q = u.query;
   if (req.method === 'GET' && (p === '/' || p === '/index.html' || p === '/portal')) {
-    flags = { gate: q.gate === '1', unclaimed: q.unclaimed === '1' };
+    flags = { gate: q.gate === '1', unclaimed: q.unclaimed === '1', net: q.net === '4g' ? '4g' : 'wifi', step: String(q.step || '') };
     return page(res, p === '/portal' ? 'portal.html' : 'console.html', q);
   }
   if (p === '/phone') { /* phone-width frame for screenshots: /phone?h=844&src=/portal%3Flang%3Den */
     return send(res, 200, 'text/html', `<!doctype html><body style="margin:0;background:#eef2f1"><iframe src="${String(q.src || '/portal').replace(/"/g, '')}" style="border:0;width:390px;height:${+q.h || 844}px;display:block"></iframe>`);
   }
-  if (p === '/api/session') return json(res, { activated: !flags.gate, signedIn: !flags.gate, model: MODEL, serial: SERIAL, fw: '0.4.0', uiLang: 'en' });
+  if (p === '/api/session') return json(res, { activated: !flags.gate, signedIn: !flags.gate, model: MODEL, serial: SERIAL, fw: FW, uiLang: 'en' });
   if (p === '/api/status') return json(res, status());
   if (p === '/api/config' && req.method === 'GET') return json(res, config());
   if (p === '/api/image' && req.method === 'GET') return json(res, image());
@@ -149,6 +159,14 @@ http.createServer((req, res) => {
   if (p === '/api/sd/file') return send(res, 200, 'image/svg+xml', trapSvg(1280, 960, +String(q.name).slice(0, 6), 'illustration'));
   if (p === '/api/stream' || p === '/api/frame.jpg') return send(res, 200, 'image/svg+xml', trapSvg(+q.w || 640, +q.h || 480, 42, 'illustration, not a camera picture'));
   if (p === '/api/qr.svg') return send(res, 200, 'image/svg+xml', qrSvg(q.what || 'claim'));
+  if (p === '/logo.png' || p === '/favicon.ico') return send(res, 200, 'image/png', fs.readFileSync(path.join(ROOT, 'www', 'logo.png')));
+  if (p === '/api/connect' && req.method === 'POST') { req.resume(); joinPolls = 0; return json(res, { ok: true, checking: true, ssid: scan[0].ssid }); }
+  if (p === '/api/connect') { /* the join as the setup page follows it (one poll a second): ?step=joining stays there, joined / wrongpw end at the 3rd poll */
+    const ssid = scan[0].ssid;
+    if (flags.step === 'joining' || ++joinPolls < 3) return json(res, { state: 'joining', ssid, elapsedS: flags.step === 'joining' ? 7 : joinPolls });
+    if (flags.step === 'wrongpw') return json(res, { state: 'failed', reason: 'auth', ssid });
+    return json(res, { state: 'ok', ssid, ip: '192.168.1.50', hostname: 'flybot-000001' });
+  }
   if (req.method === 'POST') { req.resume(); return json(res, { ok: true }); }
   json(res, { ok: false, error: 'NOT_FOUND' }, 404);
 }).listen(PORT, () => console.log(`mock camera on http://localhost:${PORT}/ (console) and /portal`));

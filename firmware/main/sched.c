@@ -13,11 +13,17 @@
  * network off. At wake-up the JPEG is captured first (no network needed), then the network, time and MQTT start, the
  * image is uploaded, the event is published, and the camera stays awake CAMOS_AWAKE_WINDOW_S so queued RPCs and a new
  * shadow can arrive. A GPS fix is taken when due (once a day) before the sleep.
+ * Check-in wakes (battery mode on Wi-Fi): between the slots the camera also wakes every CHECKIN_FULL_S (cell at
+ * CHECKIN_PCT % or more) or CHECKIN_LOW_S, joins Wi-Fi and MQTT only to pick up what a user asked (live view, a
+ * photo, an update, a GPS fix) and sleeps again after CHECKIN_WINDOW_S: no capture, no GPS, no 4G (a 4G check-in
+ * costs about 1 mAh, a Wi-Fi one about 0.2 mAh), and only by day (CHECKIN_DAY_FROM to CHECKIN_DAY_TO local time).
+ * On 4G, and at night, the camera wakes for the slots only.
  * Powered mode: no deep sleep, MQTT stays connected, captures at the slots, live view on demand.
  */
 #include <string.h>
 #include <time.h>
 #include "esp_sleep.h"
+#include "esp_attr.h"
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -38,7 +44,17 @@ static volatile time_t wake_hint;        /* nextWakeAt from FlyBot */
 static volatile time_t next_capture;
 
 #define CONNECT_GIVEUP_S 120  /* no MQTT after this long awake: sleep anyway (a flat network must not drain the cell) */
-#define CRITICAL_SLEEP_S (6 * 3600)
+#define CHECKIN_FULL_S 120
+#define CHECKIN_LOW_S 600
+#define CHECKIN_PCT 60
+#define CHECKIN_DAY_FROM 6 /* local hours with check-ins: by night few people look and the panel charges nothing */
+#define CHECKIN_DAY_TO 18
+#define CHECKIN_WINDOW_S 8  /* MQTT up this long: the retained shadow and FlyBot's requests have arrived */
+#define CHECKIN_GIVEUP_S 25 /* no MQTT on a check-in after this long: back to sleep (no 4G fallback) */
+static RTC_DATA_ATTR uint8_t checkin_next; /* the next timer wake is a check-in */
+static bool checkin_boot;                  /* this wake is one */
+#define CRITICAL_SLEEP_S 3600     /* a critical cell with no charge: it looks again every hour (a panel may start charging) */
+#define PAUSED_SLEEP_S (6 * 3600) /* paused by FlyBot: it reads the shadow every 6 h */
 
 void sched_keep_awake(int seconds)
 {
@@ -46,6 +62,26 @@ void sched_keep_awake(int seconds)
 	if (until > keep_awake_until_s) {
 		keep_awake_until_s = until;
 	}
+}
+
+bool sched_checkin(void)
+{
+	return checkin_boot;
+}
+
+/* Seconds to the next check-in, 0 for none: only on Wi-Fi with MQTT up (a failed check-in sleeps to the slot) */
+static int checkin_interval(void)
+{
+	if (net_type() != NET_WIFI || !proto_connected() || battery_protect()) {
+		return 0;
+	}
+	time_t now = time(NULL);
+	struct tm lt;
+	localtime_r(&now, &lt);
+	if (lt.tm_hour < CHECKIN_DAY_FROM || lt.tm_hour >= CHECKIN_DAY_TO) {
+		return 0;
+	}
+	return battery_pct() >= CHECKIN_PCT ? CHECKIN_FULL_S : CHECKIN_LOW_S;
 }
 
 void sched_wake_hint(time_t at)
@@ -476,15 +512,17 @@ void sched_changed(void)
 static bool may_sleep(void)
 {
 	int64_t up = esp_timer_get_time() / 1000000;
-	if (!proto_idle() || up - last_activity_s < 5 || up < keep_awake_until_s || live_active()) {
+	if (job || !proto_idle() || up - last_activity_s < 5 || up < keep_awake_until_s || live_active()) {
 		return false;
 	}
+	/* a check-in that took no photo sleeps again as soon as the requests had time to arrive */
+	bool short_wake = checkin_boot && last_activity_s == 0;
 	int connected_s = proto_connected_for_s();
-	if (connected_s >= CONFIG_CAMOS_AWAKE_WINDOW_S) {
+	if (connected_s >= (short_wake ? CHECKIN_WINDOW_S : CONFIG_CAMOS_AWAKE_WINDOW_S)) {
 		return true;
 	}
-	if (connected_s < 0 && up >= CONNECT_GIVEUP_S) {
-		ESP_LOGW(TAG, "no MQTT after %d s awake: giving up until the next wake", CONNECT_GIVEUP_S);
+	if (connected_s < 0 && up >= (short_wake ? CHECKIN_GIVEUP_S : CONNECT_GIVEUP_S)) {
+		ESP_LOGW(TAG, "no MQTT after %lld s awake: giving up until the next wake", (long long)up);
 		led_set(LED_ERROR);
 		vTaskDelay(pdMS_TO_TICKS(2500)); /* one red double blink is visible before the sleep */
 		return true;
@@ -510,8 +548,15 @@ static void deep_sleep_until(time_t until, time_t now, bool with_lead)
 	if (proto_connected()) {
 		proto_flush(5000);
 	}
+	/* a request that came during the goodbye (FlyBot sends ota.apply when the camera shows it is awake, and that was
+	 * just before it slept: 7 tries of 0.9.2-rc.13 went unanswered, 25 Oct 2026): stay awake for it, sleep after */
+	if (job) {
+		ESP_LOGI(TAG, "a request came in: not sleeping yet");
+		return;
+	}
 	net_sleep_prepare(); /* modem off through PWRKEY and its rail, Wi-Fi stopped */
 	cam_sleep_prepare();
+	gps_sleep_prepare();
 	led_sleep_prepare(battery_mv() >= 0 && battery_mv() < CONFIG_CAMOS_BATT_LOW_MV);
 	esp_sleep_enable_timer_wakeup((uint64_t)sleep_s * 1000000ULL);
 	esp_deep_sleep_start();
@@ -530,6 +575,11 @@ static void gps_fix_task(void *arg)
 	proto_publish_reported_now();
 	gps_task_running = false;
 	vTaskDelete(NULL);
+}
+
+bool sched_job_pending(void)
+{
+	return job != NULL;
 }
 
 bool sched_run(void (*fn)(void))
@@ -604,29 +654,49 @@ static void sched_task(void *arg)
 
 		bool deep = power_may_deep_sleep();
 #if CONFIG_CAMOS_DEEP_SLEEP
-		if (deep && battery_critical()) {
+		if (deep && battery_protect()) {
 			net_ensure(); /* so that low_power can go out before the long sleep */
 		}
 		if (deep && proto_provisioned() && may_sleep()) {
-			if (gps_fix_due() && !battery_critical()) {
-				gps_fix(CONFIG_CAMOS_GPS_FIX_TIMEOUT_S, NULL); /* once a day, before the sleep; reported next connect */
+			if (gps_fix_due() && !battery_protect() && !(checkin_boot && last_activity_s == 0)) {
+				/* once a day, before the sleep; reported next connect. It gives way to a request (ota.apply waited behind a
+				 * 300 s fix and FlyBot gave up after 60 s, 25 Oct 2026) */
+				gps_fix_yielding(CONFIG_CAMOS_GPS_FIX_TIMEOUT_S);
 				proto_publish_reported_now();
 				proto_flush(5000);
 			}
-			if (battery_critical() || paused) {
-				/* Protect the cell: no captures, wake every 6 h to look at the battery (low_power goes out when connected);
-				 * a paused camera does the same to see whether FlyBot resumed it */
-				deep_sleep_until(now + CRITICAL_SLEEP_S, now, false);
-			} else if (best_i >= 0 && best - now >= CONFIG_CAMOS_DEEP_SLEEP_MIN_S) {
-				deep_sleep_until(best, now, true);
-			} else if (best_i < 0) {
-				deep_sleep_until(now + CONFIG_CAMOS_NOSCHED_SLEEP_MIN * 60, now, false); /* nothing scheduled: look for a shadow */
+			if (battery_protect() || paused) {
+				/* Protect a cell that gets no charge: no captures, a look at the battery every hour (low_power goes out when
+				 * connected); a paused camera looks every 6 h whether FlyBot resumed it */
+				if (battery_protect_notice_due() && proto_connected()) {
+					ESP_LOGW(TAG, "cell at %d mV and no charge: sleeping %d s at a time to protect it", battery_mv(), CRITICAL_SLEEP_S);
+					proto_publish_low_power(CRITICAL_SLEEP_S);
+				}
+				deep_sleep_until(now + (battery_protect() ? CRITICAL_SLEEP_S : PAUSED_SLEEP_S), now, false);
+			} else {
+				int ci = checkin_interval();
+				time_t target = best_i >= 0 ? best : now + CONFIG_CAMOS_NOSCHED_SLEEP_MIN * 60;
+				if (ci && target - now > ci + 30) {
+					ESP_LOGI(TAG, "check-in in %d s (cell %d %%), the next slot in %lld s", ci, battery_pct(), (long long)(target - now));
+					checkin_next = 1;
+					deep_sleep_until(now + ci, now, false);
+					checkin_next = 0; /* not asleep after all: a request came in */
+				} else if (best_i < 0) {
+					deep_sleep_until(target, now, false); /* nothing scheduled: look for a shadow */
+				} else if (best - now >= (ci ? 60 : CONFIG_CAMOS_DEEP_SLEEP_MIN_S)) {
+					deep_sleep_until(best, now, true);
+				}
 			}
 		}
 #endif
-		if (!deep && gps_fix_due() && proto_connected() && !live_active() && !gps_task_running) {
+		/* The daily fix in powered mode waits for a quiet moment: the boot photo sent, two minutes up, no request, live view,
+		 * update or capture slot in the fix's time (on 4G the fix pauses the radio, and at the connect it raced the boot
+		 * photo's upload) */
+		bool gps_idle = boot_capture_done && esp_timer_get_time() / 1000000 >= 120 && proto_idle() && !job && !live_active() &&
+					!ota_running() && (!best || best - now > CONFIG_CAMOS_GPS_FIX_TIMEOUT_S + 60);
+		if (!deep && gps_fix_due() && proto_connected() && gps_idle && !gps_task_running) {
 			gps_task_running = true;
-			if (xTaskCreate(gps_fix_task, "gps-fix", 6144, NULL, 3, NULL) != pdPASS) {
+			if (xTaskCreate(gps_fix_task, "gps-fix", 8192, NULL, 3, NULL) != pdPASS) {
 				gps_fix(CONFIG_CAMOS_GPS_FIX_TIMEOUT_S, NULL); /* no memory for the task: here, as before */
 				proto_publish_reported_now();
 				gps_task_running = false;
@@ -649,7 +719,7 @@ static void sched_task(void *arg)
 				continue;
 			}
 		}
-		if (battery_critical()) {
+		if (battery_protect()) {
 			ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000)); /* the sleep branch above takes over once it may sleep */
 			continue;
 		}
@@ -672,6 +742,11 @@ void sched_init_lock(void)
 
 void sched_start(void)
 {
+	checkin_boot = checkin_next && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER;
+	checkin_next = 0;
+	if (checkin_boot) {
+		ESP_LOGI(TAG, "check-in wake: Wi-Fi and MQTT for requests only");
+	}
 	sched_init_lock();
 	xTaskCreate(sched_task, "sched", 12288, NULL, 5, &sched_task_handle);
 }

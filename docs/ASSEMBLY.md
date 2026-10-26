@@ -10,6 +10,9 @@ take one snapshot from the web console before anything goes into the box.
 
 ## 1. Inside the box
 
+The reference build uses the hanging solar trap housing from the BOM (item 3): the board, the modules and their wiring
+are mounted inside its lid. The steps below also apply to a plain IP65 box (items 3a, 3b).
+
 1. **Window.** Cut a 20 mm round hole in the side of the box that will face the card (or use a box with a clear lid and
    let the camera look through it). Glue a piece of clear acrylic over the hole from the inside with neutral silicone.
    Keep the acrylic clean and scratch-free: every smudge shows on the photos.
@@ -17,12 +20,16 @@ take one snapshot from the web console before anything goes into the box.
    **centred behind the window, 2-5 mm from it**, square to the window. A lens touching the acrylic catches reflections;
    a lens far from it sees the edge of the hole.
 3. **Camera ribbon.** Leave the OV5640 ribbon free of sharp bends. Fix the camera module with a dab of hot glue or
-   double-sided foam so that it cannot tilt.
-4. **Field camera only:** place the LiPo flat at the bottom (foam tape), the charger and the buck-boost beside it, the 4G
-   board against a side wall with its antenna (FPC antennas stick to the inside of the lid, away from the battery), the
-   GPS board with its patch antenna **facing up** under the lid. Keep the GPS antenna 10 cm or more from the LTE antenna.
-5. **Cables.** One gland at the bottom for the USB or solar cable (water runs down, not in). Make a drip loop below the
-   gland. Put a small bag of silica gel inside before closing.
+   double-sided foam so that it cannot tilt. **Focus** an adjustable lens (BOM item 1a) on the card: card at its final
+   distance, Live View in the web console, turn the lens until the card's grid is sharp, then lock it (its lock ring or
+   a drop of glue). A fixed lens focused far away (the Freenove kit's) is sharp only from about 50 cm.
+4. **Field camera only:** place the LiPo flat at the bottom (foam tape), the charger and the prototype board with the
+   5 V boost board and the screw terminals beside it, the 4G board against a side wall with its antenna (FPC antennas
+   stick to the inside of the lid, away from the battery), the GPS board with its patch antenna **facing up** under the
+   lid. Keep the GPS antenna 10 cm or more from the LTE antenna.
+5. **Cables.** The USB or solar cable enters at the bottom (water runs down, not in), through the housing's own opening
+   or a hole sealed with neutral silicone. Make a drip loop below it. Put a small bag of silica gel inside before
+   closing.
 
 ## 2. Camera and card
 
@@ -42,7 +49,7 @@ take one snapshot from the web console before anything goes into the box.
 1. Post 1.2-1.5 m, in the shade of the canopy, where the farm normally hangs its fruit-fly traps.
 2. The box on an arm, the card hanging on another arm in front of the window (see the illustration).
 3. **Solar panel** (field camera): on top of the roof, facing the equator (south in Vietnam), tilted about 15 degrees,
-   out of the canopy shade for as many hours as possible. Its cable runs down into the box through the bottom gland.
+   out of the canopy shade for as many hours as possible. Its cable runs down into the box through the bottom opening.
 4. **Antennas:** the LTE antenna vertical; an external antenna above the roof is better than one inside the box when
    the signal is weak (the 4G page shows the signal).
 5. Power on, wait for the LED: green blip = online. Check the camera in FlyBot (it uploads its first photo at the next
@@ -54,7 +61,7 @@ take one snapshot from the web console before anything goes into the box.
 |---|---|
 | `docs/img/trap-assembled.jpg` | the complete trap on its post in the orchard, front three-quarter view, panel and card visible |
 | `docs/img/trap-front.jpg` | the box from the card's side: the window, the lens behind it, the roof |
-| `docs/img/trap-inside.jpg` | the open box: board behind the window, battery, charger, 4G and GPS boards, cables and glands |
+| `docs/img/trap-inside.jpg` | the open box: board behind the window, battery, charger, prototype board, 4G and GPS boards, cables |
 | `docs/img/trap-orchard.jpg` | the trap in its place among the trees (wider shot) |
 | `docs/img/trap-card-view.jpg` | the sticky card as the camera sees it: a full-size snapshot downloaded from Playback |
 

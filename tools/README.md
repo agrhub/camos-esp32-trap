@@ -2,13 +2,13 @@
 
 | File | Purpose |
 |---|---|
-| `build.ps1` | Windows build / flash / monitor helper (`tools\build.ps1 freenove build`, see the top-level README) |
+| `build.ps1` | Windows build / flash / monitor helper (`tools\build.ps1 freenove build`; a new board step by step: docs/FLASHING.md) |
 | `provision.sh` | per-camera key + self-signed certificate (CN = serial), the AWS IoT registration command, and an NVS image with Wi-Fi / APN / FlyBot URL / token (the alternative to the portal for many cameras or the button-less AI-Thinker board) |
 | `label.py` | the label QR `CAMOS:1;SN:...;VC:...;M:...;;` for FlyBot's "add camera" scan |
 | `factory.sh` / `factory.ps1` | factory provisioning: the read-only `fctry` NVS image (serial, verify code, certificate, key, thing) flashed at 0x14000; prints the AWS IoT registration command (docs/dev/FACTORY.md) |
 | `serial_log.py` | non-interactive serial capture and console driver: `python tools/serial_log.py COM7 --reset --seconds 60`, `--cmd info --cmd scan` |
-| `mock/server.js` | mock camera serving the setup page and the web console with fake data (docs/dev/BUILD.md) |
-| `diagrams/wiring.py` | draws the wiring diagrams in docs/img |
+| `mock/server.js` | mock camera serving the setup page and the web console with fake data, for the screenshots in docs/img (docs/dev/BUILD.md) |
+| `diagrams/wiring.py` | draws the illustration of the mounted trap in docs/img |
 
 ## Provisioning with provision.sh
 

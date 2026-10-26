@@ -1250,7 +1250,20 @@ static void handle_offer(ev_t *e)
 	k.offer_at = esp_timer_get_time();
 	k.dc_open = k.dc_hello = k.dc_err_pending = k.req_pending = k.viewer_chose = false;
 	int sizes[LIVE_DC_MAX_SIZES][2];
-	live_dc_set_sizes(sizes, cam_sizes(true, sizes, LIVE_DC_MAX_SIZES)); /* the sensor's live sizes */
+	int n = cam_sizes(true, sizes, LIVE_DC_MAX_SIZES); /* the sensor's live sizes */
+	if (power_eco()) {
+		/* on a cell that is not full and not charging at full input: up to the 480p tier (FlyBot's tiers by area) */
+		int kept = 0;
+		for (int i = 0; i < n; i++) {
+			if ((long)sizes[i][0] * sizes[i][1] <= 600000) {
+				sizes[kept][0] = sizes[i][0], sizes[kept][1] = sizes[i][1];
+				kept++;
+			}
+		}
+		ESP_LOGI(TAG, "power level eco (%d mV, charging %s): live sizes up to 480p", battery_mv(), battery_charge_name());
+		n = kept;
+	}
+	live_dc_set_sizes(sizes, n);
 	ESP_LOGI(TAG, "offer from viewer %s (%u bytes)", k.viewer, (unsigned)strlen(e->data));
 	if (k.venc) {
 		set_err("the previous encoder did not stop");

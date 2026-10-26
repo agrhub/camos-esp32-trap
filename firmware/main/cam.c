@@ -24,35 +24,23 @@ static const char *TAG = "cam";
 #define CAMOS_LIVE_XCLK_MHZ CONFIG_CAMOS_XCLK_MHZ
 #endif
 static int up_xclk_mhz = CONFIG_CAMOS_XCLK_MHZ; /* XCLK of the next cam_up */
-/* Camera DMA. esp32-camera's JPEG mode needs one 16 KB internal block (fixed on the S3; its PSRAM DMA mode loses the
- * JPEG end markers), and TLS, DTLS and the motion photo's task fragment the internal heap: the switch from H.264 to
- * JPEG failed now and then (largest free block 15,360 bytes), and by a session's start there was at times no 16 KB
- * block left to set aside. So the block is taken at boot, before the network starts, and held whenever the camera is
- * not in a JPEG mode: freed just before any JPEG start (a photo, the web console stream, the live view's JPEG), which
- * takes that very hole, and taken again when the camera powers down. The live view's H.264 frames go by DMA straight
- * into PSRAM. */
+/* Camera DMA. esp32-camera's internal DMA mode needs one 16 KB internal block (fixed on the S3; its PSRAM DMA mode
+ * loses the JPEG end markers), and TLS, DTLS and the motion photo's task fragment the internal heap. A block set aside
+ * at boot and freed just before each start was lost to the other core while the camera gave it back: after the boot
+ * photo the largest block left was 13 KB and the live view never reached JPEG 640x480 (26 Oct 2026). So the block is
+ * static, and the driver takes it instead of allocating one (vendor/esp32-camera, esp_camera_set_dma_buffer). */
 #define LIVE_JPEG_DMA 16384
 static bool up_psram_dma;
 static bool night_ok; /* the stream being started (not a photo) may use the night mode */
 static int night_override = -1; /* console `cam night`: -1 = as night_ok, 0 = off, 1 = on (diagnosis) */
-static void *dma_reserve;
-static bool reserve_wanted;
-
-static void reserve_take(void)
-{
-	if (reserve_wanted && !dma_reserve) {
-		dma_reserve = heap_caps_malloc(LIVE_JPEG_DMA, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
-		if (!dma_reserve) {
-			ESP_LOGW(TAG, "no %d-byte internal block left for the camera's JPEG mode", LIVE_JPEG_DMA);
-		}
-	}
-}
+#if CONFIG_CAMOS_LIVE
+static DMA_ATTR uint8_t cam_dma_buf[LIVE_JPEG_DMA];
 
 void cam_dma_reserve_init(void)
 {
-	reserve_wanted = true;
-	reserve_take();
+	esp_camera_set_dma_buffer(cam_dma_buf, sizeof(cam_dma_buf));
 }
+#endif
 static RTC_DATA_ATTR framesize_t max_fs; /* known after the first power-up; kept through deep sleep */
 static RTC_DATA_ATTR uint16_t sensor_pid; /* the detected sensor (camera_pid_t) */
 static framesize_t known_fs;              /* from NVS cam_pid before this boot's first power-up: sizes only */
@@ -127,9 +115,7 @@ static void cam_off(void)
 #endif
 	cam_power(false);
 	cam_pm(false);
-	/* the encoder's stack first: without it no live view at all, without the JPEG reserve only the JPEG mode (H.264 then) */
-	live_stack_reserve();
-	reserve_take(); /* a live session: the block the JPEG DMA buffer just gave back */
+	live_stack_reserve(); /* the encoder's stack, if a photo had it (older builds lent it) */
 }
 
 void cam_sleep_prepare(void)
@@ -197,14 +183,6 @@ static esp_err_t cam_up(framesize_t fs, int quality, int fb_count, pixformat_t f
 		.grab_mode = CAMERA_GRAB_LATEST, /* after the warm-up, the newest frame */
 	};
 	esp_camera_set_psram_mode(up_psram_dma);
-	if (fmt == PIXFORMAT_JPEG && !up_psram_dma) {
-		if (dma_reserve) {
-			heap_caps_free(dma_reserve); /* the JPEG DMA buffer goes into this hole */
-			dma_reserve = NULL;
-		} else {
-			live_stack_lend(); /* no reserve (taken back too late after a live session): the idle encoder's block */
-		}
-	}
 	return esp_camera_init(&c);
 }
 

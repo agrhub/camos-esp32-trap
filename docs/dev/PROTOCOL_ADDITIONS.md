@@ -91,17 +91,25 @@ FlyBot's fleet page. `reported` carries `disabled`.
 
 ```json
 {"capture":{"resolution":"max","jpegQuality":85,"intervalMin":60,"w":2560,"h":1920},
- "power":{"mode":"auto","effective":"battery","highMv":4050,"lowMv":3850},
+ "power":{"mode":"auto","effective":"battery","level":"saver","highMv":4050,"lowMv":3850},
  "live":{"requested":false,"supported":false,"active":false},
  "kvs":{"channelName":"cam-ESP000000000002","region":"ap-southeast-2"},
  "location":{"lat":10.971200,"lng":106.650300,"fixAt":"2026-10-16T05:00:12Z","source":"gps","accuracyM":6},
  "net":"wifi",
- "battery":{"voltage":3.9,"percent":65,"mv":3900,"pct":65,"charging":true,"solarMv":5800},
+ "battery":{"voltage":3.9,"percent":65,"mv":3900,"pct":65,"charging":true,"charge":"normal","solarMv":5800},
  "nextCaptureAt":"2026-10-16T09:00:00Z"}
 ```
 
 `battery.voltage` / `percent` are the fields of the reference firmware (kept); `mv`, `pct`, `charging`, `solarMv` are the
-CONTRACTS fields. `state` also has `thingName`, `net.cell {imei, iccid, operator, csq, registered}` on 4G (protocol 4 shape)
+CONTRACTS fields. Without a charger status pin, `charging` is true when `solarMv` is at least 4500 or at least 100 mV
+above `mv` (a small panel sags to just above the cell while it charges). `charge` (0.9.2) tells them apart: `normal`
+(the input at 4500 mV or more, or the charger's status pin), `slow` (charging with the input under 4500 mV: a small
+or shaded panel; the cell gains slowly), `none`.
+
+`power.level` (0.9.2) is what the camera does with that: `full` (cell at `highMv` or above, or charging `normal`),
+`eco` (online, but the cell under `highMv` and not charging `normal`: the live view offers sizes up to the 480p tier
+only), `saver` (the battery mode: deep sleep between photos). Only a `normal` charge keeps `auto` online below `highMv`;
+with a `slow` one the cell voltage decides. `power.mode` `powered` is always `full`. `state` also has `thingName`, `net.cell {imei, iccid, operator, csq, registered}` on 4G (protocol 4 shape)
 and `gps {lat, lon, fix, ts, source}` (protocol 4) when the build has GPS.
 
 `location.source` is `gps`, or `cell` when the GPS found no fix and the 4G module gave the position of its cell
@@ -121,8 +129,8 @@ channel without a window (LIVE_VIEW.md).
 | `snapshot.now` | — | `{"snapshotId","image":{"key","w","h","bytes"},"bytes"}` (`image.key` = `snapshotId`, so the protocol 9 `capture` shape still holds). Errors `UPLOAD_FAILED`, `INTERNAL`, `BUSY` (a photo is still being taken). The photo is taken and uploaded on the scheduler task, so other RPCs are answered meanwhile; a running live view pauses for it and comes back. `capture` is an alias. |
 | `live.start` | `{"minutes": 1..60}` (default 5) | `{"channelName","seconds"}`; `NOT_SUPPORTED` when the build has no live view (ESP32-CAM, or CAMOS_LIVE off) or the camera has no KVS channel or credential provider settings (see LIVE_VIEW.md), `BAD_PARAMS`, `BUSY`. Repeating it extends the session. The camera joins the channel within a few seconds of the answer (credentials, endpoints, WebSocket); a viewer offer sent before that is lost and the viewer offers again. |
 | `live.stop` | — | — (drops the viewer and ends the window; a powered camera stays on the channel) |
-| `gps.fix` | `{"timeoutS"?}` (default 120) | `{"location":{lat,lng,fixAt,source,accuracyM},"sats"}` (a 4G cell position when the GPS finds none); `TIMEOUT` when neither, `NOT_SUPPORTED` without GPS. Runs in its own task: the reply comes up to `timeoutS` later, other RPCs go on. |
-| `ota.apply` | — | `{"version"}` at once, then `ota_progress` events and the event `ota_result` (`stage: "installed"` + restart, or `ok:false` with `DOWNLOAD_FAILED` / `SIGNATURE_INVALID` for a SHA-256 mismatch). `NOT_FOUND` when `GET /api/device/ota` gives 204, `OLD_VERSION` when it offers the running version, `LOW_BATTERY` (0.7.0) on battery without the charger below `CAMOS_OTA_MIN_MV` (3700 mV): FlyBot tries again at a later wake. |
+| `gps.fix` | `{"timeoutS"?}` (at least the build's 300, at most 600) | `{"location":{lat,lng,fixAt,source,accuracyM},"sats"}` (a 4G cell position when the GPS finds none); `TIMEOUT` when neither, `NOT_SUPPORTED` without GPS. Runs in its own task: the reply comes up to `timeoutS` later, other RPCs go on. After a try without a fix the module stays on for 10 minutes, so the next try starts warm. On 4G the module's radio is off during the fix (its transmitter drowns the GPS): the camera is offline for up to `timeoutS`, then dials again and replies; not while a live viewer watches; a request while a fix runs answers `TIMEOUT` at once ("a fix already running"). |
+| `ota.apply` | — | `{"version"}` at once, then `ota_progress` events and the event `ota_result` (`stage: "installed"` + restart, or `ok:false` with `DOWNLOAD_FAILED` / `SIGNATURE_INVALID` for a SHA-256 mismatch). `NOT_FOUND` when `GET /api/device/ota` gives 204, `OLD_VERSION` when it offers the running version, `LOW_BATTERY` (0.7.0) on battery without the charger below `CAMOS_OTA_MIN_MV` (3700 mV): FlyBot tries again at a later wake. Since 0.9.2 it runs on the scheduler task, so other RPCs are answered meanwhile; `BUSY` while an update or a photo is running. Motion detection pauses during the download. |
 | `reboot` | — | as before |
 | `net.set` | `wifi {ssid, password}`, `cellular {apn}` | stored, effective at the next boot (protocol 9 method, now supported) |
 | `factory_reset` | — | erases everything but the serial and verify code (protocol 9 method, now supported) |
@@ -139,11 +147,17 @@ Unchanged: `ping`, `state`, `capture`. Everything else answers `NOT_SUPPORTED`.
   area (percent of the picture), `level` in per mille of the area, `sdFile` = `YYYYMMDD/HHMMSSM.JPG` when the picture
   was saved on the microSD card. At most one per cooldown (web console setting, default 60 s).
 - `location_changed` `{lat, lon, distanceM}` when a new fix is more than 50 m from the previous one.
+- `gps_fix` (0.9.2) `{state:"started", seconds}` right before a fix on 4G switches the 4G radio off (the camera is then
+  offline for up to `seconds`), and `{state:"done", fix}` once it is back. FlyBot shows "Taking a GPS fix" instead of
+  an outage meanwhile.
 - `ota_progress` `{target:"firmware", version, pct}` (0.7.0): at 25, 50 and 75 % of the download when the server
   sends its length.
 - `ota_result` `{target:"firmware", version, ok, stage, error?, detail?}`.
 - `boot` `{reason, fw}`: `reason` now also `"ota"` after a successful update.
-- `low_power` `{voltage}` as before.
+- `low_power` `{voltage, percent, charging, critical, sleepS?}`: below CAMOS_BATT_LOW_MV at most every 6 h, as before, now with
+  the percent, whether the cell charges and whether it is critical (below CAMOS_BATT_CRITICAL_MV). `sleepS` (3600) comes
+  once, just before the first sleep that protects a critical cell with no charge: the camera then takes no photos and
+  wakes every hour until it charges. A critical cell that charges runs as usual. FlyBot can warn the owner on it.
 
 ## 6. Sleep and the goodbye message (CONTRACTS section 3)
 
@@ -233,7 +247,8 @@ For cameras nobody can plug a cable into (logfwd.c). Off unless FlyBot asks, and
 - Batches on `camos/{serial}/log`, QoS 0, every 2 s or at 3 KB:
   `{"v":1,"session":"1a2b3c4d","seq":7,"uptimeMs":812345,"at":1792396800000,"level":"info","lines":["I (812001) proto: ..."],"dropped":0}`;
   the last one has `"end":true`. `backlog: true` sends the log kept since boot (up to 24 KB) first. 4 KB/s at most
-  (12 KB burst), 1 MB a session; a live viewer goes first. Debug and verbose lines appear only for tags built with that
+  (12 KB burst), 1 MB a session; while a live viewer watches, one batch every 10 s (0.9.2; before, nothing until 24 KB
+  piled up). Debug and verbose lines appear only for tags built with that
   level (`CONFIG_LOG_MAXIMUM_LEVEL`).
 - Secrets never leave the camera: the device token, the Wi-Fi and access point passwords, the SIM PIN, the
   provisioning token and the label verify code are replaced by `***` in every line.

@@ -2,7 +2,9 @@
 /*
  * power.mode (CONTRACTS section 3): "powered" keeps MQTT connected with snapshot and live on demand, "battery" is
  * the scheduled capture + deep sleep cycle (sched.c), "auto" picks one from the cell voltage with hysteresis:
- * above highMv (or charging and above lowMv) -> powered; below lowMv -> battery. The decision survives deep sleep
+ * above highMv (or charging at full input and above lowMv) -> powered; below lowMv -> battery. Online on a cell that
+ * is neither full nor charging at full input, the level is "eco" (power_eco: the live view keeps to 480p). The
+ * decision survives deep sleep
  * in RTC memory so the hysteresis holds across wake-ups. Thresholds: shadow power.highMv / power.lowMv, else Kconfig.
  * The decision itself (power_decide) is a pure function, tested on the host (tests/test_power.c).
  */
@@ -58,8 +60,9 @@ power_mode_t power_effective(void)
 		eff_prev = POWER_BATTERY;
 	}
 	int mv = battery_mv();
-	/* a charger that reports charging counts as a full cell as long as the cell is above low */
-	if (battery_charging() && mv >= low) {
+	/* a charger that charges at full input counts as a full cell as long as the cell is above low; a slow charge (a
+	 * small panel sagging to the cell) may not keep up with an always-on camera, so the cell voltage decides then */
+	if (battery_charging_fast() && mv >= low) {
 		mv = high;
 	}
 	power_mode_t m = power_decide(shadow_power_mode(), (power_mode_t)eff_prev, g_cfg.batt_mon, mv, high, low);
@@ -76,6 +79,23 @@ bool power_may_deep_sleep(void)
 	return CAMOS_DEEP_SLEEP && power_effective() == POWER_BATTERY;
 }
 
+/* Online on a cell that is not full and not charging at full input (a small panel, cloud, a cell between low and
+ * high): the live view keeps to the 480p tier, so the camera stays up longer before the battery mode */
+bool power_eco(void)
+{
+	if (!g_cfg.batt_mon || battery_mv() < 0 || shadow_power_mode() == POWER_POWERED) {
+		return false; /* no cell measured, or the owner asked for full power */
+	}
+	int high, low;
+	thresholds(&high, &low);
+	return !battery_charging_fast() && battery_mv() < high;
+}
+
+const char *power_level_name(void)
+{
+	return power_effective() == POWER_BATTERY ? "saver" : power_eco() ? "eco" : "full";
+}
+
 void power_json(cJSON *parent)
 {
 	int high, low;
@@ -83,6 +103,7 @@ void power_json(cJSON *parent)
 	cJSON *p = cJSON_AddObjectToObject(parent, "power");
 	cJSON_AddStringToObject(p, "mode", power_mode_name(shadow_power_mode()));
 	cJSON_AddStringToObject(p, "effective", power_mode_name(power_effective()));
+	cJSON_AddStringToObject(p, "level", power_level_name());
 	cJSON_AddNumberToObject(p, "highMv", high);
 	cJSON_AddNumberToObject(p, "lowMv", low);
 }
