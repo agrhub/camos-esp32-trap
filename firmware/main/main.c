@@ -123,7 +123,7 @@ void app_main(void)
 	} else if (g_cfg.prov_token[0] && !g_cfg.token[0] && g_cfg.api_base[0]) {
 		xTaskCreate(pair_task, "pair", 8192, NULL, 4, NULL);
 	}
-	if (!power_may_deep_sleep() || !timer_wake || !clock_synced()) {
+	if (!power_may_deep_sleep() || !timer_wake || !clock_synced() || sched_checkin()) {
 		/* Powered mode, a power-on / reset, or a lost clock: network now (state, shadow, time first).
 		 * Battery mode after a timer wake-up: the network can wait for the JPEG (capture_now starts it). */
 		net_start();

@@ -303,7 +303,8 @@ static void watch_tick(void *arg)
 		return;
 	}
 	if (chosen == NET_WIFI) {
-		bool can_4g = has_4g && (joined || !wifi_new); /* wifi.c clears wifi_new at the first IP */
+		/* wifi.c clears wifi_new at the first IP; a check-in wake never goes to 4G (it sleeps again instead) */
+		bool can_4g = has_4g && (joined || !wifi_new) && !sched_checkin();
 		if (!joined) {
 			if (wifi_up()) {
 				joined = true;

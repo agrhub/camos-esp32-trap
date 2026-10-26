@@ -361,6 +361,7 @@ void sched_init_lock(void);                     /* the camera lock alone (portal
 void sched_changed(void);                       /* settings changed: recompute the next capture */
 bool sched_run(void (*fn)(void));              /* run fn on the scheduler's task (12 KB stack) soon; false if busy */
 bool sched_job_pending(void);                  /* a sched_run request waits for the scheduler's task */
+bool sched_checkin(void);                      /* this wake is a check-in (battery mode on Wi-Fi): requests only, no 4G */
 void sched_keep_awake(int seconds);             /* live view / console: no deep sleep for this long */
 time_t sched_next_capture(void);                /* 0 when none */
 void sched_wake_hint(time_t at);                /* nextWakeAt from the FlyBot snapshot response */
