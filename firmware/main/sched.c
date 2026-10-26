@@ -476,7 +476,7 @@ void sched_changed(void)
 static bool may_sleep(void)
 {
 	int64_t up = esp_timer_get_time() / 1000000;
-	if (!proto_idle() || up - last_activity_s < 5 || up < keep_awake_until_s || live_active()) {
+	if (job || !proto_idle() || up - last_activity_s < 5 || up < keep_awake_until_s || live_active()) {
 		return false;
 	}
 	int connected_s = proto_connected_for_s();
@@ -510,6 +510,12 @@ static void deep_sleep_until(time_t until, time_t now, bool with_lead)
 	if (proto_connected()) {
 		proto_flush(5000);
 	}
+	/* a request that came during the goodbye (FlyBot sends ota.apply when the camera shows it is awake, and that was
+	 * just before it slept: 7 tries of 0.9.2-rc.13 went unanswered, 25 Oct 2026): stay awake for it, sleep after */
+	if (job) {
+		ESP_LOGI(TAG, "a request came in: not sleeping yet");
+		return;
+	}
 	net_sleep_prepare(); /* modem off through PWRKEY and its rail, Wi-Fi stopped */
 	cam_sleep_prepare();
 	gps_sleep_prepare();
@@ -531,6 +537,11 @@ static void gps_fix_task(void *arg)
 	proto_publish_reported_now();
 	gps_task_running = false;
 	vTaskDelete(NULL);
+}
+
+bool sched_job_pending(void)
+{
+	return job != NULL;
 }
 
 bool sched_run(void (*fn)(void))
@@ -610,7 +621,9 @@ static void sched_task(void *arg)
 		}
 		if (deep && proto_provisioned() && may_sleep()) {
 			if (gps_fix_due() && !battery_critical()) {
-				gps_fix(CONFIG_CAMOS_GPS_FIX_TIMEOUT_S, NULL); /* once a day, before the sleep; reported next connect */
+				/* once a day, before the sleep; reported next connect. It gives way to a request (ota.apply waited behind a
+				 * 300 s fix and FlyBot gave up after 60 s, 25 Oct 2026) */
+				gps_fix_yielding(CONFIG_CAMOS_GPS_FIX_TIMEOUT_S);
 				proto_publish_reported_now();
 				proto_flush(5000);
 			}
@@ -625,7 +638,12 @@ static void sched_task(void *arg)
 			}
 		}
 #endif
-		if (!deep && gps_fix_due() && proto_connected() && !live_active() && !gps_task_running) {
+		/* The daily fix in powered mode waits for a quiet moment: the boot photo sent, two minutes up, no request, live view,
+		 * update or capture slot in the fix's time (on 4G the fix pauses the radio, and at the connect it raced the boot
+		 * photo's upload) */
+		bool gps_idle = boot_capture_done && esp_timer_get_time() / 1000000 >= 120 && proto_idle() && !job && !live_active() &&
+					!ota_running() && (!best || best - now > CONFIG_CAMOS_GPS_FIX_TIMEOUT_S + 60);
+		if (!deep && gps_fix_due() && proto_connected() && gps_idle && !gps_task_running) {
 			gps_task_running = true;
 			if (xTaskCreate(gps_fix_task, "gps-fix", 8192, NULL, 3, NULL) != pdPASS) {
 				gps_fix(CONFIG_CAMOS_GPS_FIX_TIMEOUT_S, NULL); /* no memory for the task: here, as before */

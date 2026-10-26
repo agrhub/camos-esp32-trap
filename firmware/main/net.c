@@ -107,7 +107,8 @@ static void time_task(void *arg)
 		if (clock_synced() && strcmp(clock_source(), "rtc")) {
 			break; /* the modem or the GPS set it meanwhile */
 		}
-		if (round == 0 && !clock_synced() && gps_available()) {
+		/* GPS time only without a network: with one, FlyBot's time below is quicker and keeps the GPS for its daily fix */
+		if (round == 0 && !clock_synced() && gps_available() && !net_up()) {
 			ESP_LOGW(TAG, "NTP did not answer: trying GPS time");
 			if (gps_fix(45, NULL) && clock_synced()) {
 				break; /* gps.c logged "clock set from gps" */

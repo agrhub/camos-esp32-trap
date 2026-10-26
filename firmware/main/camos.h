@@ -360,6 +360,7 @@ void sched_start(void);
 void sched_init_lock(void);                     /* the camera lock alone (portal mode console) */
 void sched_changed(void);                       /* settings changed: recompute the next capture */
 bool sched_run(void (*fn)(void));              /* run fn on the scheduler's task (12 KB stack) soon; false if busy */
+bool sched_job_pending(void);                  /* a sched_run request waits for the scheduler's task */
 void sched_keep_awake(int seconds);             /* live view / console: no deep sleep for this long */
 time_t sched_next_capture(void);                /* 0 when none */
 void sched_wake_hint(time_t at);                /* nextWakeAt from the FlyBot snapshot response */
@@ -400,6 +401,7 @@ bool gps_available(void);
 bool gps_fix(int timeout_s, gps_fix_t *out);    /* power the module, wait for RMC valid (+GGA), power it down
                                                  * (no fix: kept on for 10 min, the next try starts warm) */
 void gps_sleep_prepare(void);                   /* before deep sleep: the module off */
+bool gps_fix_yielding(int timeout_s);           /* gps_fix that stops when a sched_run request comes (the daily fix) */
 bool gps_quiet(void);                           /* console `gps quiet`: camera, Wi-Fi and 4G stay off for the fix */
 void gps_set_quiet(bool on);
 bool gps_last(gps_fix_t *out);                  /* last fix (RTC memory / NVS) */

@@ -176,6 +176,7 @@ static double distance_m(double lat1, double lon1, double lat2, double lon2)
 static bool fix_once(int timeout_s, gps_fix_t *out);
 static bool cell_fallback(gps_fix_t *out);
 static volatile bool fixing;
+static volatile bool yielding; /* gps_fix_yielding: a sched_run request stops the try */
 
 static void warm_end(void *arg)
 {
@@ -248,6 +249,14 @@ static void gnss_send(uart_port_t u, int mask, bool by_region)
 
 /* One fix at a time: the scheduler's daily fix and a console or RPC request would share the UART and the first to
  * finish would switch the module off under the other (seen 22 Oct 2026: 166, then 67, then 7 sentences): `fixing` */
+
+bool gps_fix_yielding(int timeout_s)
+{
+	yielding = true;
+	bool ok = gps_fix(timeout_s, NULL);
+	yielding = false;
+	return ok;
+}
 
 bool gps_fix(int timeout_s, gps_fix_t *out)
 {
@@ -355,8 +364,13 @@ static bool fix_once(int timeout_s, gps_fix_t *out)
 	int best_snr = 0; /* strongest satellite in this 15 s window, dB-Hz: under 20 weak, 30 and up good */
 	uint16_t strong[32]; /* satellites at 25 dB-Hz or more in this window (talker << 8 | id): a fix needs 4 */
 	int n_strong = 0;
-	bool ok = false;
+	bool ok = false, stopped = false;
 	while (esp_timer_get_time() < deadline) {
+		if (yielding && sched_job_pending()) {
+			ESP_LOGI(TAG, "a request came in: this try stops (the next wake tries again)");
+			stopped = true;
+			break;
+		}
 		if (esp_timer_get_time() >= next_note) {
 			/* progress: no sentences = no module or wiring; sentences but 0 satellites = no sky view yet */
 			ESP_LOGI(TAG, "still searching: %d sentences, %d satellites in view (GPS %d, BeiDou %d, GLONASS %d), %d at 25 dB-Hz or more, %d in use, best %d dB-Hz",
@@ -462,7 +476,7 @@ static bool fix_once(int timeout_s, gps_fix_t *out)
 	}
 	if (!ok) {
 		ESP_LOGW(TAG, "no fix in %d s (%d sentences seen%s)", timeout_s, sentences, sentences ? "" : ": is the module powered and TX wired to the RX pin?");
-		if (sentences == 0 && timeout_s >= 30) {
+		if (sentences == 0 && timeout_s >= 30 && !stopped) {
 			store_set_flag("gps_absent", 1); /* no NMEA at all: no module; set gps on again in the portal to retry */
 			ESP_LOGW(TAG, "no GPS module answered: GPS skipped from now on (portal / console `set gps 1` to retry)");
 		}
@@ -532,6 +546,11 @@ static bool cell_fallback(gps_fix_t *out)
 
 bool gps_available(void) { return false; }
 void gps_sleep_prepare(void) {}
+bool gps_fix_yielding(int timeout_s)
+{
+	(void)timeout_s;
+	return false;
+}
 bool gps_fix(int timeout_s, gps_fix_t *out)
 {
 	(void)timeout_s;
