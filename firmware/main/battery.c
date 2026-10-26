@@ -191,6 +191,30 @@ bool battery_critical(void)
 	return CONFIG_CAMOS_BATT_CRITICAL_MV > 0 && last_mv >= 0 && last_mv < CONFIG_CAMOS_BATT_CRITICAL_MV;
 }
 
+/* A critical cell with no charge coming in: the camera only protects it. Charging (a panel in the sun, a charger), it
+ * runs as usual even from an empty cell: on 26 Oct 2026 a trap on its charger at 2.0 V still slept 6 h and took no
+ * update or request meanwhile. */
+bool battery_protect(void)
+{
+	return battery_critical() && !battery_charging();
+}
+
+/* The warning before a protective sleep goes out once per spell (RTC memory, kept through the hourly sleeps) */
+static RTC_DATA_ATTR bool protect_noticed;
+
+bool battery_protect_notice_due(void)
+{
+	if (!battery_protect()) {
+		protect_noticed = false;
+		return false;
+	}
+	if (protect_noticed) {
+		return false;
+	}
+	protect_noticed = true;
+	return true;
+}
+
 void battery_json(cJSON *parent)
 {
 	if (last_mv < 0) {

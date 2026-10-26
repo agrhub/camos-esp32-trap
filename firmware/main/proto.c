@@ -197,6 +197,22 @@ bool proto_flush(int timeout_ms)
 	return false;
 }
 
+/* low_power (protocol 5): the cell's voltage and percent, whether it charges, whether it is critical; sleep_s > 0 when the
+ * camera is about to sleep that long to protect it (FlyBot warns the owner) */
+void proto_publish_low_power(int sleep_s)
+{
+	char id[27];
+	cJSON *e = evt_new("low_power", id);
+	cJSON_AddNumberToObject(e, "voltage", battery_mv() / 1000.0); /* volts */
+	cJSON_AddNumberToObject(e, "percent", battery_pct());
+	cJSON_AddBoolToObject(e, "charging", battery_charging());
+	cJSON_AddBoolToObject(e, "critical", battery_critical());
+	if (sleep_s > 0) {
+		cJSON_AddNumberToObject(e, "sleepS", sleep_s);
+	}
+	proto_publish_event(e);
+}
+
 /* Protocol 7 */
 static void publish_telemetry(void)
 {
@@ -631,10 +647,7 @@ static void on_connected(void)
 		proto_publish_reported_now();
 	}
 	if (battery_low_due()) {
-		char id[27];
-		cJSON *e = evt_new("low_power", id);
-		cJSON_AddNumberToObject(e, "voltage", battery_mv() / 1000.0); /* volts */
-		proto_publish_event(e);
+		proto_publish_low_power(0);
 	}
 	static bool booted;
 	if (!booted) {

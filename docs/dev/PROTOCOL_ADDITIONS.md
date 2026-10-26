@@ -154,7 +154,10 @@ Unchanged: `ping`, `state`, `capture`. Everything else answers `NOT_SUPPORTED`.
   sends its length.
 - `ota_result` `{target:"firmware", version, ok, stage, error?, detail?}`.
 - `boot` `{reason, fw}`: `reason` now also `"ota"` after a successful update.
-- `low_power` `{voltage}` as before.
+- `low_power` `{voltage, percent, charging, critical, sleepS?}`: below CAMOS_BATT_LOW_MV at most every 6 h, as before, now with
+  the percent, whether the cell charges and whether it is critical (below CAMOS_BATT_CRITICAL_MV). `sleepS` (3600) comes
+  once, just before the first sleep that protects a critical cell with no charge: the camera then takes no photos and
+  wakes every hour until it charges. A critical cell that charges runs as usual. FlyBot can warn the owner on it.
 
 ## 6. Sleep and the goodbye message (CONTRACTS section 3)
 

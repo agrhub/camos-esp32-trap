@@ -341,6 +341,7 @@ void proto_start(void);
 void proto_fast_retry(int seconds);             /* short reconnect back-off for a while (a fresh certificate) */
 bool proto_connected(void);
 void proto_publish_event(cJSON *evt);           /* takes ownership */
+void proto_publish_low_power(int sleep_s);      /* low_power: voltage, percent, charging, critical (+ sleepS before a protective sleep) */
 void proto_publish_state(bool retained_online);
 void proto_publish_reported(const char *json);
 bool proto_publish_log(const char *json);       /* camos/<serial>/log, QoS 0, only while connected */
@@ -379,6 +380,8 @@ bool battery_charging_fast(void);               /* charging, the input at full v
 const char *battery_charge_name(void);          /* "yes", "slow", "no" or "unknown" */
 bool battery_low_due(void);                     /* true once per 6 h while below CAMOS_BATT_LOW_MV */
 bool battery_critical(void);
+bool battery_protect(void);                     /* critical and not charging: no photos, sleep an hour at a time */
+bool battery_protect_notice_due(void);          /* once per spell of battery_protect: the warning before its first sleep */
 void battery_json(cJSON *parent);               /* adds battery {voltage, percent, mv, pct, charging, charge, solarMv} */
 
 power_mode_t power_effective(void);             /* auto resolved by battery voltage with hysteresis */
