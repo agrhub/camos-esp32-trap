@@ -545,6 +545,8 @@ static bool cell_fallback(gps_fix_t *out)
 #else
 
 bool gps_available(void) { return false; }
+bool gps_quiet(void) { return false; }
+void gps_set_quiet(bool on) { (void)on; }
 void gps_sleep_prepare(void) {}
 bool gps_fix_yielding(int timeout_s)
 {
