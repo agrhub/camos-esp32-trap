@@ -117,6 +117,7 @@ static struct {
 	char dc_err[64];
 	live_quality_t req, cur;
 	bool req_fixed; /* req is a size the person picked: kept on a weak link */
+	live_dc_exp_t exp; /* a test page's experiment knobs for this session (live_dc.h) */
 	live_dc_flow_t flow;
 	uint8_t *dc_buf;           /* one chunk: header + payload */
 	int32_t push_ms;           /* time to hand the last JPEG frame to the channel */
@@ -659,8 +660,8 @@ static void dc_send_json(cJSON *o)
 	}
 }
 
-/* One JPEG in chunks of LIVE_DC_CHUNK bytes behind a 20-byte header; false when the channel refused a chunk (the
- * viewer drops the incomplete frame when the next one starts) */
+/* One JPEG in chunks of LIVE_DC_CHUNK bytes (or the experiment's) behind a 20-byte header, paced to the experiment's
+ * rate when it has one; false when the channel refused a chunk (the viewer drops the incomplete frame) */
 static bool dc_send_jpeg(const uint8_t *jpg, uint32_t len, uint32_t seq, uint32_t ts_ms)
 {
 	if (!k.dc_buf) {
@@ -669,8 +670,17 @@ static bool dc_send_jpeg(const uint8_t *jpg, uint32_t len, uint32_t seq, uint32_
 			return false;
 		}
 	}
-	for (uint32_t off = 0; off < len; off += LIVE_DC_CHUNK) {
-		uint32_t n = len - off > LIVE_DC_CHUNK ? LIVE_DC_CHUNK : len - off;
+	uint32_t chunk = k.exp.chunk > 0 ? (uint32_t)k.exp.chunk : LIVE_DC_CHUNK;
+	int64_t t0 = clock_ms();
+	for (uint32_t off = 0; off < len; off += chunk) {
+		uint32_t n = len - off > chunk ? chunk : len - off;
+		if (k.exp.kbps > 0) {
+			int64_t due = t0 + (int64_t)off * 8 / k.exp.kbps; /* bytes * 8 / (kbit/s) = ms */
+			int64_t now = clock_ms();
+			if (due > now) {
+				vTaskDelay(pdMS_TO_TICKS(due - now) ? pdMS_TO_TICKS(due - now) : 1);
+			}
+		}
 		live_dc_header(k.dc_buf, seq, len, off, ts_ms);
 		memcpy(k.dc_buf + LIVE_DC_HDR_LEN, jpg + off, n);
 		if (dc_send(ESP_PEER_DATA_CHANNEL_DATA, k.dc_buf, (int)(LIVE_DC_HDR_LEN + n)) != ESP_PEER_ERR_NONE) {
@@ -755,6 +765,12 @@ static int on_dc_data(esp_peer_data_frame_t *f, void *ctx)
 		k.req_fixed = m.fixed;
 		k.req_pending = true;
 		k.viewer_chose = true;
+		if (m.exp.set) {
+			k.exp = m.exp;
+			peer_udp_set_wait(m.exp.udp_wait_ms);
+			ESP_LOGW(TAG, "live experiment: %d kbit/s, gap %d ms, chunk %d, UDP wait %d ms", m.exp.kbps, m.exp.gap_ms, m.exp.chunk,
+					 m.exp.udp_wait_ms);
+		}
 		break;
 	case LIVE_DC_ACK:
 		live_dc_on_ack(&k.flow, m.seq, clock_ms());
@@ -947,6 +963,7 @@ static void venc_task(void *arg)
 	int64_t t0 = esp_timer_get_time(), next = t0, win = t0, last_log = t0, last_stats = t0;
 	uint32_t win_frames = 0, seq = 0;
 	bool waiting = false, fixed = false;
+	int64_t ram_low_since = 0; /* JPEG: since when internal RAM held the frames back, 0 when it did not */
 	uint64_t win_bytes = 0, win_enc_us = 0, win_cap_us = 0;
 	k.frames = k.idr = k.dc_drops = k.dc_waits = 0;
 	live_dc_flow_reset(&k.flow);
@@ -1013,6 +1030,7 @@ static void venc_task(void *arg)
 			cur = want;
 			k.cur = cur;
 			live_dc_flow_reset(&k.flow);
+			live_dc_flow_size(&k.flow, cur.w, cur.h, k.exp.gap_ms);
 			k.last_ack_ms = clock_ms();
 			win = next = esp_timer_get_time(), win_frames = 0, win_bytes = 0, win_enc_us = 0, win_cap_us = 0;
 			ESP_LOGI(TAG, "live view now %s %dx%d q%d at %d fps", mode_name(cur.mode), cur.w, cur.h, cur.q, cur.fps);
@@ -1055,7 +1073,17 @@ static void venc_task(void *arg)
 		} else {
 			/* flow control: no frame while LIVE_DC_WINDOW frames wait for their ack (the newest frame is taken next) */
 			/* ... and none while internal RAM runs low: Wi-Fi needs it to carry what is already queued */
-			if (!live_dc_may_send(&k.flow, clock_ms()) || heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < LIVE_MIN_INTERNAL) {
+			bool ram_low = heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < LIVE_MIN_INTERNAL;
+			if (!ram_low) {
+				ram_low_since = 0;
+			} else if (!ram_low_since) {
+				ram_low_since = clock_ms();
+			} else if (clock_ms() - ram_low_since > 5000) {
+				ESP_LOGW(TAG, "no JPEG frame for 5 s: free internal %u (largest %u)", (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+						 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+				ram_low_since = clock_ms();
+			}
+			if (ram_low || !live_dc_may_send(&k.flow, clock_ms())) {
 				esp_camera_fb_return(fb);
 				if (!waiting) {
 					k.dc_waits++; /* frames the channel could not take in time */
@@ -1075,7 +1103,7 @@ static void venc_task(void *arg)
 				vTaskDelay(pdMS_TO_TICKS(20)); /* the channel refused a chunk: let it drain */
 				continue;
 			}
-			live_dc_on_sent(&k.flow, ++seq, clock_ms());
+			live_dc_on_sent(&k.flow, ++seq, bytes, clock_ms());
 		}
 		int64_t e1 = esp_timer_get_time();
 		k.frames++;
@@ -1201,6 +1229,8 @@ static void peer_close(void)
 		ESP_LOGI(TAG, "viewer %s gone", k.viewer);
 	}
 	k.viewer[0] = 0;
+	memset(&k.exp, 0, sizeof(k.exp)); /* experiments last one session */
+	peer_udp_set_wait(0);
 }
 
 static bool peer_open(void)
