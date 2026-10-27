@@ -113,7 +113,7 @@ RX not wired: the module keeps its own setting.
 
 | From | To | Notes |
 |---|---|---|
-| Solar panel + / - | screw terminal -> charger IN+ / IN- | 6 V 2 W panel with a TP4056 board; a CN3791 board needs the panel voltage it is made for (the boards sold in Vietnam are 9 V versions). A small panel that cannot give the charger its full current sags to just above the cell: the camera then reports `charge: "slow"` |
+| Solar panel + / - | screw terminal -> charger IN+ / IN- | the hanging trap's own lid panel, or a 6 V 2 W panel, with a TP4056 board; a CN3791 board needs the panel voltage it is made for (the boards sold in Vietnam are 9 V versions). A small panel that cannot give the charger its full current sags to just above the cell: the camera then reports `charge: "slow"` |
 | Charger B+ / B- | screw terminal -> LiPo + / - | a flat LiPo (BOM item 12) or an old phone battery; protected cell, or the charger's DW01 protection |
 | Charger OUT+ (= BAT+) | the 4G switch (AO3401 source) -> modem VCC, GPS VCC, boost IN+, battery divider | thick, short wires to the modem |
 | Boost OUT+ | board 5V | 5.0-5.2 V, measured before connecting |
