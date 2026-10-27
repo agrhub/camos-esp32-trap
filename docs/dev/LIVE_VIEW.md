@@ -39,7 +39,7 @@ at no CPU cost; browsers do not take MJPEG on a video track, so the camera can s
 data channel instead (`live_dc.c` for the protocol, host-tested in `tests/test_live_dc.c`; `live_kvs.c` for the rest).
 
 - **Opening.** The VIEWER creates a data channel labelled `camos` before its offer (so the SDP has an application
-  line). FlyBot opens it unordered with `maxPacketLifeTime: 300` (see below). The camera accepts it (esp_peer
+  line). FlyBot opens it unordered with `maxPacketLifeTime: 1500` (2000 over 4G, see below). The camera accepts it (esp_peer
   `enable_data_channel` with `manual_ch_create`: the camera never creates a channel itself) and greets with `hello`.
   An offer without an application line gets an answer without one, so older viewers keep H.264; a camera on older
   firmware never opens the channel, so the viewer keeps H.264 too.
@@ -63,7 +63,7 @@ data channel instead (`live_dc.c` for the protocol, host-tested in `tests/test_l
   | From | Message | Meaning |
   |---|---|---|
   | camera | `{"t":"hello","v":1,"mode":"h264","w":320,"h":240,"q":12,"fps":10,"modes":["h264","jpeg"],"sizes":[[320,240],[640,480],[800,600],[1024,768],[1280,720],[1280,1024],[1600,1200],[1920,1080],[2048,1536]],"qRange":[8,40],"chunk":16000}` | the channel is open: what runs (`mode`, `w`, `h`, `q`, `fps`) and what can be asked for (`modes`, `sizes`: here an OV5640, `qRange`) |
-  | viewer | `{"t":"quality","mode":"jpeg","w":640,"h":480,"q":12,"fps":10,"fixed":true}` | switch, at any time in the session. `mode` is `h264` or `jpeg`; fields left out keep their value; `h264` always uses the build's 320x240; `w`x`h` must be one of `sizes`, `q` within `qRange` (esp32-camera scale, lower is better), `fps` 1..25; `fixed` (optional): no step down on a weak link |
+  | viewer | `{"t":"quality","mode":"jpeg","w":640,"h":480,"q":12,"fps":10,"fixed":true}` | switch, at any time in the session. `mode` is `h264` or `jpeg`; fields left out keep their value; `h264` always uses the build's 320x240; `w`x`h` must be one of `sizes`, `q` within `qRange` (esp32-camera scale, lower is better), `fps` 1..25; `fixed` (optional): no step down on a weak link; `exp` (optional, test pages only, for this session): `{"kbps":800,"gapMs":400,"chunk":8000,"udpWaitMs":200}` paces the JPEG frames to a rate, sets slow mode's gap, the chunk size and how long a UDP send waits for a full Wi-Fi TX queue (0 or left out: the default) |
   | camera | `{"t":"mode","mode":"jpeg","w":640,"h":480,"q":12,"fps":15}` | the setting now running, also the answer to a request that changes nothing; `"reason":"weak_link"` when the camera stepped down by itself. A change restarts the sensor: about 1 s without pictures |
   | camera | `{"t":"stats","mode":...,"rate":14.9,"kbps":790,"bytes":6640,"drops":0,"waits":17,"ackMs":45,"pushMs":9}` | every 2 s: frames per second sent, kbit/s, mean frame size, chunks the channel refused, times the camera waited for acks or RAM, send-to-ack time of the last frame, time to hand a frame to the channel |
   | camera | `{"t":"error","msg":"size not offered"}` | a request was refused, or the sensor did not start at that size (the camera keeps what ran) |
@@ -83,26 +83,34 @@ data channel instead (`live_dc.c` for the protocol, host-tested in `tests/test_l
   | 16-19 | capture time, ms since the session started |
 
   The viewer puts a frame together from its chunks (in any order), shows it once every byte arrived, acknowledges it,
-  and drops a frame that a newer sequence number overtakes before it is complete (FlyBot:
-  `client/src/utils/camosLive.js`).
-- **Flow control.** The camera keeps at most 2 frames unacknowledged; a frame not acknowledged within 500 ms is taken
-  as lost. While the window is full, or while less than 16 KB of internal RAM is free, it takes no new picture: the
-  newest picture goes next, nothing queues behind the channel, and latency stays at about one frame. A chunk the
-  channel refuses drops the rest of that frame.
+  and drops the older frames once a newer one is complete. FlyBot (`client/src/utils/camosLive.js`) assembles up to
+  three frames at once: the channel is unordered, so the next frame's first chunks often arrive before the last
+  (resent) chunk of a large frame.
+- **Flow control.** The camera keeps at most 2 frames unacknowledged; a frame not acknowledged within 500 ms plus its
+  transfer at 0.8 Mbit/s (at most 2.5 s) is taken as lost. While the window is full, or while less than 16 KB of
+  internal RAM is free, it takes no new picture: the newest picture goes next, nothing queues behind the channel, and
+  latency stays at about one frame (5 s held back by low RAM are logged). A chunk the channel refuses drops the rest of
+  that frame.
+- **Slow mode** above 1600x1200 (FullHD, 2K): one frame in flight, the next 500 ms after it (`LIVE_DC_SLOW_GAP_MS`).
+  Their frames are 60-420 KB, and sent as fast as the Wi-Fi took them, esp_peer's SCTP stalled within seconds: DTLS
+  writes failed (`mbedtls_ssl_read error: -26752`, MBEDTLS_ERR_SSL_WANT_WRITE), the viewer's ICE checks went
+  unanswered for 30 s, and MQTT dropped with them.
 - **Partial reliability.** With a fully reliable channel, esp_peer's SCTP stalled for seconds after losses on a busy
   Wi-Fi (acks 0.4-1 s late, ICE round trips up to 5 s, DTLS writes failing, 1-4 fps at 640x480). With the viewer's
   channel unordered and `maxPacketLifeTime: 300`, a lost chunk costs one frame instead: on the same board and Wi-Fi,
-  640x480 went to 15 fps with acks after 30-50 ms. Control messages share the channel, so FlyBot repeats a quality
-  request every 2 s (3 times) until a `mode` message confirms it.
+  640x480 went to 15 fps with acks after 30-50 ms. The lifetime counts from the camera queuing the chunk, so it has to
+  cover a whole frame: at 300 ms the last chunks of every FullHD and 2K frame were given up and those sizes stayed at
+  0 fps, so FlyBot now gives 1.5 s on Wi-Fi (27 Oct 2026). Control messages share the channel, so FlyBot repeats a
+  quality request every 2 s (3 times) until a `mode` message confirms it.
 - **Memory.** The data channel caches are in PSRAM (send 512 KB, receive 16 KB). The Freenove preset now keeps only
   allocations under 256 bytes in internal RAM (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=256`, as Espressif's kvs_master
   does): with 1 KB, a JPEG session ran the internal heap down to 23 bytes and Wi-Fi lost packets. Camera DMA during a
   session: esp32-camera's JPEG mode takes a fixed 16 KB internal block (whatever `CONFIG_CAMERA_DMA_BUFFER_SIZE_MAX`
   says), and on the heap a DTLS session had fragmented the JPEG start right after the data channel opened failed now
   and then (largest free block 15,360 bytes: the YUV422 pipeline's). So the H.264 pipeline's YUV422 frames go by DMA
-  straight into PSRAM (esp32-camera's PSRAM DMA mode; for JPEG that mode lost every end marker), and the session holds a
-  16 KB internal block from its start, freed just before each JPEG start (live JPEG, or a photo during the session) so
-  the camera's buffer goes into that very hole, and taken again when the camera powers down (cam.c).
+  straight into PSRAM (esp32-camera's PSRAM DMA mode; for JPEG that mode lost every end marker), and the JPEG mode's
+  16 KB DMA buffer is a static block the driver is given at boot (`esp_camera_set_dma_buffer`,
+  `firmware/vendor/esp32-camera/CAMOS.md`).
 - **Sensor clock.** H.264 and JPEG run at `CAMOS_LIVE_XCLK_MHZ`, 12 MHz (snapshots keep 10 MHz): 16 and 20 MHz cost the
   board's own Wi-Fi 4-100x of its throughput ([../WEB_CONSOLE.md](../WEB_CONSOLE.md), "Camera clock and Wi-Fi"). In a dim
   room the streams use the sensor's night mode ([../WEB_CONSOLE.md](../WEB_CONSOLE.md), "Exposure in dim light").
@@ -163,6 +171,23 @@ in each of four sessions (first JPEG 1.1-1.2 s after the channel opened; two oth
 video). A photo during the session paused the stream for about 7 s (the switch to the full-size photo and back) and the
 stream came back in the mode it had, also at 1600x1200; the 300 KB upload then ran beside it, and the weak-link check
 waits meanwhile (acks get lost while the upload fills the uplink).
+
+FullHD and 2K on 27 Oct 2026, the Vinh Long trap (OV5640, LiPo on a slow charge, power mode `powered` for the test)
+in a garden, viewer on FlyBot in Chrome, channel with `maxPacketLifeTime: 1500`, each run 60 s:
+
+| Wi-Fi at the trap | Asked | Shown | Frame size | Bitrate | Ack after | Notes |
+|---|---|---|---|---|---|---|
+| -69 dBm | JPEG 640x480 (default) | stepped down to H.264 | | | | the link carried H.264 320x240 only |
+| -69 dBm | JPEG 1920x1080, paced to 600 kbit/s | 0 fps | | | | the session and MQTT dropped |
+| -60 dBm | JPEG 1280x720 q12 | 3-6 fps | 30 KB | 0.7-1.5 Mbit/s | 23-860 ms | |
+| -60 dBm | JPEG 1920x1080 q12, slow mode 1000 ms | 0.7 fps | 61 KB | 360 kbit/s | 19-880 ms | steady |
+| -60 dBm | JPEG 2048x1536 q12, slow mode 1000 ms | 0.7 fps | 94 KB | 560 kbit/s | 29-950 ms | steady |
+| -60 dBm | JPEG 1920x1080 q12, gap 400 ms | 1.2-1.4 fps | 61 KB | 730 kbit/s | 34-145 ms | steady |
+| -60 dBm | JPEG 1920x1080 q12, gap 150 ms | 1.4 fps, then 0 | 61 KB | | | stalled after 15 s |
+
+On a bench Wi-Fi earlier that day, without slow mode, a lit trap gave FullHD frames of 260-280 KB and 2K frames of
+420 KB: FullHD ran at 0.5 fps for about 30 s before the channel stalled. Over 4G (24 Oct, `maxPacketLifeTime: 2000`) a
+picked FullHD and 2K had run at 0.2-0.7 fps: the slow link itself paced them.
 
 Not measured: a remote viewer through TURN with JPEG, 4G.
 

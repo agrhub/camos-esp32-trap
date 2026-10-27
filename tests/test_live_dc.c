@@ -63,26 +63,59 @@ int main(void)
 	live_dc_flow_t f;
 	live_dc_flow_reset(&f);
 	CHECK(live_dc_may_send(&f, 0));
-	live_dc_on_sent(&f, 1, 0);
+	live_dc_on_sent(&f, 1, 0, 0);
 	CHECK(live_dc_may_send(&f, 10));
-	live_dc_on_sent(&f, 2, 10);
+	live_dc_on_sent(&f, 2, 0, 10);
 	CHECK(!live_dc_may_send(&f, 20));          /* two in flight */
 	live_dc_on_ack(&f, 1, 60);
 	CHECK(f.last_rtt_ms == 60);
 	CHECK(live_dc_may_send(&f, 70));
-	live_dc_on_sent(&f, 3, 70);
+	live_dc_on_sent(&f, 3, 0, 70);
 	CHECK(!live_dc_may_send(&f, 500));
 	CHECK(live_dc_may_send(&f, 70 + 501));     /* nothing acked for half a second: taken as lost */
 	live_dc_on_ack(&f, 2, 1100);                /* an ack from before the reset is ignored */
 	CHECK(f.acked == 3);
-	live_dc_on_sent(&f, 4, 1200);
+	live_dc_on_sent(&f, 4, 0, 1200);
 	live_dc_on_ack(&f, 9, 1210);                /* never sent */
 	CHECK(f.acked == 3);
 	live_dc_on_ack(&f, 4, 1250);
 	CHECK(f.acked == 4 && f.last_rtt_ms == 50);
+	/* a FullHD frame (105 KB) gets its transfer at 0.8 Mbit/s on top; a 2K one hits the cap */
+	live_dc_on_sent(&f, 5, 105000, 2000);
+	live_dc_on_sent(&f, 6, 105000, 2010);
+	CHECK(f.timeout_ms == 1550);
+	CHECK(!live_dc_may_send(&f, 2010 + 1000));   /* the fixed 500 ms of old gave it up */
+	CHECK(live_dc_may_send(&f, 2010 + 1551));
+	/* slow mode (FullHD and 2K): one frame at a time, LIVE_DC_SLOW_GAP_MS apart */
+	live_dc_on_ack(&f, 6, 3600);
+	live_dc_flow_size(&f, 1600, 1200, 0);
+	CHECK(!f.slow);
+	live_dc_flow_size(&f, 1920, 1080, 0);
+	CHECK(f.slow);
+	live_dc_on_sent(&f, 7, 280000, 3700);
+	live_dc_on_ack(&f, 7, 4000);
+	CHECK(!live_dc_may_send(&f, 4100));          /* acked, but not the gap yet */
+	CHECK(live_dc_may_send(&f, 4201));
+	live_dc_on_sent(&f, 8, 280000, 4300);
+	CHECK(!live_dc_may_send(&f, 5000));          /* the gap is over, but not acked */
+	live_dc_on_ack(&f, 8, 5100);
+	CHECK(live_dc_may_send(&f, 5100));
+	live_dc_flow_size(&f, 1920, 1080, 1000);     /* a test page's gap */
+	live_dc_on_sent(&f, 9, 280000, 5100);
+	live_dc_on_ack(&f, 9, 5300);
+	CHECK(!live_dc_may_send(&f, 5900) && live_dc_may_send(&f, 6101));
+	f.slow = false;
+	live_dc_on_sent(&f, 10, 400000, 6200);
+	CHECK(f.timeout_ms == LIVE_DC_ACK_TIMEOUT_MAX_MS);
 
 	CHECK(!live_dc_size_ok(1024, 768) && live_dc_size_ok(1600, 1200)); /* the sizes set above */
 
+	/* experiment knobs from a test page */
+	CHECK(parse("{\"t\":\"quality\",\"mode\":\"jpeg\",\"w\":640,\"h\":480,\"exp\":{\"kbps\":800,\"gapMs\":1500,\"chunk\":8000}}", &cur, &m) == LIVE_DC_QUALITY);
+	CHECK(m.exp.set && m.exp.kbps == 800 && m.exp.gap_ms == 1500 && m.exp.chunk == 8000 && m.exp.udp_wait_ms == 0);
+	CHECK(parse("{\"t\":\"quality\",\"mode\":\"jpeg\",\"w\":640,\"h\":480}", &cur, &m) == LIVE_DC_QUALITY && !m.exp.set);
+	CHECK(parse("{\"t\":\"quality\",\"exp\":{\"chunk\":500}}", &cur, &m) == LIVE_DC_BAD);
+	CHECK(parse("{\"t\":\"quality\",\"exp\":{\"udpWaitMs\":5000}}", &cur, &m) == LIVE_DC_BAD);
 	/* "fixed": a size the person picked */
 	CHECK(parse("{\"t\":\"quality\",\"mode\":\"jpeg\",\"w\":640,\"h\":480,\"fixed\":true}", &cur, &m) == LIVE_DC_QUALITY && m.fixed);
 	CHECK(parse("{\"t\":\"quality\",\"mode\":\"jpeg\",\"w\":640,\"h\":480}", &cur, &m) == LIVE_DC_QUALITY && !m.fixed);

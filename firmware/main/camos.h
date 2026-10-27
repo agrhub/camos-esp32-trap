@@ -424,6 +424,7 @@ void live_stack_lend(void);                     /* the encoder's idle 16 KB stac
 void live_stack_reserve(void);                  /* and back, once the camera stopped */
 bool live_active(void);                         /* a live.start / live.requested window is open */
 bool live_streaming(void);                      /* a VIEWER is connected: the camera belongs to the encoder */
+void peer_udp_set_wait(int ms);                 /* how long esp_peer's UDP sends wait for a full Wi-Fi TX queue; 0: its own 40 ms */
 int live_pause(int timeout_ms);                 /* a capture needs the camera: 1 paused, 0 no live stream, -1 timeout */
 void live_resume(void);                         /* after live_pause: the stream starts again in its mode */
 int live_remaining_s(void);

@@ -151,6 +151,17 @@ live_dc_kind_t live_dc_parse(const char *text, size_t len, const live_quality_t 
 		out->kind = kind = LIVE_DC_QUALITY;
 		out->quality = q;
 		out->fixed = cJSON_IsTrue(cJSON_GetObjectItem(j, "fixed"));
+		const cJSON *x = cJSON_GetObjectItem(j, "exp");
+		if (cJSON_IsObject(x)) {
+			live_dc_exp_t e = { .set = true };
+			if (!get_int(x, "kbps", &e.kbps) || !get_int(x, "gapMs", &e.gap_ms) || !get_int(x, "chunk", &e.chunk) ||
+				!get_int(x, "udpWaitMs", &e.udp_wait_ms) || e.kbps < 0 || e.kbps > 20000 || e.gap_ms < 0 || e.gap_ms > 10000 ||
+				(e.chunk && (e.chunk < 1000 || e.chunk > LIVE_DC_CHUNK)) || e.udp_wait_ms < 0 || e.udp_wait_ms > 1000) {
+				cJSON_Delete(j);
+				return bad(out, "exp out of range");
+			}
+			out->exp = e;
+		}
 	}
 	cJSON_Delete(j);
 	return kind;
@@ -174,14 +185,24 @@ void live_dc_flow_reset(live_dc_flow_t *f)
 {
 	memset(f, 0, sizeof(*f));
 	f->last_rtt_ms = -1;
+	f->timeout_ms = LIVE_DC_ACK_TIMEOUT_MS;
+}
+
+void live_dc_flow_size(live_dc_flow_t *f, int w, int h, int gap_ms)
+{
+	f->slow = (long)w * h > LIVE_DC_SLOW_AREA;
+	f->gap_ms = gap_ms > 0 ? gap_ms : LIVE_DC_SLOW_GAP_MS;
 }
 
 bool live_dc_may_send(live_dc_flow_t *f, int64_t now_ms)
 {
-	if (f->sent - f->acked < LIVE_DC_WINDOW) {
+	if (f->slow && f->sent && now_ms - f->sent_ms[f->sent % 8] < f->gap_ms) {
+		return false;
+	}
+	if (f->sent - f->acked < (f->slow ? 1u : LIVE_DC_WINDOW)) {
 		return true;
 	}
-	if (now_ms - f->last_ms > LIVE_DC_ACK_TIMEOUT_MS) {
+	if (now_ms - f->last_ms > f->timeout_ms) {
 		f->acked = f->sent; /* the frames in flight are taken as lost */
 		f->last_ms = now_ms;
 		return true;
@@ -189,9 +210,11 @@ bool live_dc_may_send(live_dc_flow_t *f, int64_t now_ms)
 	return false;
 }
 
-void live_dc_on_sent(live_dc_flow_t *f, uint32_t seq, int64_t now_ms)
+void live_dc_on_sent(live_dc_flow_t *f, uint32_t seq, uint32_t bytes, int64_t now_ms)
 {
 	f->sent = seq;
+	uint32_t t = LIVE_DC_ACK_TIMEOUT_MS + bytes / LIVE_DC_SLOW_BYTES_PER_MS;
+	f->timeout_ms = (int32_t)(t > LIVE_DC_ACK_TIMEOUT_MAX_MS ? LIVE_DC_ACK_TIMEOUT_MAX_MS : t);
 	f->last_ms = now_ms;
 	f->sent_ms[seq % 8] = now_ms;
 }
