@@ -10,10 +10,9 @@ descriptions; check the silkscreen of the boards you receive against the tables 
 
 ![wiring overview](img/wiring-overview.png)
 
-[SVG](img/wiring-overview.svg). Wired as drawn, firmware 0.9.2 needs no setting. 0.9.2 is not released yet (test
-builds; the code is on `main`): the current release, 0.9.1, pulses GPIO47 as a modem PWRKEY, so it cannot keep the 4G
-switch of section 2 on, and it does not use the GPS RX wire. Build a field camera's firmware from source until 0.9.2
-is out ([FLASHING.md](FLASHING.md), section C).
+[SVG](img/wiring-overview.svg). Wired as drawn, firmware 0.9.2 (the current release) needs no setting. 0.9.1 and
+older pulse GPIO47 as a modem PWRKEY, so they cannot keep the 4G switch of section 2 on, and they do not use the GPS RX
+wire.
 
 ## 1. The camera board (ESP32-S3 N16R8 CAM or Freenove FNK0085)
 

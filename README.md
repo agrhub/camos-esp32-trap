@@ -50,10 +50,9 @@ trap draws the flies in; there is no glue card to change.
 **A Wi-Fi camera** needs no wiring: the board, its camera and a USB power supply (any 5 V phone charger, 1 A or more).
 
 **The field camera** (4G + GPS + battery + solar) is wired on a small prototype board inside the trap lid. Wired as
-drawn, firmware 0.9.2 needs no settings; only tick "Battery / solar divider fitted" once the dividers are in (setup
-page or web console). 0.9.2 is not released yet (test builds): the current release, 0.9.1, uses GPIO47 as a PWRKEY
-pulse and cannot keep the 4G power switch on. Until 0.9.2 is out, build the field camera's firmware from `main`
-([FLASHING.md](docs/FLASHING.md), section C), which has it.
+drawn, firmware 0.9.2 (the current release) needs no settings; only tick "Battery / solar divider fitted" once the
+dividers are in (setup page or web console). 0.9.1 and older use GPIO47 as a PWRKEY pulse and cannot keep the 4G power
+switch on.
 
 ![wiring overview](docs/img/wiring-overview.png)
 
