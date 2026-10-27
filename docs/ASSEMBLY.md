@@ -46,8 +46,8 @@ take one snapshot from the web console before anything goes into the lid.
    external antenna (BOM item 9b) on a pigtail does better.
 4. Power on and wait for the LED: green blip = online. Check the camera in FlyBot (it uploads its first photo at the
    next capture slot) and on the 4G / Wi-Fi page of the web console.
-5. In FlyBot, set the camera's **Trap type** to **Lure trap (no glue)** (when you claim it, or later on the Cameras
-   page): FlyBot then counts the flies present on each photo instead of the rise on a glue card, and its Trap
+5. In FlyBot, set the camera's **Trap type** to **Lure trap (no glue)** (when you claim it, or later in Settings >
+   Camera Management): FlyBot then counts the flies present on each photo instead of the rise on a glue card, and its Trap
    maintenance card tracks lure refills and lens cleaning.
 
 ## 4. The other way: an IP65 box and a sticky card

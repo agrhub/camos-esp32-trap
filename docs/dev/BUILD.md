@@ -6,7 +6,7 @@ Most users flash a release from the browser: [../FLASHING.md](../FLASHING.md) is
 
 | Preset | Board | Target | Flash / PSRAM | Sensor | Release image |
 |---|---|---|---|---|---|
-| `freenove` | Freenove ESP32-S3-WROOM CAM, kit FNK0085 | esp32s3 | 8 or 16 MB (the image declares 8 MB) / 8 MB octal | OV5640 (OV2640 detected too) | yes |
+| `freenove` | Freenove ESP32-S3-WROOM CAM, kit FNK0085, and the ESP32-S3 N16R8 CAM with an OV5640 | esp32s3 | 8 or 16 MB (the image declares 8 MB) / 8 MB octal | OV5640 (OV2640 detected too) | yes |
 | `esp32cam` | AI-Thinker ESP32-CAM | esp32 | 4 MB / 4 MB quad | OV2640 | yes |
 | `esp32s3cam` | generic ESP32-S3 N16R8 CAM (ESP32-S3-EYE pin map) | esp32s3 | 16 MB / 8 MB octal | OV2640 / OV3660 / OV5640 | no: check the pins first ([PINPROBE.md](PINPROBE.md)) |
 
@@ -16,9 +16,11 @@ sleep. The cloud live view (`CAMOS_LIVE`, [LIVE_VIEW.md](LIVE_VIEW.md)) is on in
 
 ## Build and flash
 
-ESP-IDF v5.3 or newer (releases are built with v5.4.4). The component manager fetches `esp32-camera`, `esp_modem`,
-`led_strip`, `qrcode` and `mdns` on the first build (internet needed once), and for the ESP32-S3 also `esp_peer`,
-`esp_h264` and `esp_websocket_client` (live view; about 100 MB in `firmware/managed_components`).
+ESP-IDF v5.3 or newer (releases are built with v5.4.4). The component manager fetches `esp_modem`, `led_strip`,
+`qrcode` and `mdns` on the first build (internet needed once), and for the ESP32-S3 also `esp_peer`, `esp_h264` and
+`esp_websocket_client` (live view), `tinyusb` and `usb_host_msc` (the native USB port; about 100 MB in
+`firmware/managed_components`). `esp32-camera` is the copy in `firmware/vendor/esp32-camera` (2.1.8 with one
+addition, see its `CAMOS.md`).
 
 Linux / macOS (`. ~/esp/esp-idf/export.sh` first), from `firmware/`:
 
@@ -68,7 +70,8 @@ frame rate, bitrate, the live view XCLK, powered-mode standby, bench keys: [LIVE
 ## Tests
 
 ```bash
-make -C tests          # NMEA, power hysteresis, registration response, APN table, motion detection, SigV4
+make -C tests          # NMEA, power hysteresis, registration response, APN table, motion detection, SigV4,
+                       # live view data channel, OTA battery policy, remote log, schedule policy
 ```
 
 Needs gcc and cJSON (ESP-IDF's copy when `IDF_PATH` is set, else `libcjson-dev`). CI runs them and builds the
@@ -104,7 +107,9 @@ Deployment branches and tags: add a tag rule `v*`.
 - `firmware/main/`: `main.c` boot, `store.c` settings, `portal.c` + `portal.html`, `web.c` + `console.html`,
   `stream.c` (MJPEG), `sd.c`, `motion.c` + `motion_core.c`, `events.c`, `register.c` + `reg_parse.c`, `qr.c`, `led.c`,
   `net.c` / `wifi.c` / `modem.c` + `apn.c`, `flybot.c`, `proto.c`, `shadow.c`, `sched.c`, `cam.c`, `power.c` +
-  `power_decide.c`, `battery.c`, `gps.c` + `nmea.c`, `ota.c`, `live.c`, `console.c`, `tz.c`, `util.c`.
+  `power_decide.c`, `battery.c`, `gps.c` + `nmea.c`, `ota.c` + `fleet_policy.c`, `live.c` + `live_kvs.c` + `live_dc.c` +
+  `sigv4.c` (cloud live view), `logfwd.c` + `logfwd_core.c` (remote log, crash reports), `quality.c`, `hostname.c`,
+  `usbdev.c` + `usb/` and `usbhost.c` (native USB port), `console.c`, `tz.c`, `util.c`.
 - `firmware/defaults.example.json`, `sdkconfig.defaults*`, `partitions-{4,8,16}mb.csv` (with the `fctry` partition).
 - `tests/`: host unit tests. `tools/`: build helper, factory provisioning, label QR, serial capture, mock camera,
   diagrams ([../../tools/README.md](../../tools/README.md)).

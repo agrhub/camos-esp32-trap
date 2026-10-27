@@ -81,8 +81,13 @@ With both a Wi-Fi and a SIM, the camera takes the Wi-Fi (it costs the battery le
   and on and the camera dials again; the second time the module is reset; only the third time does the camera restart.
 
 On Wi-Fi the camera also asks the public resolvers 8.8.8.8 and 1.1.1.1 when the router's DNS does not answer.
-While the Wi-Fi is in use, a 4G module that is always powered (no PWRKEY wired) has its radio switched off. A camera
-on battery chooses again at every wake.
+While the Wi-Fi is in use, the 4G module is off: its power switch cuts it (firmware 0.9.2, [WIRING.md](WIRING.md)
+section 2), or, without the switch, its radio is switched off (`AT+CFUN=0`). A camera on battery chooses again at
+every wake; its short check-in wakes (0.9.2) use the Wi-Fi only and never fall back to 4G.
+
+From firmware 0.9.2 FlyBot's network setting (`network.prefer`) changes this choice: **auto** (default) as above,
+**Wi-Fi** never uses 4G, **4G** goes straight to 4G and keeps the Wi-Fi settings (Wi-Fi only for a boot whose 4G does
+not come up). The camera restarts onto the new choice.
 
 ## Changing the Wi-Fi later
 

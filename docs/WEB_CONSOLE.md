@@ -1,4 +1,7 @@
-# The camera's web page (web console, firmware 0.9.2)
+# The camera's web page (web console, firmware 0.9.1 and 0.9.2)
+
+This page describes 0.9.1, the current release, and marks what 0.9.2 (not released yet, test builds) adds.
+
 
 Every camera has its own web page for the live picture, the photos on its memory card and all its settings. This page
 goes through it screen by screen. *The pictures inside the screenshots are drawings of a sticky card from a mock camera
@@ -177,8 +180,8 @@ the saved values. Settings sent from FlyBot override the ones set here.
 | Exposure & gain | exposure (auto or a manual value), exposure compensation (brighter / darker in auto), gain (auto or manual), gain ceiling (how bright auto may push a dark scene; 32× default), night mode for live view (slower, brighter in a very dark place; photos are not affected) |
 | Capture | JPEG quality of the photos, capture resolution (largest by default: 2560×1920 on the OV5640) |
 
-For a sticky card the defaults are a good start. Set the orientation so the card is upright, then check focus and
-brightness on the live picture.
+For the bottom of a trap or a sticky card the defaults are a good start. Set the orientation so the picture is
+upright, then check focus and brightness on the live picture.
 
 ### Event
 
@@ -207,7 +210,7 @@ Who sets the schedule and when the next photos are due.
 - **Set by FlyBot**: a claimed camera follows the schedule set in FlyBot; it is shown here read only. Change it in FlyBot.
 - **Set by this camera** (not claimed yet, or no schedule from FlyBot): **Capture interval** in minutes and the
   **capture window** (From - To, camera time; From = To means all day; a window that ends before it starts crosses
-  midnight). For a sticky card, daylight hours are enough (the camera has no infrared light).
+  midnight). For a trap, daylight hours are enough (the camera has no infrared light).
 - **Next captures**: the next 8 photo times.
 
 An unclaimed camera takes at most one photo an hour. In battery mode the camera sleeps between photos.
@@ -250,8 +253,8 @@ B boot, M motion).
 |---|---|
 | Position, At | the last position (a link to the map) and when it was taken; FlyBot puts the trap on its map with it |
 | On | on by default; the camera takes one position a day and powers the GPS module off in between |
-| Satellite systems | which satellites the GPS module uses. **Automatic by region** (default): GPS + BeiDou (Vietnam and most places), GPS + GLONASS from latitude 55° up. Or fix it to GPS + BeiDou, GPS + GLONASS, GPS only or BeiDou only. Needs the module's RXD pin wired to GPIO3 (as in [WIRING.md](WIRING.md)); without that wire the module keeps its own choice. |
-| Get position now | looks for satellites now (up to 2 minutes; outdoors, with a clear view of the sky) |
+| Satellite systems (0.9.2) | which satellites the GPS module uses. **Automatic by region** (default): GPS + BeiDou (Vietnam and most places), GPS + GLONASS from latitude 55° up. Or fix it to GPS + BeiDou, GPS + GLONASS, GPS only or BeiDou only. Needs the module's RXD pin wired to GPIO3 (as in [WIRING.md](WIRING.md)); without that wire the module keeps its own choice. |
+| Get position now | looks for satellites now (up to 2 minutes in 0.9.1, 5 minutes in 0.9.2; outdoors, with a clear view of the sky) |
 
 The first position after a long time off can take a few minutes; indoors there is usually none.
 

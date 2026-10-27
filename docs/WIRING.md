@@ -1,19 +1,23 @@
 # Wiring
 
-The Wi-Fi camera needs no wiring: the Freenove board, its camera and a USB cable. This page is for the **field camera**
-(4G + GPS + solar). Pin numbers are the firmware defaults of the Freenove preset; a different pin needs a build from
-source ([dev/BUILD.md](dev/BUILD.md), menu "CamOS trap camera").
+The Wi-Fi camera needs no wiring: the camera board, its camera and a USB cable. This page is for the **field camera**
+(4G + GPS + solar). Pin numbers are the firmware defaults of the `freenove` preset, the image that both the ESP32-S3
+N16R8 CAM and the Freenove board run; a different pin needs a build from source ([dev/BUILD.md](dev/BUILD.md), menu
+"CamOS trap camera").
 
 Parts: [BOM.md](BOM.md). The 4G board, the GPS board and the charger below are wired from their datasheets and shop
 descriptions; check the silkscreen of the boards you receive against the tables before the first power-up.
 
 ![wiring overview](img/wiring-overview.png)
 
-[SVG](img/wiring-overview.svg). Wired as drawn, firmware 0.9.2 and later needs no setting.
+[SVG](img/wiring-overview.svg). Wired as drawn, firmware 0.9.2 needs no setting. 0.9.2 is not released yet (test
+builds; the code is on `main`): the current release, 0.9.1, pulses GPIO47 as a modem PWRKEY, so it cannot keep the 4G
+switch of section 2 on, and it does not use the GPS RX wire. Build a field camera's firmware from source until 0.9.2
+is out ([FLASHING.md](FLASHING.md), section C).
 
-## 1. The Freenove ESP32-S3 CAM board (FNK0085)
+## 1. The camera board (ESP32-S3 N16R8 CAM or Freenove FNK0085)
 
-On the board, nothing to wire: OV5640 camera on the ribbon connector, microSD slot (SD_MMC: CLK 39, CMD 38, D0 40), RGB
+Both boards use the pins below. On the Freenove board, nothing to wire: OV5640 camera on the ribbon connector, microSD slot (SD_MMC: CLK 39, CMD 38, D0 40), RGB
 status LED (WS2812, GPIO48), BOOT button (GPIO0, the setup button: hold 3 s for setup, 10 s for a factory reset), USB-C with a CH340 serial chip (flashing
 and the serial console).
 
@@ -33,7 +37,7 @@ Free header pins used by the firmware:
 | 5 V supply | 5V pin | | the 5 V boost board output (BOM item 15) |
 | Ground | GND pins | | every module's GND |
 
-Wired as on this page, the camera needs no setting (firmware 0.9.2 and later): these are the defaults. A board without
+Wired as on this page, the camera needs no setting (firmware 0.9.2): these are the defaults. A board without
 the 4G switch is found out by itself (section 2). Wired differently? Seven settings describe the wiring and are kept
 on the camera (NVS), so a firmware update does not undo them: `modemPower` (GPIO of the 4G switch, -1 none),
 `modemPowerActiveLow` (`1` for a P-MOSFET gate driven straight), `modemPwrkey` (GPIO of PWRKEY, -1 not wired, the

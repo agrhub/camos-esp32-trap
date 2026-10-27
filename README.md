@@ -24,21 +24,21 @@ trap draws the flies in; there is no glue card to change.
   trap in the photos costs US$3.00. That is a Wi-Fi camera, about US$19.
 - For the field: a 4G module and a GPS module (both with their antennas), a flat LiPo cell, a charger, a 5 V
   boost board, a power switch for the 4G module, a prototype board with screw terminals and the lure: 944.760 ₫ of
-  parts, about US$40 with the housing
+  parts, about US$39 with the housing
   (26.050 ₫/USD, the Vietcombank rate of 21 Oct 2026). The housing's own solar panel charges the cell.
 - Another way: an IP65 box on a post that looks at a yellow sticky card, with a 6 V 2 W panel and an active GPS
-  antenna, about US$61 ([ASSEMBLY.md](docs/ASSEMBLY.md), section 4).
+  antenna, about US$60 ([ASSEMBLY.md](docs/ASSEMBLY.md), section 4).
 - The full list with shop links and the prices read on 17, 24 and 25 Oct 2026: [docs/BOM.md](docs/BOM.md).
-
-![the parts of the trap camera and their prices: about US$39](docs/img/trap-parts.jpg)
 - A computer with Chrome or Edge (to flash the firmware), a phone (to set up the Wi-Fi), a microSD card (FAT32,
   optional but recommended) and an account on [FlyBot](https://flybot.agrhub.com).
+
+![the parts of the trap camera and their prices: about US$39](docs/img/trap-parts.jpg)
 
 **Setting up a camera, in short:**
 
 | Step | What | Guide | Time |
 |---|---|---|---|
-| 2 | Wire the field camera and put it in its box (skip for a Wi-Fi camera on USB) | [WIRING.md](docs/WIRING.md), [ASSEMBLY.md](docs/ASSEMBLY.md) | an afternoon |
+| 2 | Wire the field camera and put it in the trap lid (skip for a Wi-Fi camera on USB) | [WIRING.md](docs/WIRING.md), [ASSEMBLY.md](docs/ASSEMBLY.md) | an afternoon |
 | 3 | Put the firmware on the board | [FLASHING.md](docs/FLASHING.md) | 5 min |
 | 4 | Connect it to Wi-Fi (a 4G SIM needs nothing) | [PORTAL.md](docs/PORTAL.md) | 2 min |
 | 5 | Claim it in FlyBot | section 5 below | 1 min |
@@ -50,8 +50,10 @@ trap draws the flies in; there is no glue card to change.
 **A Wi-Fi camera** needs no wiring: the board, its camera and a USB power supply (any 5 V phone charger, 1 A or more).
 
 **The field camera** (4G + GPS + battery + solar) is wired on a small prototype board inside the trap lid. Wired as
-drawn, the firmware needs no settings (0.9.2 and later); only tick "Battery / solar divider fitted" once the dividers
-are in (setup page or web console).
+drawn, firmware 0.9.2 needs no settings; only tick "Battery / solar divider fitted" once the dividers are in (setup
+page or web console). 0.9.2 is not released yet (test builds): the current release, 0.9.1, uses GPIO47 as a PWRKEY
+pulse and cannot keep the 4G power switch on. Until 0.9.2 is out, build the field camera's firmware from `main`
+([FLASHING.md](docs/FLASHING.md), section C), which has it.
 
 ![wiring overview](docs/img/wiring-overview.png)
 
@@ -132,7 +134,7 @@ The first visit asks you to set the **admin password** (8-64 characters, letters
 | Event > **Capture Schedule** | who sets the schedule, the interval and the daily window, the next photos | ![schedule](docs/img/console-schedule.png) |
 | Storage > **Storage Management** | the memory card, format, and the native USB port (USB drive, card reader, webcam) | ![storage](docs/img/console-storage.png) |
 | Power & location > **Power & Schedule** | battery and solar, power mode (auto / battery / powered), LED, battery dividers | ![power](docs/img/console-power.png) |
-| Power & location > **GPS** | the position, the satellite systems (automatic: GPS + BeiDou in Vietnam), get a position now | ![gps](docs/img/console-gps.png) |
+| Power & location > **GPS** | the position, the satellite systems (0.9.2; automatic: GPS + BeiDou in Vietnam), get a position now | ![gps](docs/img/console-gps.png) |
 | Security > **Account** | change the admin password | ![account](docs/img/console-account.png) |
 | Language menu | English or **Tiếng Việt** | ![vietnamese](docs/img/console-live-vi.png) |
 
@@ -155,7 +157,8 @@ charging battery it stays online. Once a day it takes a GPS position, so FlyBot 
 - follow the fly counts of each trap; set an alert threshold per camera and get an email or a Telegram message when a trap reaches it, or when a camera goes offline;
 - look at the photos with their counts, and take a new one with **Capture now**;
 - watch the live picture (see below);
-- change a camera's photo schedule and power mode (battery and solar, or mains);
+- change a camera's photo schedule and power mode (battery and solar, or mains), and with 0.9.2 its network (Wi-Fi,
+  4G or automatic) and GPS satellite systems; a sleeping camera takes a change at its next wake;
 - update the firmware of a camera;
 - see every trap on the **Field Map**.
 
@@ -171,11 +174,13 @@ in the same place.
 
 **Live view in FlyBot (away from home).** The camera (both ESP32-S3 boards) can also send its live picture to FlyBot's
 camera page over the Internet (Amazon Kinesis Video Streams WebRTC), one viewer at a time. The quality menu under the picture
-picks Low (320x240 H.264, about 5-8 frames a second), Medium (640x480) or High (1024x768): Medium and High send the
-camera's own JPEG pictures, up to 15 frames a second when the Wi-Fi uplink is good. Auto takes High when the camera
-supports it. On mains power it is ready all the time; on battery it joins when FlyBot asks (at its
-next wake-up). While someone watches from FlyBot, the camera's own web page shows "busy" instead of its live picture,
-and a scheduled photo due in that time is skipped. FlyBot hands the camera its live view keys by itself
+picks 240p (320x240 H.264, about 5-8 frames a second) or one of the sizes the camera streams (480p, HD, FullHD, 2K):
+these send the camera's own JPEG pictures, up to 15 frames a second at 640x480 when the Wi-Fi uplink is good. Auto
+takes 640x480, and the camera steps down by itself when the link cannot carry it. On mains power (or power mode
+powered) it is ready all the time. On battery it joins when FlyBot asks, at its next wake: with 0.9.2, by day on
+Wi-Fi, a short check-in every 2-10 minutes; otherwise (and always on 4G) at its next photo. While someone watches from
+FlyBot, the camera's own web page shows "busy" instead of its live picture, and a scheduled photo pauses the live
+picture for a few seconds. FlyBot hands the camera its live view keys by itself
 (flybot.agrhub.com does); with older firmware FlyBot offers a photo and the camera's web page instead.
 Details: [docs/dev/LIVE_VIEW.md](docs/dev/LIVE_VIEW.md).
 
@@ -206,7 +211,8 @@ Details: [docs/LED.md](docs/LED.md).
 - **It does not join my Wi-Fi.** After about a minute it opens `CAM-xxxx` again and the setup page says why. Check the
   password; the camera needs a 2.4 GHz network (not 5 GHz only).
 - **No 4G.** Check that the SIM has data and no PIN (or type the PIN in Advanced settings), that the antenna is screwed
-  on, and that the 4G module has its own thick supply wires from the battery (it draws short peaks of up to 2 A). The
+  on, and that the 4G module has its own thick supply wires from the battery and its 1000 uF capacitor (it draws short
+  peaks of up to 2 A). The
   web page's 4G section shows the operator and the signal.
 - **The picture is black.** At night that is normal: the camera has no infrared light. Set a capture window for the
   daylight hours (Capture Schedule). In daylight, check that nothing covers the lens and that the ribbon cable of the

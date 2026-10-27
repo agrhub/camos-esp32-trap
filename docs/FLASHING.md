@@ -22,7 +22,11 @@ Then do [the first start](#after-flashing-the-first-start) and the [Wi-Fi setup]
   `USB-SERIAL CH340 (COMx)` in Windows' Device Manager under "Ports (COM & LPT)". If it does not, install the CH340
   driver from the chip maker (WCH) and plug the board in again.
 - **Unwired is easiest.** Flash the board before it goes into the trap box. Once it is wired as in
-  [WIRING.md](WIRING.md), flashing still works, but keep the battery switch off so the board runs from the USB cable only.
+  [WIRING.md](WIRING.md), flashing still works, but unplug the 5 V boost board's output from the board's 5V pin first
+  so the board runs from the USB cable only.
+- **Firmware version.** The web flasher and the Releases page have 0.9.1, the current release. A field camera wired as
+  in [WIRING.md](WIRING.md) (4G power switch on GPIO47) needs 0.9.2, which is not released yet: build it from source
+  (way C) until then.
 
 ## A. Web flasher (recommended)
 
@@ -31,7 +35,8 @@ Then do [the first start](#after-flashing-the-first-start) and the [Wi-Fi setup]
 1. Open **https://agrhub.github.io/camos-esp32-trap/flash/** in **Chrome or Edge** on a computer (not a phone; Firefox
    and Safari cannot talk to a serial port). "Tiếng Việt" at the top right switches the page to Vietnamese.
 2. Plug the board into the computer through the **CH340** port.
-3. Under **Choose the board**, click **Install** next to *Freenove ESP32-S3-WROOM CAM*.
+3. Under **Choose the board**, click **Install** next to *Freenove ESP32-S3-WROOM CAM* (also for the ESP32-S3 N16R8
+   CAM with an OV5640).
 4. The browser lists the serial ports: pick `USB-SERIAL CH340 (COMx)` and click **Connect**.
 5. Confirm **Install**. The page erases the board and writes the firmware; it takes about a minute. Do not unplug the
    board until the page says it is done.
@@ -65,7 +70,7 @@ Maintenance & Upgrade, or FlyBot).
 
 The `-install.bin` image erases the settings and the identity, like *Install* above. To update a camera that already
 works from a file, use `-update.bin` in the web console (Maintenance & Upgrade > Upload a firmware file), or write it
-at 0x20000 together with `otadata.bin` at 0x11000.
+at 0x20000 together with `-otadata.bin` at 0x11000.
 
 ## C. Build from source
 
@@ -100,7 +105,7 @@ FlyBot registration. `idf.py erase-flash` wipes them, like the *Install* image.
    `flash 16 MB, PSRAM 8192 KB` (8 MB of flash on some Freenove boards), and then
    `setup portal: Wi-Fi CAM-xxxx, open http://192.168.4.1/  (serial ..., verify code ...)`. The **serial** and the
    **verify code** are what you need to claim the camera in FlyBot; the setup page shows them too.
-4. Claim the camera in FlyBot ([README, section 4](../README.md#5-claim-it-on-flybot)).
+4. Claim the camera in FlyBot ([README, section 5](../README.md#5-claim-it-on-flybot)).
 
 `PSRAM ... NOT initialized` in the log means the board is not an N16R8 / N8R8 (octal PSRAM) board: the `freenove`
 image needs one.

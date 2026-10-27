@@ -7,7 +7,7 @@ The firmware ships two pin presets (menuconfig "CamOS trap camera" > "Board pins
 | `ai-thinker-esp32cam` | Standard AI-Thinker map. Builds; not tested on hardware with this firmware. |
 | `esp32s3-eye-compatible` (Keyestudio MB0184 / generic N16R8 CAM) | **Unverified for the board you bought.** The map below is what the Keyestudio MB0184 documents (Arduino define `CAMERA_MODEL_ESP32S3_EYE`) and what the Freenove ESP32-S3 WROOM CAM uses; the generic boards that copy it should match, but the seller's pages give no pin text. |
 
-Preset 2 (also in `sdkconfig.defaults.esp32s3cam`): PWDN -1, RESET -1, XCLK 15, SIOD 4, SIOC 5, Y9 16, Y8 17, Y7 18, Y6 12,
+Preset 2 (the Kconfig defaults of the `esp32s3cam` and `freenove` builds): PWDN -1, RESET -1, XCLK 15, SIOD 4, SIOC 5, Y9 16, Y8 17, Y7 18, Y6 12,
 Y5 10, Y4 8, Y3 9, Y2 11, VSYNC 6, HREF 7, PCLK 13. microSD (SD_MMC 1-bit): CLK 39, CMD 38, D0 40 (this preset leaves the card off: `CAMOS_SD`
 can be switched on in menuconfig). The RGB LED pin is undocumented, so no LED is configured. GPIO35-37 are taken by the octal PSRAM and never used.
 

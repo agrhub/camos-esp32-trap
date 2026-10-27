@@ -17,7 +17,7 @@ are English by default; the language link switches to Vietnamese and the choice 
 | `GET /api/wifi/scan[?refresh=1]` | `[{ssid, rssi, secure, channel}]`, deduplicated by SSID, strongest first; cached from the scan at portal start, `refresh=1` scans again |
 | `POST /api/connect` | `{ssid, password, ...any keys}`: save the other keys, then join that network with the AP still up: `{ok, checking: true, ssid, timeoutS: 30}`; the network is stored only once it gave an IP (an empty password = the stored one of the same network). With 4G on: save and restart (`{ok}`). `400 CHOOSE_NETWORK`, `400 SHORT_PASSWORD`, `400 BAD_VALUE`, `409 BUSY` |
 | `GET /api/connect` | `{state: idle\|joining\|ok\|failed, ssid, elapsedS, timeoutS, reason: auth\|not_found\|timeout, ip, hostname}`; `ok`: the camera restarts onto the network 5 s later; `failed`: the portal stays (the 10 minutes start again) |
-| `POST /api/config` | `{key: value, ...}` with any of `ssid password apn simPin cellular apiBase provisionToken token iotHost thingName kvsChannel kvsRegion roleAlias credHost timezone intervalMin powerMode ledEnabled gps batteryMonitor apPassword uiLang` (an empty string = back to the default) |
+| `POST /api/config` | `{key: value, ...}` with any of `ssid password apn simPin cellular apiBase provisionToken token iotHost thingName kvsChannel kvsRegion roleAlias credHost timezone intervalMin powerMode ledEnabled gps batteryMonitor apPassword uiLang usbMode`, and from 0.9.2 `gpsSystems` (`auto`, `gps+bds`, `gps+glonass`, `gps`, `bds`) and `netPrefer` (`auto`, `wifi`, `4g`) (an empty string = back to the default) |
 | `POST /api/cert` | `{"cert": "<PEM>", "key": "<PEM>"}` (each under 6000 bytes) |
 | `POST /api/pair` | pre-provisioned path: joins the Wi-Fi with the AP up and calls `POST /api/device/pair` with the provisioning token |
 | `POST /api/restart` | restart |
@@ -25,7 +25,7 @@ are English by default; the language link switches to Vietnamese and the choice 
 | `GET /info` | protocol 12.3: `{serial, model, fw, wifiScan: [{ssid, rssi, secure}]}` |
 | `POST /provision` | protocol 12.3: `{ssid, password, provisionToken?, endpoint?, apn?, apiBase?}` -> `{"ok":true}`, restarts |
 | `POST /api/config` (new keys in 0.4.0) | `sdSave`, `schedFrom`, `schedTo` (minutes after midnight), `motion`, `motionSens` (1-100), `motionCooldown` (s), `motionRoi` (`"x,y,w,h"` percent), `motionSd`, `motionUpload`, `ipMode` (0 DHCP, 1 static), `staticIp`, `staticMask`, `staticGateway`, `staticDns` (also accepted by the web console) |
-| `POST /api/config` (board wiring) | `modemPower` (GPIO of the 4G supply switch, 47 by default, -1 none: a switch that is not fitted is found out and the radio is then switched with `AT+CFUN`), `modemPowerActiveLow` (`true` for a P-MOSFET gate driven straight, `false` for the NPN of the wiring sheet, the default), `modemPwrkey` (GPIO, -1 = not wired, the default), `modemFastBaud` (UART rate after the first AT, 0 = keep 115200), `gpsPowerActiveLow` (`true` for a P-MOSFET switch, `false` for an NPN switch or a GPIO powering the module, the default), `battDivider` and `solarDivider` (the divider ratio (Rtop + Rbottom) / Rbottom x 100, 100-2000: 200 for 100k/100k, 403 for 100k/33k, 500 for the 30k/7.5k "voltage sensor" module). Defaults come from Kconfig; a factory reset keeps these values and an OTA image built with other defaults does not change them |
+| `POST /api/config` (board wiring) | `modemPower` (0.9.2: GPIO of the 4G supply switch, 47 by default, -1 none: a switch that is not fitted is found out and the radio is then switched with `AT+CFUN`), `modemPowerActiveLow` (0.9.2: `true` for a P-MOSFET gate driven straight, `false` for the NPN of the wiring sheet, the default), `modemPwrkey` (GPIO, -1 = not wired, the default from 0.9.2; 47 in 0.9.1), `modemFastBaud` (UART rate after the first AT, 0 = keep 115200), `gpsPowerActiveLow` (`true` for a P-MOSFET switch, `false` for an NPN switch or a GPIO powering the module, the default from 0.9.2; `true` in 0.9.1), `battDivider` and `solarDivider` (the divider ratio (Rtop + Rbottom) / Rbottom x 100, 100-2000: 200 for 100k/100k, 403 for 100k/33k, 500 for the 30k/7.5k "voltage sensor" module). Defaults come from Kconfig; a factory reset keeps these values and an OTA image built with other defaults does not change them |
 
 ## 3. Web console API (http://<camera IP>/)
 
@@ -71,7 +71,8 @@ Available in normal operation and inside the portal; English. `help` lists the c
 | `snap`, `frame [w h [q]]`, `meta` | capture + upload; one JPEG at a size with timings; the snapshot meta JSON |
 | `batt`, `mode auto\|battery\|powered` | battery / solar, power decision; power mode |
 | `usb`, `usb auto\|storage\|webcam\|off` | native USB port state (mode, connected, idle, cardLent, streaming; mode `stick` with `stick`, `stickMB` while the port is a USB drive's host); set `usbMode` for the next boot |
-| `gps [timeout]`, `at <AT command>` | GPS fix; talk to the modem |
+| `gps [quiet] [timeout]`, `at <AT command>` | GPS fix (`quiet`, 0.9.2: with the camera, Wi-Fi and 4G off, then a restart); talk to the modem |
+| `cam [regs]`, `cam night on\|off\|auto`, `cam reg <hex addr> [hex value]` | sensor state, its registers, the night mode |
 | `led [state]` | show an LED state (`portal`, `connecting`, `online`, `error`, `ota`, `off`, `capture`, `uploaderr`, `lowbatt`) |
 | `live`, `live start [min]`, `live stop` | cloud live view (ESP32-S3, `CAMOS_LIVE`): status JSON (state, viewer, fps, kbit/s, encode / camera ms, last error); open a window; drop the viewer and end the window. With `CAMOS_LIVE_BENCH_CREDS`: `live key id\|secret\|token <value>` / `live key clear` (bench keys in RAM, see [LIVE_VIEW.md](LIVE_VIEW.md)) |
 | `ota`, `awake [s]`, `sleep [s]`, `portal`, `factory`, `restart` | |
@@ -85,9 +86,9 @@ chip stays awake 5 minutes (`tools/serial_log.py` sends a newline first for that
 Strings: `serial`, `vcode`, `wifi_ssid`, `wifi_pass`, `apn`, `sim_pin`, `api_base`, `token`, `prov_token`, `mqtt_host`,
 `thing`, `kvs_chan`, `kvs_region`, `role_alias`, `cred_host`, `claim_url`, `tz`, `tz_auto`, `tz_posix`, `tz_src`,
 `ui_lang`, `ap_pass`, `wifi_err`, `reg_err`, `cap_size`, `admin_salt`, `admin_hash`, `mo_roi`, `st_ip`, `st_mask`, `st_gw`,
-`st_dns`, `cert`, `key` (PEM). Integers: `interval`, `power_mode` (0 auto, 1 battery, 2 powered), `cellular`, `gps`,
+`st_dns`, `usb_mode`, `gps_sys`, `net_pref`, `cert`, `key` (PEM). Integers: `interval`, `power_mode` (0 auto, 1 battery, 2 powered), `cellular`, `gps`,
 `led`, `batt_mon`, `claimed`, `sd_save`, `sched_from`, `sched_to`, `motion`, `mo_sens`, `mo_cool`, `mo_upload`, `mo_sd`,
-`ip_mode`, `wifi_new`, `modem_absent`, `gps_absent`, `portal`, `boots`, `cam_pid` (the detected sensor), `reg_retry` / `reg_taken_s` (the next
+`ip_mode`, `mdm_pwrkey`, `mdm_power`, `mdm_pwr_low`, `mdm_fastbaud`, `gps_pwr_low`, `batt_div`, `solar_div` (the wiring, kept by a factory reset), `wifi_new`, `modem_absent`, `gps_absent`, `portal`, `boots`, `cam_pid` (the detected sensor), `reg_retry` / `reg_taken_s` (the next
 registration question after a 409, epoch s, and its back-off), `rereg_at` (the last registration again after removal). Blobs: `settings` (the persisted shadow), `gps_fix`.
 The factory partition `fctry` (0x14000, 0x6000, read-only) uses the same namespace and keys (`serial`, `vcode`, `cert`,
 `key`, `thing`, `mqtt_host`, `claimed`). `idf.py flash` never touches either partition; `idf.py erase-flash` and the
@@ -135,8 +136,8 @@ document is applied again at every MQTT connect, so FlyBot's form is the source 
 | `storage.sdSave` | bool | every photo also on the microSD card | `storage.sdSave` |
 | `led.enabled` | bool | the status LED | `led.enabled` |
 | `gps.enabled` | bool | daily GPS fixes when a module is fitted | `gps.enabled` (shadow only; `state` keeps its protocol 4 `gps` fix) |
-| `gps.systems` | `"auto"`, `"gps+bds"`, `"gps+glonass"`, `"gps"`, `"bds"` | satellite systems sent to the ATGM336H (`$PCAS04`, GPS RX wired to GPIO3); `auto` (default): GPS + BeiDou, GPS + GLONASS at latitude 55 and beyond | `gps.systems`; local key `gpsSystems` |
-| `network.prefer` | `"auto"`, `"wifi"`, `"4g"` | `auto` (default): Wi-Fi first, 4G when it gives no IP or no cloud; `wifi`: never 4G; `4g`: 4G only, the Wi-Fi settings kept, and Wi-Fi for a boot whose 4G does not come up. A change restarts the camera 5 s after it is saved | `network.prefer`; local key `netPrefer` |
+| `gps.systems` (0.9.2) | `"auto"`, `"gps+bds"`, `"gps+glonass"`, `"gps"`, `"bds"` | satellite systems sent to the ATGM336H (`$PCAS04`, GPS RX wired to GPIO3); `auto` (default): GPS + BeiDou, GPS + GLONASS at latitude 55 and beyond | `gps.systems`; local key `gpsSystems` |
+| `network.prefer` (0.9.2) | `"auto"`, `"wifi"`, `"4g"` | `auto` (default): Wi-Fi first, 4G when it gives no IP or no cloud; `wifi`: never 4G; `4g`: 4G only, the Wi-Fi settings kept, and Wi-Fi for a boot whose 4G does not come up. A change restarts the camera 5 s after it is saved | `network.prefer`; local key `netPrefer` |
 | `console.language` | `"en"`, `"vi"` | language of the camera's own web pages | `console.language` |
 | `claimed` | bool | claim state (CONTRACTS 2a.4) | `claimed` |
 | `live.requested` | bool | a live session at the next wake (5 min) | `live.requested`, `live.supported`, `live.active` |
@@ -179,7 +180,7 @@ known at boot; before the very first power-up of a new board `sensor` is `""`, `
   last real reset (RTC memory), so a battery camera still reports it after many wakes.
 
 `NOT_SUPPORTED` (on purpose): the network (`net.*`, Wi-Fi, APN, SIM PIN, static IP: a wrong value would cut the camera
-off; use RPC `net.set`), the web console password, `video.main` / `video.sub` / `osd` / `nightMode` / `flicker` /
+off; use RPC `net.set`; `network.prefer` above is the one exception), the web console password, `video.main` / `video.sub` / `osd` / `nightMode` / `flicker` /
 `wdr` / `ldc` (no such control on these sensors), `record` and `audio` (no recording, no microphone).
 
 Example:

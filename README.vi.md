@@ -23,9 +23,9 @@ thu hút ruồi bay vào; không có tấm keo nào phải thay.
   (419.640 ₫, khoảng 16 USD), hoặc board **Freenove ESP32-S3 CAM (FNK0085)** (19,99 USD), cùng vỏ bẫy: bẫy treo năng
   lượng mặt trời trong ảnh giá 3,00 USD. Như vậy là một camera Wi-Fi, khoảng 19 USD.
 - Ngoài vườn thêm: module 4G và module GPS (đều kèm anten), pin LiPo dẹt, mạch sạc, mạch tăng áp 5 V, công tắc nguồn cho
-  module 4G, board test có domino và chất dẫn dụ: 944.760 ₫ linh kiện, khoảng 40 USD cả vỏ bẫy (26.050 ₫/USD, tỷ giá
+  module 4G, board test có domino và chất dẫn dụ: 944.760 ₫ linh kiện, khoảng 39 USD cả vỏ bẫy (26.050 ₫/USD, tỷ giá
   Vietcombank ngày 21/10/2026). Tấm pin mặt trời có sẵn trên nắp bẫy sạc cho pin.
-- Cách khác: hộp IP65 trên cọc nhìn vào tấm bẫy dính vàng, với tấm pin 6 V 2 W và anten GPS chủ động, khoảng 61 USD
+- Cách khác: hộp IP65 trên cọc nhìn vào tấm bẫy dính vàng, với tấm pin 6 V 2 W và anten GPS chủ động, khoảng 60 USD
   ([ASSEMBLY.md](docs/ASSEMBLY.md), mục 4).
 - Danh sách đầy đủ, link cửa hàng và giá đọc ngày 17, 24 và 25/10/2026: [docs/BOM.md](docs/BOM.md).
 - Máy tính có Chrome hoặc Edge (để nạp firmware), điện thoại (để cài Wi-Fi), thẻ microSD (FAT32, không bắt buộc nhưng
@@ -51,8 +51,10 @@ Các hướng dẫn chi tiết trong `docs/` viết bằng tiếng Anh.
 **Camera Wi-Fi** không cần đấu dây: board, camera và một cục sạc USB (cục sạc điện thoại 5 V bất kỳ, từ 1 A).
 
 **Camera ngoài vườn** (4G + GPS + pin + năng lượng mặt trời) được đấu trên một board test nhỏ trong nắp bẫy. Đấu đúng
-như sơ đồ thì firmware không cần cài gì thêm (từ bản 0.9.2); chỉ cần đánh dấu "Đã lắp mạch đo pin / pin mặt trời" khi đã
-lắp cầu chia áp (trên trang cài đặt hoặc trang web của camera).
+như sơ đồ thì firmware 0.9.2 không cần cài gì thêm; chỉ cần đánh dấu "Đã lắp mạch đo pin / pin mặt trời" khi đã lắp
+cầu chia áp (trên trang cài đặt hoặc trang web của camera). Bản 0.9.2 chưa phát hành (đang chạy bản thử): bản phát hành
+hiện tại, 0.9.1, dùng GPIO47 để kích chân PWRKEY nên không giữ được công tắc nguồn 4G. Trong lúc chờ 0.9.2, hãy build
+firmware cho camera ngoài vườn từ nhánh `main` ([FLASHING.md](docs/FLASHING.md), mục C), nhánh này đã có thay đổi đó.
 
 ![sơ đồ đấu dây](docs/img/wiring-overview.png)
 
@@ -130,7 +132,8 @@ trực tuyến. Mỗi ngày camera lấy vị trí GPS một lần, nên FlyBot 
   ngưỡng, hoặc khi camera mất kết nối;
 - xem ảnh kèm số ruồi đếm được, và chụp ảnh mới bằng **Chụp ngay**;
 - xem hình trực tiếp (xem bên dưới);
-- đổi lịch chụp và chế độ nguồn của camera (pin và năng lượng mặt trời, hoặc điện lưới);
+- đổi lịch chụp và chế độ nguồn của camera (pin và năng lượng mặt trời, hoặc điện lưới), và từ bản 0.9.2 cả mạng
+  (Wi-Fi, 4G hoặc tự động) và hệ vệ tinh GPS; camera đang ngủ nhận thay đổi ở lần thức dậy kế tiếp;
 - cập nhật firmware cho camera;
 - xem mọi bẫy trên **Bản đồ**.
 
@@ -145,10 +148,12 @@ tấm keo khi đã đầy và đặt tấm mới đúng chỗ cũ.
 
 **Xem trực tiếp trong FlyBot (khi không ở nhà).** Camera (cả hai loại board ESP32-S3) còn gửi hình trực tiếp lên trang
 camera của FlyBot qua Internet (Amazon Kinesis Video Streams WebRTC), mỗi lần một người xem. Menu chất lượng dưới khung
-hình chọn Thấp (320x240 H.264, khoảng 5-8 hình mỗi giây), Trung bình (640x480) hoặc Cao (1024x768): Trung bình và Cao gửi
-ảnh JPEG của chính camera, tới 15 hình mỗi giây khi Wi-Fi tải lên tốt. Tự động chọn Cao khi camera hỗ trợ. Cắm điện thì
-camera luôn sẵn sàng; chạy pin thì camera vào khi FlyBot yêu cầu (ở lần thức dậy kế tiếp). Khi có người đang xem từ
-FlyBot, trang web của camera báo "bận" thay cho hình trực tiếp, và lần chụp theo lịch rơi vào lúc đó được bỏ qua. FlyBot
+hình chọn 240p (320x240 H.264, khoảng 5-8 hình mỗi giây) hoặc một cỡ hình camera phát được (480p, HD, FullHD, 2K): các
+cỡ này gửi ảnh JPEG của chính camera, tới 15 hình mỗi giây ở 640x480 khi Wi-Fi tải lên tốt. Tự động chọn 640x480, và
+camera tự hạ xuống khi đường truyền không tải nổi. Cắm điện (hoặc chế độ nguồn powered) thì camera luôn sẵn sàng. Chạy
+pin thì camera vào khi FlyBot yêu cầu, ở lần thức dậy kế tiếp: từ bản 0.9.2, ban ngày trên Wi-Fi camera thức dậy kiểm
+tra nhanh mỗi 2-10 phút; ngoài ra (và luôn luôn khi chạy 4G) là ở lần chụp kế tiếp. Khi có người đang xem từ FlyBot,
+trang web của camera báo "bận" thay cho hình trực tiếp, và lần chụp theo lịch làm hình trực tiếp dừng vài giây. FlyBot
 tự cấp khóa xem trực tiếp cho camera (flybot.agrhub.com đã bật); với firmware cũ, FlyBot đưa ra ảnh chụp và trang web
 của camera thay thế. Chi tiết: [docs/dev/LIVE_VIEW.md](docs/dev/LIVE_VIEW.md).
 
@@ -179,7 +184,8 @@ Chi tiết: [docs/LED.md](docs/LED.md).
 - **Không vào được Wi-Fi.** Sau khoảng một phút camera mở lại `CAM-xxxx` và trang cài đặt ghi rõ lý do. Kiểm tra mật
   khẩu; camera cần mạng 2,4 GHz (không dùng được mạng chỉ có 5 GHz).
 - **Không có 4G.** Kiểm tra SIM còn dung lượng data và không có mã PIN (hoặc nhập PIN trong Cài đặt nâng cao), anten đã
-  gắn chắc, module 4G có dây nguồn riêng to và ngắn từ pin (nó cần dòng đỉnh tới 2 A). Mục 4G trên trang web hiện nhà
+  gắn chắc, module 4G có dây nguồn riêng to và ngắn từ pin cùng tụ 1000 uF ở chân VCC (nó cần dòng đỉnh tới 2 A). Mục 4G
+  trên trang web hiện nhà
   mạng và mức sóng.
 - **Hình bị đen.** Ban đêm là bình thường: camera không có đèn hồng ngoại. Đặt khung giờ chụp ban ngày (Lịch chụp). Ban
   ngày mà vẫn đen: kiểm tra ống kính có bị che không và cáp camera đã cắm hết vào chưa.
