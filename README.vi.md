@@ -51,10 +51,9 @@ Các hướng dẫn chi tiết trong `docs/` viết bằng tiếng Anh.
 **Camera Wi-Fi** không cần đấu dây: board, camera và một cục sạc USB (cục sạc điện thoại 5 V bất kỳ, từ 1 A).
 
 **Camera ngoài vườn** (4G + GPS + pin + năng lượng mặt trời) được đấu trên một board test nhỏ trong nắp bẫy. Đấu đúng
-như sơ đồ thì firmware 0.9.2 không cần cài gì thêm; chỉ cần đánh dấu "Đã lắp mạch đo pin / pin mặt trời" khi đã lắp
-cầu chia áp (trên trang cài đặt hoặc trang web của camera). Bản 0.9.2 chưa phát hành (đang chạy bản thử): bản phát hành
-hiện tại, 0.9.1, dùng GPIO47 để kích chân PWRKEY nên không giữ được công tắc nguồn 4G. Trong lúc chờ 0.9.2, hãy build
-firmware cho camera ngoài vườn từ nhánh `main` ([FLASHING.md](docs/FLASHING.md), mục C), nhánh này đã có thay đổi đó.
+như sơ đồ thì firmware 0.9.2 (bản phát hành hiện tại) không cần cài gì thêm; chỉ cần đánh dấu "Đã lắp mạch đo pin / pin
+mặt trời" khi đã lắp cầu chia áp (trên trang cài đặt hoặc trang web của camera). Bản 0.9.1 trở về trước dùng GPIO47 để
+kích chân PWRKEY nên không giữ được công tắc nguồn 4G.
 
 ![sơ đồ đấu dây](docs/img/wiring-overview.png)
 

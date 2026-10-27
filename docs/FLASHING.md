@@ -24,9 +24,8 @@ Then do [the first start](#after-flashing-the-first-start) and the [Wi-Fi setup]
 - **Unwired is easiest.** Flash the board before it goes into the trap box. Once it is wired as in
   [WIRING.md](WIRING.md), flashing still works, but unplug the 5 V boost board's output from the board's 5V pin first
   so the board runs from the USB cable only.
-- **Firmware version.** The web flasher and the Releases page have 0.9.1, the current release. A field camera wired as
-  in [WIRING.md](WIRING.md) (4G power switch on GPIO47) needs 0.9.2, which is not released yet: build it from source
-  (way C) until then.
+- **Firmware version.** The web flasher and the Releases page have 0.9.2, the current release. A field camera wired
+  as in [WIRING.md](WIRING.md) (4G power switch on GPIO47) needs 0.9.2 or later.
 
 ## A. Web flasher (recommended)
 
@@ -63,7 +62,7 @@ Maintenance & Upgrade, or FlyBot).
 4. Write the whole image at address 0:
 
    ```bash
-   python -m esptool --chip esp32s3 --port COM7 write_flash 0x0 camos-esp32-trap-freenove-v0.9.1-install.bin
+   python -m esptool --chip esp32s3 --port COM7 write_flash 0x0 camos-esp32-trap-freenove-v0.9.2-install.bin
    ```
 
 5. Press **RST** (or unplug and plug the board) and go on with [the first start](#after-flashing-the-first-start).

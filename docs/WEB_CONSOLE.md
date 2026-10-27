@@ -1,6 +1,6 @@
 # The camera's web page (web console, firmware 0.9.1 and 0.9.2)
 
-This page describes 0.9.1, the current release, and marks what 0.9.2 (not released yet, test builds) adds.
+This page describes 0.9.2, the current release, and marks what 0.9.2 adds to 0.9.1.
 
 
 Every camera has its own web page for the live picture, the photos on its memory card and all its settings. This page
