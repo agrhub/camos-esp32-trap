@@ -48,6 +48,10 @@ Endurance without sun: 1700 mAh / 4.95 mA = **about 14 days**. The deep-sleep fl
 power switch, removing the CH340's drain) matters more than anything in the firmware. At a 10-minute interval: 7.1 mA
 average, 10 days; at 60 minutes: 4.0 mA, 18 days.
 
+Firmware 0.9.2 adds check-in wakes on Wi-Fi between the photos, 06:00-18:00 local time: every 2 minutes with the
+cell at 60 % or more, else every 10 minutes, about 0.2 mAh each (the estimate in `sched.c`, not measured). That is up
+to 72 mAh a day at 2 minutes and about 14 mAh a day at 10 minutes, on top of the table.
+
 ## 2. Battery mode on 4G (A7680C), 30-minute interval
 
 Same as above plus the modem instead of Wi-Fi:
@@ -57,13 +61,15 @@ Same as above plus the modem instead of Wi-Fi:
 | Modem power-on, AT, SIM, registration | 15 s | 120 mA average | 1 800 mAs | SIMCom A7680C: registration bursts up to 2 A peak, average far lower (vendor figures for Cat.1) |
 | PPP, DNS, TLS, MQTT, upload 0.6 MB | 12 s | 250 mA average | 3 000 mAs | Cat.1 transmit about 400-700 mA peak |
 | Awake window with the modem in idle | 30 s | 60 mA | 1 800 mAs | modem idle about 20 mA + ESP |
-| AT+CPOF and PWRKEY off | 3 s | 60 mA | 180 mAs | |
-| Modem rail leakage in deep sleep (no rail switch) | 1757 s | 1 mA | 1 757 mAs | A7680C powered-off state: datasheet says tens of uA, breakouts with LEDs / regulators add more: **measure** |
+| Module off (supply switch, or AT+CPOF with PWRKEY) | 3 s | 60 mA | 180 mAs | |
+| Modem leakage in deep sleep, module wired straight to the cell (no supply switch) | 1757 s | 1 mA | 1 757 mAs | A7680C powered-off state: datasheet says tens of uA, breakouts with LEDs / regulators add more: **measure** |
 | Capture, wake, goodbye as in table 1 | | | 890 mAs | |
 | Deep sleep floor as in table 1 | | | 5 271 mAs | |
 | **Total per 30-minute cycle** | | | **14 698 mAs = 4.08 mAh** | average 8.2 mA |
 
-Endurance without sun: **about 8.6 days**. A GPS fix once a day adds about 25 mA x 40 s = 1 000 mAs/day: negligible.
+Endurance without sun: **about 8.6 days**. With the 4G supply switch of [../WIRING.md](../WIRING.md) (AO3401A on
+GPIO47, firmware 0.9.2) the module is cut off in deep sleep and the leakage row goes to about zero (not measured):
+12 941 mAs = 3.59 mAh a cycle, 7.2 mA average, about 9.8 days. A GPS fix once a day adds about 25 mA x 40 s = 1 000 mAs/day: negligible.
 
 ## 3. Powered mode (effective power.mode `powered`)
 
@@ -85,14 +91,16 @@ healthy cell, which is exactly what `auto` enforces (powered only above `highMv`
 
 ## 4. Solar sizing (assumption)
 
-A 6 V 2 W panel in southern Vietnam gives about 4 equivalent full-sun hours a day on average over the year, less in the
+The hanging trap's own round lid panel has no stated rating and is not measured yet; the figures below are for the
+6 V 2 W panel of the box build. A 6 V 2 W panel in southern Vietnam gives about 4 equivalent full-sun hours a day on average over the year, less in the
 rainy season (assumption, no local measurement): 2 W x 4 h / 3.7 V x 0.8 (charger and MPPT losses) = about 1.7 Ah/day.
 That covers battery mode on 4G (0.2 Ah/day) with a wide margin and powered mode on 4G (1.5 Ah/day) only on good days,
 which is why `auto` exists. A 3 W panel gives margin for powered mode.
 
 ## 5. What to measure and where to write it
 
-1. Deep-sleep floor of the Freenove board alone (USB disconnected, fed at 3V3): replaces row 1 of table 1.
+1. Deep-sleep floor of the board alone (USB disconnected, fed at its 5V pin from the boost board, as in the field
+   build): replaces row 1 of table 1.
 2. The same with the camera module unplugged (tells the OV5640's idle drain without PWDN).
 3. One full battery-mode cycle on Wi-Fi with a logging meter: the average mA replaces the table 1 total.
 4. Modem powered-off drain on the breakout (row 5 of table 2) and one 4G cycle.

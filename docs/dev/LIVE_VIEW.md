@@ -9,7 +9,7 @@ network. Measured on the Freenove board on 16 Oct 2026: about 11 fps at 640x480 
 (table and setup: [../WEB_CONSOLE.md](../WEB_CONSOLE.md)). While a cloud live session (below) runs, the LAN stream
 answers `409 BUSY`.
 
-## 2. Through the cloud: Kinesis Video Streams WebRTC (Freenove build)
+## 2. Through the cloud: Kinesis Video Streams WebRTC (the `freenove` image)
 
 Contract (FlyBot, `flybot-aws/docs/CONTRACTS.md` section 4): one KVS signaling channel per camera (`cam-<serial>`),
 written into the shadow (`kvs.channelName`, `kvs.region`). The browser (FlyBot's `KvsViewer`) joins as VIEWER and
@@ -24,8 +24,8 @@ sends an SDP offer; the camera is the MASTER and answers.
 | Signaling | `live_kvs.c` | WebSocket to the presigned WSS URL (`X-Amz-ChannelARN`, 299 s); `SDP_OFFER` / `ICE_CANDIDATE` in, `SDP_ANSWER` out (the answer carries the camera's candidates: host, server-reflexive and relay). One viewer at a time; a new offer replaces the current viewer. Browser mDNS (`.local`) candidates are skipped: the viewer's checks reach the camera's host candidate and become peer-reflexive. |
 | Peer | `espressif/esp_peer` 1.5.7 | ICE (one KVS TURN server over UDP, which also answers STUN), DTLS-SRTP, RTP with NACK. Opened for each offer, closed when the viewer leaves (DTLS close, ICE keep-alive lost) or when no connection is made within 30 s. |
 | Video | `espressif/esp_h264` 1.4.1 | software H.264 (openh264, constrained baseline) from YUV422 camera frames, 320x240, target 10 fps and 300 kbit/s, GOP 2 s (the software encoder cannot force a key frame, so a PLI waits for the next one). Only while a viewer is connected; no audio is sent (the answer keeps a send-only PCMA line because viewers offer audio). |
-| When | `live.c` | Powered mode (`CAMOS_LIVE_STANDBY`): the camera stays on the channel all the time, so a viewer connects at once. Battery mode: only for `live.start {minutes}` / `live.requested` (5 min), which also keep it awake. The window's end drops the viewer; `live.stop` drops the viewer and ends the window. |
-| Camera | `cam.c`, `sched.c` | The encoder takes the camera lock (`camera_take`) when the offer arrives, so the camera's DMA buffer and the encoder are allocated before the DTLS session; a running capture finishes first, the web console preview and the LAN MJPEG stream stop. The sensor runs raw YUV422 at `CAMOS_LIVE_XCLK_MHZ` (20 MHz; JPEG captures keep `CAMOS_XCLK_MHZ`). A scheduled capture or `snapshot.now` during a session pauses the stream (`live_pause`): the encoder stops and gives the camera lock back, the capture takes the full-size photo it always takes, the JPEG is copied to PSRAM and the stream starts again in the mode and quality it had (H.264 or data channel JPEG; the default H.264 if that fails), while the upload runs from the copy. The viewer sees the picture stop for the sensor's switch to JPEG, the exposure settling and the switch back; the console's `live status` shows the last pause as `lastPauseMs`. |
+| When | `live.c` | Powered mode (`CAMOS_LIVE_STANDBY`): the camera stays on the channel all the time, so a viewer connects at once. Battery mode: only for `live.start {minutes}` / `live.requested` (5 min), which also keep it awake; a sleeping camera picks them up at its next wake: a photo slot, or (0.9.2) a check-in wake on Wi-Fi every 2 min (cell at 60 % or more) or 10 min, 06:00-18:00 local time (`sched.c`). On 4G there are no check-ins. The window's end drops the viewer; `live.stop` drops the viewer and ends the window. |
+| Camera | `cam.c`, `sched.c` | The encoder takes the camera lock (`camera_take`) when the offer arrives, so the camera's DMA buffer and the encoder are allocated before the DTLS session; a running capture finishes first, the web console preview and the LAN MJPEG stream stop. The sensor runs raw YUV422 at `CAMOS_LIVE_XCLK_MHZ` (12 MHz; JPEG captures keep `CAMOS_XCLK_MHZ`). A scheduled capture or `snapshot.now` during a session pauses the stream (`live_pause`): the encoder stops and gives the camera lock back, the capture takes the full-size photo it always takes, the JPEG is copied to PSRAM and the stream starts again in the mode and quality it had (H.264 or data channel JPEG; the default H.264 if that fails), while the upload runs from the copy. The viewer sees the picture stop for the sensor's switch to JPEG, the exposure settling and the switch back; the console's `live status` shows the last pause as `lastPauseMs`. |
 | Shadow | `shadow.c` | `live.supported` = built in, paired (channel + region) and a credential source (credential provider settings, or bench keys); `live.active` = a live window is open or a viewer watches. |
 
 Serial console: `live` (status JSON: state `off` / `waiting` / `joining` / `joined` / `viewer` / `retry`, viewer,
@@ -44,7 +44,8 @@ data channel instead (`live_dc.c` for the protocol, host-tested in `tests/test_l
   An offer without an application line gets an answer without one, so older viewers keep H.264; a camera on older
   firmware never opens the channel, so the viewer keeps H.264 too.
 - **Default.** JPEG over the data channel: once the channel is open and the viewer has not asked for something else,
-  the camera switches to JPEG 640x480, `q` 12, 15 fps (the web console stream's standard quality). H.264 320x240 on the
+  the camera switches to JPEG 640x480, `q` 12, 15 fps (the web console stream's standard quality); on 4G it stays on
+  H.264 until the viewer asks (a round trip through the TURN relay took 1.5-1.8 s, 22 Oct 2026). H.264 320x240 on the
   video track is the fallback: before the channel opens, for a viewer without the channel, when the channel closes,
   and when the viewer asks for `h264`. While JPEG flows, the video track carries nothing.
 - **Weak link.** When no JPEG ack has come back for 6 s while frames went out (or four round trips, when those are
@@ -55,7 +56,8 @@ data channel instead (`live_dc.c` for the protocol, host-tested in `tests/test_l
   window paces it at whatever frame rate the link carries.
 - **Sizes** follow the camera module: `sizes` in `hello` is `camera.liveSizes` of the shadow (the sensor's frame sizes
   up to 2048x1536 within its maximum), the same list the web console's own stream offers. Above 1600x1200 the sensor
-  runs at the photo XCLK (10 MHz), as the web console's stream does.
+  runs at the photo XCLK (10 MHz), as the web console's stream does. With `power.level` `eco` (0.9.2: a cell under
+  `highMv` that is not charging at full input) the list stops at the 480p tier.
 - **Text messages** are JSON control messages:
 
   | From | Message | Meaning |
@@ -105,8 +107,10 @@ data channel instead (`live_dc.c` for the protocol, host-tested in `tests/test_l
   board's own Wi-Fi 4-100x of its throughput ([../WEB_CONSOLE.md](../WEB_CONSOLE.md), "Camera clock and Wi-Fi"). In a dim
   room the streams use the sensor's night mode ([../WEB_CONSOLE.md](../WEB_CONSOLE.md), "Exposure in dim light").
 
-FlyBot's quality choices (`client/src/utils/camosLive.js`): **Low** H.264 320x240 at 10 fps, **Medium** JPEG
-640x480 q12 at 15 fps, **High** JPEG 1024x768 q12 at 10 fps, **Auto** = High when the channel opens, else H.264.
+FlyBot's quality choices (`client/src/utils/camosLive.js`): **Auto** = JPEG 640x480 q12 at 15 fps (or the offered
+size closest to it), **240p** = H.264 320x240 at 10 fps, then one JPEG size per tier the camera offers in `hello`
+(480p, HD, FullHD, 2K; q12, 15 fps up to 640x480 and 10 fps above), asked with `"fixed":true`. Without a data channel
+the viewer gets H.264.
 
 Measured on 17 Oct 2026, in the evening in a dark room (the pictures are near black, so the frames are small; a lit or
 noisy scene makes them 2-3x larger, see the LAN table in [../WEB_CONSOLE.md](../WEB_CONSOLE.md)). Same board, bench
@@ -175,7 +179,7 @@ in the picture, so the numbers are given per light level.
 | Picture | 320x240 H.264 (`video/H264`), decoded by the browser; 0 frames dropped, 0 packets lost, 0 NACKs; colours match a JPEG of the same scene |
 | Frame rate, dim room | 7.5-7.8 fps (camera wait 73-77 ms + encode 50-58 ms per frame) |
 | Frame rate, dark room (high gain) | 5.1-6.4 fps, 1,420 frames in 221 s (camera wait 39-86 ms + encode 79-154 ms) |
-| Sensor clock | XCLK 10 MHz: 3.9 fps (camera wait 180 ms); 24 MHz: camera wait 10 ms but a darker picture and encode 92-117 ms (the raw frames compete with the encoder for PSRAM bandwidth); 20 MHz is the default |
+| Sensor clock | XCLK 10 MHz: 3.9 fps (camera wait 180 ms); 24 MHz: camera wait 10 ms but a darker picture and encode 92-117 ms (the raw frames compete with the encoder for PSRAM bandwidth); 20 MHz was the default then (now 12 MHz with a faster OV5640 PLL: `CAMOS_LIVE_XCLK_MHZ`, `CAMOS_LIVE_YUV_PLL_MUL`) |
 | Bitrate | 4-40 kbit/s for a still indoor scene (the 300 kbit/s target is a ceiling) |
 | Session start | camera: offer to answer 1.6-3.3 s (TURN allocation, the sensor starting), viewer connected 3.0-5.0 s after the offer. Browser: offer to first frame 4.6-7.1 s (one run 12 s: ICE took 5 s) |
 | Viewer leaves | noticed after 29 s with esp_peer's default keep-alive (5 checks); the firmware now uses 3 checks (about 20 s, not measured) |

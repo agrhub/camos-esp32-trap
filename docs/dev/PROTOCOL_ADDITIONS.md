@@ -173,8 +173,11 @@ A clean MQTT close sends no Last Will, which is why the camera says it itself.
 Effective `power.mode`:
 - `powered`: MQTT always connected, no deep sleep, captures at the slots, `live.start` / `snapshot.now` any time.
 - `battery`: capture at the slot -> network -> upload -> awake window (30 s) for queued RPCs -> goodbye -> deep sleep
-  (modem powered off through PWRKEY, Wi-Fi stopped, camera in PWDN). RPCs sent while asleep wait in the broker (QoS 1,
-  clean session false) and run at the next wake.
+  (modem off through its supply switch, or `AT+CPOF` when PWRKEY is wired; Wi-Fi stopped, camera in PWDN). RPCs sent
+  while asleep wait in the broker (QoS 1, clean session false) and run at the next wake. Check-in wakes (0.9.2): on
+  Wi-Fi, 06:00-18:00 local time, the camera also wakes between the slots every 2 min (cell at 60 % or more) or 10 min,
+  joins Wi-Fi and MQTT for about 8 s to pick up the shadow and queued RPCs (live view, a photo, an update, a GPS fix),
+  and sleeps again: no capture, no GPS, never 4G.
 - `auto`: without a battery divider (`batteryMonitor` off) always `powered` (the USB / mains Wi-Fi camera). With one:
   `powered` when the cell is at or above `highMv` (or the charger reports charging and the cell is above `lowMv`), back
   to `battery` below `lowMv`; a divider that gives no reading counts as `battery`. The state survives deep sleep.

@@ -2,17 +2,20 @@
 
 **English** · [Tiếng Việt](README.vi.md)
 
-![the trap camera on its post (illustration)](docs/img/trap-illustration.png)
+![the real build: the boards wired on a prototype board in the trap lid, the finished trap, the solar lid](docs/img/trap-build.jpg)
 
-A small solar camera that photographs a yellow sticky trap in the orchard several times a day and sends the photos to
-[FlyBot](https://flybot.agrhub.com), which counts the fruit flies for you. *(Illustration; photos of the assembled trap
-will follow in `docs/img/trap-assembled.jpg`.)*
+A small solar camera that lives in the lid of a hanging fruit-fly trap. It looks down into the trap several times a
+day and sends the photos to [FlyBot](https://flybot.agrhub.com), which counts the fruit flies for you. The lure in the
+trap draws the flies in; there is no glue card to change.
 
 - Runs on Wi-Fi, or on 4G with a SIM card in the field.
-- Solar panel + battery: sleeps between photos, wakes on time.
+- The solar panel on the lid charges a flat LiPo cell: the camera sleeps between photos and wakes on time.
 - GPS: FlyBot puts the trap on the map by itself.
 - A web page on the camera for live view, settings and the photos on its memory card.
-- Live view in FlyBot from anywhere (Freenove board): H.264 or the camera's own JPEG pictures over WebRTC, see section 5.
+- Live view in FlyBot from anywhere (both ESP32-S3 boards): H.264 or the camera's own JPEG pictures over WebRTC, see
+  section 7.
+
+![the trap camera live in FlyBot, looking down into the trap (serial masked)](docs/img/esp32-live.jpg)
 
 ## 1. What you need
 
@@ -21,18 +24,21 @@ will follow in `docs/img/trap-assembled.jpg`.)*
   trap in the photos costs US$3.00. That is a Wi-Fi camera, about US$19.
 - For the field: a 4G module and a GPS module (both with their antennas), a flat LiPo cell, a charger, a 5 V
   boost board, a power switch for the 4G module, a prototype board with screw terminals and the lure: 944.760 ₫ of
-  parts, about US$40 with the housing
-  (26.050 ₫/USD, the Vietcombank rate of 21 Oct 2026). The reference build of the wiring page (IP65 box, sticky card,
-  active GPS antenna): about US$61.
-- The full list with shop links and the prices read on 17 and 24 Oct 2026: [docs/BOM.md](docs/BOM.md).
+  parts, about US$39 with the housing
+  (26.050 ₫/USD, the Vietcombank rate of 21 Oct 2026). The housing's own solar panel charges the cell.
+- Another way: an IP65 box on a post that looks at a yellow sticky card, with a 6 V 2 W panel and an active GPS
+  antenna, about US$60 ([ASSEMBLY.md](docs/ASSEMBLY.md), section 4).
+- The full list with shop links and the prices read on 17, 24 and 25 Oct 2026: [docs/BOM.md](docs/BOM.md).
 - A computer with Chrome or Edge (to flash the firmware), a phone (to set up the Wi-Fi), a microSD card (FAT32,
   optional but recommended) and an account on [FlyBot](https://flybot.agrhub.com).
+
+![the parts of the trap camera and their prices: about US$39](docs/img/trap-parts.jpg)
 
 **Setting up a camera, in short:**
 
 | Step | What | Guide | Time |
 |---|---|---|---|
-| 2 | Wire the field camera and put it in its box (skip for a Wi-Fi camera on USB) | [WIRING.md](docs/WIRING.md), [ASSEMBLY.md](docs/ASSEMBLY.md) | an afternoon |
+| 2 | Wire the field camera and put it in the trap lid (skip for a Wi-Fi camera on USB) | [WIRING.md](docs/WIRING.md), [ASSEMBLY.md](docs/ASSEMBLY.md) | an afternoon |
 | 3 | Put the firmware on the board | [FLASHING.md](docs/FLASHING.md) | 5 min |
 | 4 | Connect it to Wi-Fi (a 4G SIM needs nothing) | [PORTAL.md](docs/PORTAL.md) | 2 min |
 | 5 | Claim it in FlyBot | section 5 below | 1 min |
@@ -43,17 +49,19 @@ will follow in `docs/img/trap-assembled.jpg`.)*
 
 **A Wi-Fi camera** needs no wiring: the board, its camera and a USB power supply (any 5 V phone charger, 1 A or more).
 
-**The field camera** (4G + GPS + battery + solar) is wired on a small prototype board inside the trap box. Wired as
-drawn, the firmware needs no settings (0.9.2 and later); only tick "Battery / solar divider fitted" once the dividers
-are in (setup page or web console).
+**The field camera** (4G + GPS + battery + solar) is wired on a small prototype board inside the trap lid. Wired as
+drawn, firmware 0.9.2 needs no settings; only tick "Battery / solar divider fitted" once the dividers are in (setup
+page or web console). 0.9.2 is not released yet (test builds): the current release, 0.9.1, uses GPIO47 as a PWRKEY
+pulse and cannot keep the 4G power switch on. Until 0.9.2 is out, build the field camera's firmware from `main`
+([FLASHING.md](docs/FLASHING.md), section C), which has it.
 
 ![wiring overview](docs/img/wiring-overview.png)
 
 - Every wire, pin by pin, with the 4G power switch and the battery dividers: [docs/WIRING.md](docs/WIRING.md).
 - The parts with shop links and prices: [docs/BOM.md](docs/BOM.md).
-- Putting it in the box, the sticky card, the antennas and the post: [docs/ASSEMBLY.md](docs/ASSEMBLY.md).
+- Putting it in the lid, the camera's view, the antennas and hanging the trap: [docs/ASSEMBLY.md](docs/ASSEMBLY.md).
 
-Flash the board (step 3) before it goes into the box: it is easier to reach the USB port and the buttons.
+Flash the board (step 3) before it goes into the lid: it is easier to reach the USB port and the buttons.
 
 ## 3. Put the firmware on the board (3 steps, nothing to install)
 
@@ -97,7 +105,7 @@ release it when the LED turns blue. Every setting stays.
 
 | | |
 |---|---|
-| ![unclaimed camera with its QR code](docs/img/portal-unclaimed.png) | A new camera registers itself with FlyBot and waits for its owner. Until it is claimed it is "Unclaimed" and sends at most one photo an hour. <br><br>1. Sign in at **https://flybot.agrhub.com** (on a computer or a phone). <br>2. On the Cameras page choose **Add Camera** and scan the QR code shown on the camera's setup page or web page, or type the **serial number** and the **verify code** printed next to it (also on the web page's Device Information). <br>3. Give it a name; its GPS position (or a drag on the **Field Map**) puts it on the map. <br>4. The camera now follows the photo schedule set in FlyBot. |
+| ![unclaimed camera with its QR code](docs/img/portal-unclaimed.png) | A new camera registers itself with FlyBot and waits for its owner. Until it is claimed it is "Unclaimed" and sends at most one photo an hour. <br><br>1. Sign in at **https://flybot.agrhub.com** (on a computer or a phone). <br>2. On the Cameras page choose **Add Camera** and scan the QR code shown on the camera's setup page or web page, or type the **serial number** and the **verify code** printed next to it (also on the web page's Device Information). <br>3. Give it a name and pick the **trap type**: **Lure trap (no glue)** for the hanging trap, **Sticky trap (glue card)** for a sticky card. Its GPS position (or a drag on the **Field Map**) puts it on the map. <br>4. The camera now follows the photo schedule set in FlyBot. |
 
 ## 6. The camera's web page
 
@@ -126,19 +134,20 @@ The first visit asks you to set the **admin password** (8-64 characters, letters
 | Event > **Capture Schedule** | who sets the schedule, the interval and the daily window, the next photos | ![schedule](docs/img/console-schedule.png) |
 | Storage > **Storage Management** | the memory card, format, and the native USB port (USB drive, card reader, webcam) | ![storage](docs/img/console-storage.png) |
 | Power & location > **Power & Schedule** | battery and solar, power mode (auto / battery / powered), LED, battery dividers | ![power](docs/img/console-power.png) |
-| Power & location > **GPS** | the position, the satellite systems (automatic: GPS + BeiDou in Vietnam), get a position now | ![gps](docs/img/console-gps.png) |
+| Power & location > **GPS** | the position, the satellite systems (0.9.2; automatic: GPS + BeiDou in Vietnam), get a position now | ![gps](docs/img/console-gps.png) |
 | Security > **Account** | change the admin password | ![account](docs/img/console-account.png) |
 | Language menu | English or **Tiếng Việt** | ![vietnamese](docs/img/console-live-vi.png) |
 
 *The pictures in these screenshots are drawings of a sticky card from a mock camera, not camera photos.* Every page and
 every setting, explained: **[docs/WEB_CONSOLE.md](docs/WEB_CONSOLE.md)**.
 
-**Before you hang the camera**, open Live View and check three things: the sticky card fills most of the picture,
-it is sharp (turn the lens of the OV5640 module gently to focus), and it is upright (Image > Display > orientation).
+**Before you hang the trap**, close the lid and open Live View, then check three things: the bottom of the trap fills
+most of the picture, it is sharp (turn the lens of the OV5640 module gently to focus), and it is upright
+(Image > Display > orientation).
 
 ## 7. Daily use
 
-**What the camera does by itself.** It takes a photo of the sticky card on the schedule set in FlyBot (a camera running its own
+**What the camera does by itself.** It takes a photo of the trap on the schedule set in FlyBot (a camera running its own
 schedule takes one an hour, all day, until you set a window), keeps a copy on the memory card, and uploads it. FlyBot
 counts the fruit flies on every photo. On battery it sleeps between photos and wakes on time; on mains or a full,
 charging battery it stays online. Once a day it takes a GPS position, so FlyBot puts the trap on the map by itself.
@@ -147,25 +156,31 @@ charging battery it stays online. Once a day it takes a GPS position, so FlyBot 
 
 - follow the fly counts of each trap; set an alert threshold per camera and get an email or a Telegram message when a trap reaches it, or when a camera goes offline;
 - look at the photos with their counts, and take a new one with **Capture now**;
-- watch the live picture (Freenove board, see below);
-- change a camera's photo schedule and power mode (battery and solar, or mains);
+- watch the live picture (see below);
+- change a camera's photo schedule and power mode (battery and solar, or mains), and with 0.9.2 its network (Wi-Fi,
+  4G or automatic) and GPS satellite systems; a sleeping camera takes a change at its next wake;
 - update the firmware of a camera;
 - see every trap on the **Field Map**.
 
 **What you do on the camera's web page** (on the same Wi-Fi only): set it up, check the picture and the focus, change the
 Wi-Fi or a 4G setting, browse the photos on the card, read the log when something is wrong.
 
-**Changing the sticky card.** Replace the card when it is full or as your pest-control plan says; put the new card in
-the same place so the picture stays framed. A photo on demand (Live View > Send to FlyBot, or in FlyBot) starts the new
-card's count.
+**Emptying the trap and changing the lure.** Empty the trap and refill the lure as the lure's label or your
+pest-control plan says, and wipe the lens and the inside of the clear body when they get dirty. Put the lid back the
+same way round so the picture stays framed. Log it under **Trap maintenance** on the camera's page in FlyBot, and take
+a photo on demand (Live View > Send to FlyBot, or **Capture now** in FlyBot) to start the new count. With a sticky
+card (the other way, [ASSEMBLY.md](docs/ASSEMBLY.md) section 4), replace the card when it is full and put the new one
+in the same place.
 
-**Live view in FlyBot (away from home).** The Freenove camera can also send its live picture to FlyBot's camera page
-over the Internet (Amazon Kinesis Video Streams WebRTC), one viewer at a time. The quality menu under the picture
-picks Low (320x240 H.264, about 5-8 frames a second), Medium (640x480) or High (1024x768): Medium and High send the
-camera's own JPEG pictures, up to 15 frames a second when the Wi-Fi uplink is good. Auto takes High when the camera
-supports it. On mains power it is ready all the time; on battery it joins when FlyBot asks (at its
-next wake-up). While someone watches from FlyBot, the camera's own web page shows "busy" instead of its live picture,
-and a scheduled photo due in that time is skipped. FlyBot hands the camera its live view keys by itself
+**Live view in FlyBot (away from home).** The camera (both ESP32-S3 boards) can also send its live picture to FlyBot's
+camera page over the Internet (Amazon Kinesis Video Streams WebRTC), one viewer at a time. The quality menu under the picture
+picks 240p (320x240 H.264, about 5-8 frames a second) or one of the sizes the camera streams (480p, HD, FullHD, 2K):
+these send the camera's own JPEG pictures, up to 15 frames a second at 640x480 when the Wi-Fi uplink is good. Auto
+takes 640x480, and the camera steps down by itself when the link cannot carry it. On mains power (or power mode
+powered) it is ready all the time. On battery it joins when FlyBot asks, at its next wake: with 0.9.2, by day on
+Wi-Fi, a short check-in every 2-10 minutes; otherwise (and always on 4G) at its next photo. While someone watches from
+FlyBot, the camera's own web page shows "busy" instead of its live picture, and a scheduled photo pauses the live
+picture for a few seconds. FlyBot hands the camera its live view keys by itself
 (flybot.agrhub.com does); with older firmware FlyBot offers a photo and the camera's web page instead.
 Details: [docs/dev/LIVE_VIEW.md](docs/dev/LIVE_VIEW.md).
 
@@ -196,12 +211,14 @@ Details: [docs/LED.md](docs/LED.md).
 - **It does not join my Wi-Fi.** After about a minute it opens `CAM-xxxx` again and the setup page says why. Check the
   password; the camera needs a 2.4 GHz network (not 5 GHz only).
 - **No 4G.** Check that the SIM has data and no PIN (or type the PIN in Advanced settings), that the antenna is screwed
-  on, and that the 4G module has its own thick supply wires from the battery (it draws short peaks of up to 2 A). The
+  on, and that the 4G module has its own thick supply wires from the battery and its 1000 uF capacitor (it draws short
+  peaks of up to 2 A). The
   web page's 4G section shows the operator and the signal.
 - **The picture is black.** At night that is normal: the camera has no infrared light. Set a capture window for the
   daylight hours (Capture Schedule). In daylight, check that nothing covers the lens and that the ribbon cable of the
   camera is pushed in fully.
-- **The picture is blurred.** Focus the OV5640's lens on the card (turn it gently, watching Live View).
+- **The picture is blurred.** Wipe the lens and the clear body, then focus the OV5640's lens on the bottom of the trap
+  (turn it gently, watching Live View).
 - **No GPS position.** The GPS needs a clear view of the sky; indoors there is usually none. The first position can take
   a few minutes. GPS > Get position now tries at once.
 - **The BOOT button.** While the camera runs, **hold it 3 seconds and release when the LED turns blue**: the camera
