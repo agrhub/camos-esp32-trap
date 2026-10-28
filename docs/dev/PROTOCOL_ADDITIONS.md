@@ -57,6 +57,8 @@ list, with the web console settings FlyBot can set (`capture.window`, `capture.r
 | `capture.requestNow` | epoch ms, or `null` | "Capture now" for a camera that may be asleep: a value newer than the last one handled takes one on-demand photo (trigger `rpc`) right after the shadow is applied, the camera staying awake for it. A request older than 6 hours by the camera clock is marked handled without a photo. The handled value is kept in NVS and reported as `capture.requestNow`. |
 | `power.mode` | `"auto"` \| `"battery"` \| `"powered"`, or `null` | see section 6. `null` = the portal value. |
 | `power.highMv`, `power.lowMv` | 3000..4400 | auto-mode hysteresis thresholds (defaults from Kconfig: 4050 / 3850). |
+| `power.nightSleep` | bool, default `true` | night sleep (section 6): deep sleep through `power.nightWindow` in every power mode. Reported as `power.nightSleep`. |
+| `power.nightWindow` | `{from, to}` `"HH:MM"` local time, `from` != `to`, default `{"from": "18:00", "to": "06:00"}` | the night window; `to` before `from` crosses midnight. Reported as `power.nightWindow`. |
 | `live.requested` | bool | `true`: the camera starts a live session (5 min) at the next wake / shadow delivery, then clears it. |
 | `disabled` | bool | `true`: a FlyBot administrator paused the camera (0.7.0). No scheduled, boot, RPC or motion captures and no uploads (`snapshot.now` and `capture` answer `DISABLED`), no live view (`live.start` answers `DISABLED`, `live.requested` is ignored, a running session stops); on battery the camera wakes every 6 h to read the shadow. `ota.apply`, `reboot`, `state` and the settings still work. `false` resumes. A snapshot upload answered `403 {"error":"disabled"}` pauses the camera the same way until the next desired document. Reported as `disabled`. |
 | `kvs.channelName`, `kvs.region` | string | stored in NVS (normally set by pairing). |
@@ -181,6 +183,15 @@ Effective `power.mode`:
 - `auto`: without a battery divider (`batteryMonitor` off) always `powered` (the USB / mains Wi-Fi camera). With one:
   `powered` when the cell is at or above `highMv` (or the charger reports charging and the cell is above `lowMv`), back
   to `battery` below `lowMv`; a divider that gives no reading counts as `battery`. The state survives deep sleep.
+
+Night sleep (`power.nightSleep`, on by default): from `power.nightWindow.from` to `.to` local time (18:00-06:00 by
+default) the camera deep sleeps in every effective mode, once nothing keeps it up (a request, a live session, an
+update, the awake window): goodbye with `wakeAt` = the end of the window, no slot inside the window is captured and no
+check-in runs. With less than 60 s of the window left it stays up.
+
+Wake by the button: on a board with the setup button on an RTC GPIO (`CAMOS_BUTTON_GPIO`, IO0 on the S3 boards), a
+press wakes the camera from any deep sleep. It joins the network as after a power-on (no boot photo) and stays up 10
+minutes for the live view or the settings, then sleeps again (until the end of the night window, or the next slot).
 
 ## 7. Pairing material (protocol 12)
 

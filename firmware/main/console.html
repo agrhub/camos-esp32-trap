@@ -154,6 +154,7 @@ const I18N = {
   owner: 'Chủ sở hữu', claimed: 'Đã có chủ', unclaimed: 'Chưa có chủ', claimText: 'Mở {0} hoặc quét mã QR trên nhãn trong ứng dụng FlyBot để nhận camera.',
   camTime: 'Giờ camera', notSynced: 'Chưa đồng bộ', clockSrc: 'Nguồn giờ', tzSrc: 'Nguồn múi giờ', days: '{0} ngày ', hm: '{0} giờ {1} phút',
   battery: 'Pin', solar: 'Tấm pin mặt trời', charging: 'Đang sạc', notCharging: 'Không sạc', noBattery: 'Chưa đo (chưa nối mạch đo pin)',
+  nightSleep: 'Ngủ đêm', nightWindow: 'Giờ ngủ', nightNote: 'Ngủ đêm: camera ngủ hẳn trong khung giờ này ở mọi chế độ nguồn (không chụp, không xem trực tiếp) và tự thức dậy khi hết giờ. Nhấn nút BOOT (IO0) để đánh thức sớm trong 10 phút.',
   powerMode: 'Chế độ nguồn', effective: 'Đang chạy', highMv: 'Chuyển sang luôn kết nối từ (mV)', lowMv: 'Về chế độ pin dưới (mV)',
   powerNote: 'auto: chưa lắp mạch đo pin thì luôn kết nối (camera cắm điện); có mạch đo pin thì pin đầy hoặc đang sạc luôn kết nối (xem trực tiếp, chụp ngay), pin yếu thì ngủ sâu giữa các lần chụp.',
   interval: 'Chu kỳ chụp (phút)', nextCapture: 'Lần chụp tới', led: 'Đèn trạng thái', ledState: 'Trạng thái đèn', battMon: 'Đã lắp mạch đo pin / pin mặt trời',
@@ -232,6 +233,7 @@ const I18N = {
   owner: 'Owner', claimed: 'Claimed', unclaimed: 'Unclaimed', claimText: 'Open {0} or scan the label QR in the FlyBot app to claim this camera.',
   camTime: 'Camera time', notSynced: 'Not synced', clockSrc: 'Clock source', tzSrc: 'Timezone source', days: '{0} d ', hm: '{0} h {1} min',
   battery: 'Battery', solar: 'Solar panel', charging: 'Charging', notCharging: 'Not charging', noBattery: 'Not measured (no battery divider wired)',
+  nightSleep: 'Night sleep', nightWindow: 'Asleep', nightNote: 'Night sleep: the camera sleeps through this window in every power mode (no photos, no live view) and wakes at its end. Press the BOOT button (IO0) to wake it earlier for 10 minutes.',
   powerMode: 'Power mode', effective: 'Running', highMv: 'Always connected from (mV)', lowMv: 'Back to battery mode below (mV)',
   powerNote: 'auto: without a battery divider always connected (a camera on USB / mains); with one, always connected (live view, snapshot on demand) on a full or charging battery and deep sleep between captures when it is low.',
   interval: 'Capture interval (minutes)', nextCapture: 'Next capture', led: 'Status LED', ledState: 'LED state', battMon: 'Battery / solar divider fitted',
@@ -399,6 +401,8 @@ const row = (label, html, note) => `<div class="row"><label>${label}</label>${ht
 const txt = (id, v, ph = '') => `<input type="text" id="${id}" value="${esc(v)}" placeholder="${esc(ph)}">`;
 const num = (id, v, min, max) => `<input type="number" id="${id}" value="${esc(v)}" min="${min}" max="${max}">`;
 const sel = (id, v, opts) => `<select id="${id}">${opts.map(([val, name]) => `<option value="${esc(val)}"${String(val) === String(v) ? ' selected' : ''}>${esc(name)}</option>`).join('')}</select>`;
+const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const mins = (x) => { const [h, m] = x.split(':').map(Number); return h * 60 + m; };
 const chk = (id, v, text = '') => `<label><input type="checkbox" id="${id}"${v ? ' checked' : ''}> ${text}</label>`;
 const panel = (title, body, actions) => `<div class="panel">${title ? `<h3>${title}</h3>` : ''}<div class="body">${body}</div>${actions ? `<div class="actions">${actions}</div>` : ''}</div>`;
 const saveBar = (id, extra = '') => `<button class="btn primary" id="${id}">${t('save')}</button>${extra}<span class="msg" id="${id}Msg"></span>`;
@@ -825,8 +829,6 @@ const PAGES = {
 
   async schedule(el) {
     const s = await api('schedule');
-    const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-    const mins = (x) => { const [h, m] = x.split(':').map(Number); return h * 60 + m; };
     const cloud = s.source === 'cloud';
     const list = s.items.map((i) => `<tr><td>${esc(i.id)}</td><td>${i.from} – ${i.to}</td><td>${t('every', i.everyMin)}</td></tr>`).join('');
     el.innerHTML = panel(t('pSchedule'), row(t('setBy'), `<b>${cloud ? t('srcCloud') : t('srcLocal')}</b>`) + row(t('powerMode'), esc(s.powerEffective))
@@ -861,8 +863,11 @@ const PAGES = {
       + panel(t('pPower'), row(t('powerMode'), sel('pMode', cfg.powerMode, [['auto', 'auto'], ['battery', 'battery'], ['powered', 'powered']]), badge(cfg, 'powerMode'))
         + row(t('interval'), num('pInt', cfg.intervalMin, 1, 1440), badge(cfg, 'intervalMin')) + row(t('led'), chk('pLed', cfg.ledEnabled), badge(cfg, 'ledEnabled'))
         + row(t('battMon'), chk('pBatt', cfg.batteryMonitor), badge(cfg, 'batteryMonitor'))
-        + row(t('highMv'), `<b>${st.power.highMv}</b>`) + row(t('lowMv'), `<b>${st.power.lowMv}</b>`) + `<p class="note">${t('powerNote')}</p>`, saveBar('pSave'));
-    $('#pSave').onclick = () => saveCfg({ powerMode: $('#pMode').value, intervalMin: +$('#pInt').value, ledEnabled: $('#pLed').checked, batteryMonitor: $('#pBatt').checked }, $('#pSaveMsg'));
+        + row(t('highMv'), `<b>${st.power.highMv}</b>`) + row(t('lowMv'), `<b>${st.power.lowMv}</b>`) + `<p class="note">${t('powerNote')}</p>`
+        + row(t('nightSleep'), chk('pNight', cfg.nightSleep), badge(cfg, 'nightSleep'))
+        + row(t('nightWindow'), `${t('from')} <input type="time" id="pNFrom" value="${hm(cfg.nightFrom)}"> ${t('to')} <input type="time" id="pNTo" value="${hm(cfg.nightTo)}">`) + `<p class="note">${t('nightNote')}</p>`, saveBar('pSave'));
+    $('#pSave').onclick = () => saveCfg({ powerMode: $('#pMode').value, intervalMin: +$('#pInt').value, ledEnabled: $('#pLed').checked, batteryMonitor: $('#pBatt').checked,
+      nightSleep: $('#pNight').checked, nightFrom: mins($('#pNFrom').value || '18:00'), nightTo: mins($('#pNTo').value || '06:00') }, $('#pSaveMsg'));
   },
 
   async gps(el, st) {

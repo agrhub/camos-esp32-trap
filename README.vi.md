@@ -194,6 +194,8 @@ Chi tiết: [docs/LED.md](docs/LED.md).
 - **Nút BOOT.** Khi camera đang chạy, **giữ 3 giây rồi thả khi đèn chuyển xanh dương**: camera vào chế độ cài đặt
   (`CAM-xxxx`), mọi cài đặt và mật khẩu trang web giữ nguyên. **Giữ 10 giây đến khi đèn chuyển đỏ** để khôi phục cài
   đặt gốc: cài đặt và mật khẩu trang web về mặc định, rồi camera vào chế độ cài đặt. Đăng ký FlyBot luôn giữ nguyên.
+  **Nhấn nhanh một lần để đánh thức camera đang ngủ** (ngủ đêm, hoặc giữa các lần chụp khi chạy pin) trong 10 phút,
+  để xem trực tiếp hoặc chỉnh cài đặt.
 - **Quên mật khẩu trang web.** Giữ nút BOOT 10 giây như trên, kết nối lại Wi-Fi nhà bạn, lần sau mở trang web sẽ đặt
   mật khẩu mới.
 - **Muốn làm lại từ đầu.** Trang web > Bảo trì & nâng cấp > Khôi phục cài đặt gốc (giữ đăng ký), hoặc nạp lại bản

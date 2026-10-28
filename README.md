@@ -223,7 +223,8 @@ Details: [docs/LED.md](docs/LED.md).
 - **The BOOT button.** While the camera runs, **hold it 3 seconds and release when the LED turns blue**: the camera
   opens setup mode (`CAM-xxxx`) and keeps every setting and the web page password. **Hold it 10 seconds, until the LED
   turns red**, for a factory reset: settings and the web page password go back to the defaults, then setup mode opens.
-  Your FlyBot registration stays either way.
+  Your FlyBot registration stays either way. **A short press wakes a sleeping camera** (night sleep, or between
+  photos on battery) for 10 minutes, for the live view or the settings.
 - **I forgot the web page password.** Do the 10-second factory reset above, join your Wi-Fi again, and the next visit
   to the web page asks for a new password.
 - **I want to start over.** Web page > Maintenance & Upgrade > Factory reset (keeps the registration), or flash the

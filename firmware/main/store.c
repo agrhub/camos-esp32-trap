@@ -254,6 +254,10 @@ static const int_field_t ints[] = {
 	{ "sdSave", "sd_save", &g_cfg.sd_save, 1, 0, 1, false },
 	{ "schedFrom", "sched_from", &g_cfg.sched_from, 0, 0, 1439, false },
 	{ "schedTo", "sched_to", &g_cfg.sched_to, 1439, 0, 1439, false },
+	/* night sleep: asleep from nightFrom to nightTo local time (18:00-06:00 by default), woken by the timer or the button */
+	{ "nightSleep", "night_sleep", &g_cfg.night_sleep, 1, 0, 1, false },
+	{ "nightFrom", "night_from", &g_cfg.night_from, 18 * 60, 0, 1439, false },
+	{ "nightTo", "night_to", &g_cfg.night_to, 6 * 60, 0, 1439, false },
 	{ "motion", "motion", &g_cfg.motion, 0, 0, 1, false },
 	{ "motionSens", "mo_sens", &g_cfg.motion_sens, 50, 1, 100, false },
 	{ "motionCooldown", "mo_cool", &g_cfg.motion_cool, 60, 5, 3600, false },
@@ -606,7 +610,7 @@ bool store_apply_kv(const char *key, const char *value)
 		if (!strncmp(key, "motion", 6)) {
 			motion_config_changed();
 		}
-		if (!strncmp(key, "sched", 5)) {
+		if (!strncmp(key, "sched", 5) || !strncmp(key, "night", 5)) {
 			sched_changed();
 		}
 		return true;

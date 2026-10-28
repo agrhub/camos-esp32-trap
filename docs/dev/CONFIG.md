@@ -127,6 +127,8 @@ document is applied again at every MQTT connect, so FlyBot's form is the source 
 | `video.image.nightMode` | bool, default false | live view and web console stream only (OV5640): let the auto exposure stretch a frame up to 4x in a very dark place; slower and smeared on movement, so off unless the 32x gain is not enough | |
 | `power.mode` | `"auto"`, `"battery"`, `"powered"`, or `null` (portal value) | see PROTOCOL_ADDITIONS.md section 6 | `power.mode`, `power.effective` |
 | `power.highMv`, `power.lowMv` | 3000..4400 | auto-mode thresholds | `power.highMv`, `power.lowMv` |
+| `power.nightSleep` | bool, default true | deep sleep through the night window in every power mode | `power.nightSleep` |
+| `power.nightWindow` | `{from, to}` "HH:MM", from != to, default 18:00-06:00 | the night window (local time) | `power.nightWindow` |
 | `motion.enabled` | bool | frame-difference motion detection (powered mode only) | `motion.enabled` |
 | `motion.sensitivity` | 1..100 (100 = most sensitive) | | `motion.sensitivity` |
 | `motion.cooldownS` | 5..3600 | seconds between two triggers | `motion.cooldownS` |

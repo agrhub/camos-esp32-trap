@@ -13,6 +13,7 @@
  *                                (apply_image: vflip, hmirror, white balance, effect, AE level, exposure, gain, gain
  *                                ceiling, denoise); vflip / hmirror are orientation's bits 2 and 1
  *   power.mode                   v1 addition: "auto" | "battery" | "powered"; power.highMv / power.lowMv thresholds
+ *   power.nightSleep             v1 addition: true = deep sleep through power.nightWindow {from, to} "HH:MM" (sched.c)
  *   motion.*                     v1 addition: enabled, sensitivity, cooldownS, upload, saveSd, area (motion.c)
  *   storage.sdSave               v1 addition: every photo also on the microSD card
  *   led.enabled                  v1 addition: the status LED
@@ -445,6 +446,27 @@ static void apply_power(const cJSON *item, settings_t *s, cJSON *errors)
 		} else if (!strcmp(c->string, "lowMv")) {
 			if (!get_int(c, 3000, 4400, &s->power_low_mv)) {
 				add_error(errors, "power.lowMv", "BAD_VALUE");
+			}
+		} else if (!strcmp(c->string, "nightSleep")) {
+			if (!cJSON_IsBool(c)) {
+				add_error(errors, "power.nightSleep", "BAD_VALUE");
+			} else {
+				store_apply_kv("nightSleep", cJSON_IsTrue(c) ? "1" : "0");
+			}
+		} else if (!strcmp(c->string, "nightWindow")) {
+			int from = -1, to = -1;
+			if (cJSON_IsObject(c)) {
+				from = parse_hhmm(cJSON_GetObjectItem(c, "from"));
+				to = parse_hhmm(cJSON_GetObjectItem(c, "to"));
+			}
+			if (from < 0 || to < 0 || from == to) {
+				add_error(errors, "power.nightWindow", "BAD_VALUE");
+			} else {
+				char a[8], b[8];
+				snprintf(a, sizeof(a), "%d", from);
+				snprintf(b, sizeof(b), "%d", to);
+				store_apply_kv("nightFrom", a);
+				store_apply_kv("nightTo", b);
 			}
 		} else {
 			char path[48];

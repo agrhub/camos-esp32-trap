@@ -54,6 +54,9 @@ typedef struct {
 	int sd_save;          /* 1 = every capture is also written to the microSD card (sd.c) */
 	int sched_from;       /* local capture window (minutes after midnight) when the cloud sets no detections[] */
 	int sched_to;         /* inclusive; < sched_from crosses midnight */
+	int night_sleep;      /* 1 = deep sleep through the night window, in every power mode (sched.c) */
+	int night_from;       /* night window, local minutes after midnight: [night_from, night_to), < crosses midnight */
+	int night_to;
 	int motion;           /* 1 = frame-difference motion detection (powered mode, motion.c) */
 	int motion_sens;      /* 1..100 */
 	int motion_cool;      /* seconds between two motion triggers */
@@ -390,7 +393,7 @@ bool power_mode_parse(const char *s, power_mode_t *out);
 bool power_may_deep_sleep(void);                /* effective mode is battery (and deep sleep is built in) */
 bool power_eco(void);                           /* online on a cell not full and not charging at full input */
 const char *power_level_name(void);             /* "full", "eco" (power_eco) or "saver" (battery mode) */
-void power_json(cJSON *parent);                 /* power {mode, effective, level, highMv, lowMv} */
+void power_json(cJSON *parent);                 /* power {mode, effective, level, highMv, lowMv, nightSleep, nightWindow} */
 
 /* ------------------------------------------------------------------ GPS (gps.c) */
 

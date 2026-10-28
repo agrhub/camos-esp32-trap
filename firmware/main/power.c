@@ -8,6 +8,7 @@
  * in RTC memory so the hysteresis holds across wake-ups. Thresholds: shadow power.highMv / power.lowMv, else Kconfig.
  * The decision itself (power_decide) is a pure function, tested on the host (tests/test_power.c).
  */
+#include <stdio.h>
 #include <string.h>
 #include "esp_attr.h"
 #include "esp_log.h"
@@ -106,4 +107,11 @@ void power_json(cJSON *parent)
 	cJSON_AddStringToObject(p, "level", power_level_name());
 	cJSON_AddNumberToObject(p, "highMv", high);
 	cJSON_AddNumberToObject(p, "lowMv", low);
+	cJSON_AddBoolToObject(p, "nightSleep", g_cfg.night_sleep != 0);
+	cJSON *night = cJSON_AddObjectToObject(p, "nightWindow");
+	char hm[16];
+	snprintf(hm, sizeof(hm), "%02d:%02d", g_cfg.night_from / 60, g_cfg.night_from % 60);
+	cJSON_AddStringToObject(night, "from", hm);
+	snprintf(hm, sizeof(hm), "%02d:%02d", g_cfg.night_to / 60, g_cfg.night_to % 60);
+	cJSON_AddStringToObject(night, "to", hm);
 }

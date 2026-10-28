@@ -19,6 +19,11 @@
  * costs about 1 mAh, a Wi-Fi one about 0.2 mAh), and only by day (CHECKIN_DAY_FROM to CHECKIN_DAY_TO local time).
  * On 4G, and at night, the camera wakes for the slots only.
  * Powered mode: no deep sleep, MQTT stays connected, captures at the slots, live view on demand.
+ * Night sleep (power.nightSleep, on by default, power.nightWindow 18:00-06:00 by default): inside the window the camera
+ * deep sleeps in every power mode until the window ends, once the usual awake conditions hold (no request, live view or
+ * update); the slots inside the window are skipped.
+ * The setup button (CAMOS_BUTTON_GPIO, IO0 on the S3 boards) wakes the camera from any deep sleep: it joins the
+ * network and stays up BUTTON_AWAKE_S for the live view or settings, then sleeps again.
  */
 #include <string.h>
 #include <time.h>
@@ -30,6 +35,8 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "esp_heap_caps.h"
+#include "driver/rtc_io.h"
+#include "soc/soc_caps.h"
 #include "camos.h"
 #include "sched_policy.h"
 
@@ -55,6 +62,7 @@ static RTC_DATA_ATTR uint8_t checkin_next; /* the next timer wake is a check-in 
 static bool checkin_boot;                  /* this wake is one */
 #define CRITICAL_SLEEP_S 3600     /* a critical cell with no charge: it looks again every hour (a panel may start charging) */
 #define PAUSED_SLEEP_S (6 * 3600) /* paused by FlyBot: it reads the shadow every 6 h */
+#define BUTTON_AWAKE_S 600        /* woken by the button: up this long for the live view or settings */
 
 void sched_keep_awake(int seconds)
 {
@@ -559,6 +567,15 @@ static void deep_sleep_until(time_t until, time_t now, bool with_lead)
 	gps_sleep_prepare();
 	led_sleep_prepare(battery_mv() >= 0 && battery_mv() < CONFIG_CAMOS_BATT_LOW_MV);
 	esp_sleep_enable_timer_wakeup((uint64_t)sleep_s * 1000000ULL);
+#if SOC_PM_SUPPORT_EXT0_WAKEUP
+	/* the setup button (active low, pulled up) wakes the camera too; pressed during the sleep only: holding it to 3 s
+	 * after the wake still opens the setup portal (main.c) */
+	if (CONFIG_CAMOS_BUTTON_GPIO >= 0 && rtc_gpio_is_valid_gpio(CONFIG_CAMOS_BUTTON_GPIO)) {
+		rtc_gpio_pullup_en(CONFIG_CAMOS_BUTTON_GPIO);
+		rtc_gpio_pulldown_dis(CONFIG_CAMOS_BUTTON_GPIO);
+		esp_sleep_enable_ext0_wakeup(CONFIG_CAMOS_BUTTON_GPIO, 0);
+	}
+#endif
 	esp_deep_sleep_start();
 }
 #endif
@@ -654,6 +671,16 @@ static void sched_task(void *arg)
 
 		bool deep = power_may_deep_sleep();
 #if CONFIG_CAMOS_DEEP_SLEEP
+		/* Night sleep: in every power mode, until the end of the window (the button wakes it earlier) */
+		struct tm lt;
+		localtime_r(&now, &lt);
+		int night_s = night_sleep_left_s(g_cfg.night_sleep, g_cfg.night_from, g_cfg.night_to,
+													 lt.tm_hour * 3600 + lt.tm_min * 60 + lt.tm_sec);
+		if (night_s && proto_provisioned() && !ota_running() && may_sleep()) {
+			ESP_LOGI(TAG, "night sleep until %02d:%02d", g_cfg.night_to / 60, g_cfg.night_to % 60);
+			deep_sleep_until(now + night_s, now, false);
+			continue; /* not asleep after all: a request came in */
+		}
 		if (deep && battery_protect()) {
 			net_ensure(); /* so that low_power can go out before the long sleep */
 		}
@@ -743,6 +770,12 @@ void sched_init_lock(void)
 void sched_start(void)
 {
 	checkin_boot = checkin_next && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER;
+#if SOC_PM_SUPPORT_EXT0_WAKEUP
+	if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
+		ESP_LOGI(TAG, "woken by the button: awake %d s", BUTTON_AWAKE_S);
+		sched_keep_awake(BUTTON_AWAKE_S);
+	}
+#endif
 	checkin_next = 0;
 	if (checkin_boot) {
 		ESP_LOGI(TAG, "check-in wake: Wi-Fi and MQTT for requests only");

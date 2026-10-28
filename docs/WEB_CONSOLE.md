@@ -244,6 +244,7 @@ B boot, M motion).
 | Status LED | on / off |
 | Battery / solar divider fitted | on once the dividers of [WIRING.md](WIRING.md) are wired: the camera reads its battery and solar voltage |
 | Always connected from / Back to battery mode below (mV) | the battery levels where **auto** switches (4050 / 3850 mV) |
+| Night sleep, Asleep from / to | on by default, 18:00 to 06:00: the camera sleeps through this window in every power mode (no photos, no live view, the web page unreachable) and wakes at its end. Press the BOOT button to wake it earlier for 10 minutes. FlyBot sets the same values (Camera settings > Power). |
 
 **GPS** (only on a camera built with GPS)
 
