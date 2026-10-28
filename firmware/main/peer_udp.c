@@ -3,9 +3,9 @@
  *
  * esp_peer gives up after about 40 ms on ENOBUFS and returns -200; mbedTLS then keeps the DTLS record as pending output
  * and every mbedtls_ssl_read answers MBEDTLS_ERR_SSL_WANT_WRITE ("mbedtls_ssl_read error: -26752"), as with FullHD and
- * 2K live frames (100 to 400 KB each) on 27 Oct 2026. A live experiment ("udpWaitMs", live_dc.h) can make the sender wait
- * longer for the queue to drain; by default it waits as esp_peer does. The full-queue count is logged either way. The
- * struct mirrors esp_peer 1.5.7's udp_socket_t. */
+ * 2K live frames (100 to 400 KB each) on 27 Oct 2026. During a live session the sender waits up to 200 ms for the queue
+ * to drain (LIVE_UDP_WAIT_MS, or a test page's "udpWaitMs"); outside one it waits as esp_peer does. The full-queue
+ * count is logged either way. The struct mirrors esp_peer 1.5.7's udp_socket_t. */
 #include "sdkconfig.h"
 #if CONFIG_CAMOS_LIVE
 #include <errno.h>

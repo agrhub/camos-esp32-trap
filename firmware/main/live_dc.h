@@ -20,6 +20,13 @@
  * both steady; 150 ms stalled after 15 s. */
 #define LIVE_DC_SLOW_AREA (1600 * 1200)
 #define LIVE_DC_SLOW_GAP_MS 500
+/* Slow mode also paces a frame's chunks: a 152 KB 2K frame handed over at once filled the Wi-Fi TX queue (42 times in
+ * 5 s, 39 packets dropped), then DTLS and the ICE checks failed and the session dropped (28 Oct 2026, -41 dBm, a
+ * 460 kbit/s uplink). The rate starts at LIVE_DC_PACE_START_KBPS and follows the measured delivery rate of acknowledged
+ * frames with 25 % headroom; a frame taken as lost halves it. */
+#define LIVE_DC_PACE_START_KBPS 1000
+#define LIVE_DC_PACE_MIN_KBPS 300
+#define LIVE_DC_PACE_MAX_KBPS 8000
 /* A frame in flight is taken as lost after LIVE_DC_ACK_TIMEOUT_MS plus its transfer at a slow link (100 bytes per ms,
  * 0.8 Mbit/s), at most LIVE_DC_ACK_TIMEOUT_MAX_MS: FlyBot gives a chunk 1.5 s on Wi-Fi and 2 s over 4G
  * (maxPacketLifeTime), and a 2K frame took more than a second on a good Wi-Fi (27 Oct 2026) */
@@ -95,6 +102,9 @@ typedef struct {
 	uint32_t acked;       /* last frame acknowledged */
 	int64_t last_ms;      /* time of the last send or ack */
 	int64_t sent_ms[8];   /* send time per seq % 8, for the delivery time */
+	uint32_t sent_bytes[8]; /* frame size per seq % 8 */
+	int32_t sent_push_ms[8]; /* time to hand the frame to the channel per seq % 8 */
+	int32_t rate_kbps;    /* measured delivery rate of acknowledged frames, 0 unknown */
 	int32_t last_rtt_ms;  /* send-to-ack time of the last acknowledged frame, -1 none */
 	int32_t timeout_ms;   /* the last frame's ack timeout */
 	bool slow;            /* slow mode: live_dc_flow_size after each reset */
@@ -105,5 +115,7 @@ void live_dc_flow_reset(live_dc_flow_t *f);
 /* The JPEG size now sent: slow mode above LIVE_DC_SLOW_AREA, frames gap_ms apart (0: LIVE_DC_SLOW_GAP_MS) */
 void live_dc_flow_size(live_dc_flow_t *f, int w, int h, int gap_ms);
 bool live_dc_may_send(live_dc_flow_t *f, int64_t now_ms);
-void live_dc_on_sent(live_dc_flow_t *f, uint32_t seq, uint32_t bytes, int64_t now_ms);
+void live_dc_on_sent(live_dc_flow_t *f, uint32_t seq, uint32_t bytes, int32_t push_ms, int64_t now_ms);
+/* Slow mode's pacing rate for the next frame (kbit/s), 0 outside slow mode */
+int live_dc_pace_kbps(const live_dc_flow_t *f);
 void live_dc_on_ack(live_dc_flow_t *f, uint32_t seq, int64_t now_ms);

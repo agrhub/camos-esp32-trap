@@ -204,15 +204,20 @@ bool live_dc_may_send(live_dc_flow_t *f, int64_t now_ms)
 	}
 	if (now_ms - f->last_ms > f->timeout_ms) {
 		f->acked = f->sent; /* the frames in flight are taken as lost */
+		if (f->rate_kbps) {
+			f->rate_kbps = f->rate_kbps / 2 > LIVE_DC_PACE_MIN_KBPS ? f->rate_kbps / 2 : LIVE_DC_PACE_MIN_KBPS;
+		}
 		f->last_ms = now_ms;
 		return true;
 	}
 	return false;
 }
 
-void live_dc_on_sent(live_dc_flow_t *f, uint32_t seq, uint32_t bytes, int64_t now_ms)
+void live_dc_on_sent(live_dc_flow_t *f, uint32_t seq, uint32_t bytes, int32_t push_ms, int64_t now_ms)
 {
 	f->sent = seq;
+	f->sent_bytes[seq % 8] = bytes;
+	f->sent_push_ms[seq % 8] = push_ms;
 	uint32_t t = LIVE_DC_ACK_TIMEOUT_MS + bytes / LIVE_DC_SLOW_BYTES_PER_MS;
 	f->timeout_ms = (int32_t)(t > LIVE_DC_ACK_TIMEOUT_MAX_MS ? LIVE_DC_ACK_TIMEOUT_MAX_MS : t);
 	f->last_ms = now_ms;
@@ -228,5 +233,20 @@ void live_dc_on_ack(live_dc_flow_t *f, uint32_t seq, int64_t now_ms)
 	f->last_ms = now_ms;
 	if (f->sent - seq < 8) {
 		f->last_rtt_ms = (int32_t)(now_ms - f->sent_ms[seq % 8]);
+		/* delivery rate: the frame's bytes over the time from the start of its hand-over to its ack */
+		int64_t ms = f->last_rtt_ms + f->sent_push_ms[seq % 8];
+		if (ms > 0 && f->sent_bytes[seq % 8] > 0) {
+			int32_t kbps = (int32_t)((int64_t)f->sent_bytes[seq % 8] * 8 / ms);
+			f->rate_kbps = f->rate_kbps ? (f->rate_kbps * 3 + kbps) / 4 : kbps;
+		}
 	}
+}
+
+int live_dc_pace_kbps(const live_dc_flow_t *f)
+{
+	if (!f->slow) {
+		return 0;
+	}
+	int r = f->rate_kbps ? f->rate_kbps * 5 / 4 : LIVE_DC_PACE_START_KBPS;
+	return r < LIVE_DC_PACE_MIN_KBPS ? LIVE_DC_PACE_MIN_KBPS : r > LIVE_DC_PACE_MAX_KBPS ? LIVE_DC_PACE_MAX_KBPS : r;
 }

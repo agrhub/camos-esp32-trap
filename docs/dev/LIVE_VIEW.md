@@ -94,7 +94,10 @@ data channel instead (`live_dc.c` for the protocol, host-tested in `tests/test_l
 - **Slow mode** above 1600x1200 (FullHD, 2K): one frame in flight, the next 500 ms after it (`LIVE_DC_SLOW_GAP_MS`).
   Their frames are 60-420 KB, and sent as fast as the Wi-Fi took them, esp_peer's SCTP stalled within seconds: DTLS
   writes failed (`mbedtls_ssl_read error: -26752`, MBEDTLS_ERR_SSL_WANT_WRITE), the viewer's ICE checks went
-  unanswered for 30 s, and MQTT dropped with them.
+  unanswered for 30 s, and MQTT dropped with them. Slow mode also paces each frame's chunks: from 1 Mbit/s, then at the
+  measured delivery rate of acknowledged frames plus 25 %, halved when a frame is lost; a 152 KB 2K frame handed over at
+  once had filled the Wi-Fi TX queue and dropped the session even at -41 dBm (28 Oct 2026). During a session a UDP send
+  waits up to 200 ms for a full TX queue instead of dropping the packet (`peer_udp.c`).
 - **Partial reliability.** With a fully reliable channel, esp_peer's SCTP stalled for seconds after losses on a busy
   Wi-Fi (acks 0.4-1 s late, ICE round trips up to 5 s, DTLS writes failing, 1-4 fps at 640x480). With the viewer's
   channel unordered and `maxPacketLifeTime: 300`, a lost chunk costs one frame instead: on the same board and Wi-Fi,
@@ -185,7 +188,11 @@ in a garden, viewer on FlyBot in Chrome, channel with `maxPacketLifeTime: 1500`,
 | -60 dBm | JPEG 1920x1080 q12, gap 400 ms | 1.2-1.4 fps | 61 KB | 730 kbit/s | 34-145 ms | steady |
 | -60 dBm | JPEG 1920x1080 q12, gap 150 ms | 1.4 fps, then 0 | 61 KB | | | stalled after 15 s |
 
-On a bench Wi-Fi earlier that day, without slow mode, a lit trap gave FullHD frames of 260-280 KB and 2K frames of
+With pacing (0.9.3-rc.1) on 28 Oct 2026, the trap charging at -46 dBm, its uplink giving 300-500 kbit/s that day: 2K
+(frames 212 KB) held 87 s at 0.2 fps with acks after 20-200 ms, FullHD (130 KB) held 60 s at 0.1-0.5 fps; the same
+link without pacing had dropped a 2K session within a minute.
+
+On a bench Wi-Fi on 27 Oct, without slow mode, a lit trap gave FullHD frames of 260-280 KB and 2K frames of
 420 KB: FullHD ran at 0.5 fps for about 30 s before the channel stalled. Over 4G (24 Oct, `maxPacketLifeTime: 2000`) a
 picked FullHD and 2K had run at 0.2-0.7 fps: the slow link itself paced them.
 

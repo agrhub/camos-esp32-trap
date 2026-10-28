@@ -69,6 +69,7 @@ void esp_log(uint32_t config, const char *tag, const char *format, ...)
 #define MAX_TURN 1          /* esp_peer gathers from one server: a KVS TURN server also answers STUN */
 #define ICE_TTL_S 240      /* TURN credentials last 300 s */
 #define ANSWER_WAIT_S 30   /* an offer that does not end connected within this is dropped */
+#define LIVE_UDP_WAIT_MS 200 /* during a session: how long a UDP send waits for a full Wi-Fi TX queue */
 #define LIVE_MIN_INTERNAL (16 * 1024) /* JPEG frames wait while less internal RAM is free */
 
 /* ------------------------------------------------------------------ state */
@@ -660,8 +661,8 @@ static void dc_send_json(cJSON *o)
 	}
 }
 
-/* One JPEG in chunks of LIVE_DC_CHUNK bytes (or the experiment's) behind a 20-byte header, paced to the experiment's
- * rate when it has one; false when the channel refused a chunk (the viewer drops the incomplete frame) */
+/* One JPEG in chunks of LIVE_DC_CHUNK bytes (or the experiment's) behind a 20-byte header, paced in slow mode (or to
+ * the experiment's rate); false when the channel refused a chunk (the viewer drops the incomplete frame) */
 static bool dc_send_jpeg(const uint8_t *jpg, uint32_t len, uint32_t seq, uint32_t ts_ms)
 {
 	if (!k.dc_buf) {
@@ -671,11 +672,12 @@ static bool dc_send_jpeg(const uint8_t *jpg, uint32_t len, uint32_t seq, uint32_
 		}
 	}
 	uint32_t chunk = k.exp.chunk > 0 ? (uint32_t)k.exp.chunk : LIVE_DC_CHUNK;
+	int kbps = k.exp.kbps > 0 ? k.exp.kbps : live_dc_pace_kbps(&k.flow); /* slow mode, or a test page's rate */
 	int64_t t0 = clock_ms();
 	for (uint32_t off = 0; off < len; off += chunk) {
 		uint32_t n = len - off > chunk ? chunk : len - off;
-		if (k.exp.kbps > 0) {
-			int64_t due = t0 + (int64_t)off * 8 / k.exp.kbps; /* bytes * 8 / (kbit/s) = ms */
+		if (kbps > 0) {
+			int64_t due = t0 + (int64_t)off * 8 / kbps; /* bytes * 8 / (kbit/s) = ms */
 			int64_t now = clock_ms();
 			if (due > now) {
 				vTaskDelay(pdMS_TO_TICKS(due - now) ? pdMS_TO_TICKS(due - now) : 1);
@@ -767,7 +769,9 @@ static int on_dc_data(esp_peer_data_frame_t *f, void *ctx)
 		k.viewer_chose = true;
 		if (m.exp.set) {
 			k.exp = m.exp;
-			peer_udp_set_wait(m.exp.udp_wait_ms);
+			if (m.exp.udp_wait_ms > 0) {
+				peer_udp_set_wait(m.exp.udp_wait_ms);
+			}
 			ESP_LOGW(TAG, "live experiment: %d kbit/s, gap %d ms, chunk %d, UDP wait %d ms", m.exp.kbps, m.exp.gap_ms, m.exp.chunk,
 					 m.exp.udp_wait_ms);
 		}
@@ -1103,7 +1107,7 @@ static void venc_task(void *arg)
 				vTaskDelay(pdMS_TO_TICKS(20)); /* the channel refused a chunk: let it drain */
 				continue;
 			}
-			live_dc_on_sent(&k.flow, ++seq, bytes, clock_ms());
+			live_dc_on_sent(&k.flow, ++seq, bytes, k.push_ms, clock_ms());
 		}
 		int64_t e1 = esp_timer_get_time();
 		k.frames++;
@@ -1278,6 +1282,8 @@ static void handle_offer(ev_t *e)
 	peer_close(); /* one viewer at a time: the newest one wins */
 	strlcpy(k.viewer, e->sender, sizeof(k.viewer));
 	k.offer_at = esp_timer_get_time();
+	/* a full Wi-Fi TX queue makes the session's sends wait instead of dropping packets (peer_udp.c, 28 Oct 2026) */
+	peer_udp_set_wait(LIVE_UDP_WAIT_MS);
 	k.dc_open = k.dc_hello = k.dc_err_pending = k.req_pending = k.viewer_chose = false;
 	int sizes[LIVE_DC_MAX_SIZES][2];
 	int n = cam_sizes(true, sizes, LIVE_DC_MAX_SIZES); /* the sensor's live sizes */

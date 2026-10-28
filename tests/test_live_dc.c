@@ -63,26 +63,26 @@ int main(void)
 	live_dc_flow_t f;
 	live_dc_flow_reset(&f);
 	CHECK(live_dc_may_send(&f, 0));
-	live_dc_on_sent(&f, 1, 0, 0);
+	live_dc_on_sent(&f, 1, 0, 0, 0);
 	CHECK(live_dc_may_send(&f, 10));
-	live_dc_on_sent(&f, 2, 0, 10);
+	live_dc_on_sent(&f, 2, 0, 0, 10);
 	CHECK(!live_dc_may_send(&f, 20));          /* two in flight */
 	live_dc_on_ack(&f, 1, 60);
 	CHECK(f.last_rtt_ms == 60);
 	CHECK(live_dc_may_send(&f, 70));
-	live_dc_on_sent(&f, 3, 0, 70);
+	live_dc_on_sent(&f, 3, 0, 0, 70);
 	CHECK(!live_dc_may_send(&f, 500));
 	CHECK(live_dc_may_send(&f, 70 + 501));     /* nothing acked for half a second: taken as lost */
 	live_dc_on_ack(&f, 2, 1100);                /* an ack from before the reset is ignored */
 	CHECK(f.acked == 3);
-	live_dc_on_sent(&f, 4, 0, 1200);
+	live_dc_on_sent(&f, 4, 0, 0, 1200);
 	live_dc_on_ack(&f, 9, 1210);                /* never sent */
 	CHECK(f.acked == 3);
 	live_dc_on_ack(&f, 4, 1250);
 	CHECK(f.acked == 4 && f.last_rtt_ms == 50);
 	/* a FullHD frame (105 KB) gets its transfer at 0.8 Mbit/s on top; a 2K one hits the cap */
-	live_dc_on_sent(&f, 5, 105000, 2000);
-	live_dc_on_sent(&f, 6, 105000, 2010);
+	live_dc_on_sent(&f, 5, 105000, 0, 2000);
+	live_dc_on_sent(&f, 6, 105000, 0, 2010);
 	CHECK(f.timeout_ms == 1550);
 	CHECK(!live_dc_may_send(&f, 2010 + 1000));   /* the fixed 500 ms of old gave it up */
 	CHECK(live_dc_may_send(&f, 2010 + 1551));
@@ -92,20 +92,33 @@ int main(void)
 	CHECK(!f.slow);
 	live_dc_flow_size(&f, 1920, 1080, 0);
 	CHECK(f.slow);
-	live_dc_on_sent(&f, 7, 280000, 3700);
+	live_dc_on_sent(&f, 7, 280000, 0, 3700);
 	live_dc_on_ack(&f, 7, 4000);
 	CHECK(!live_dc_may_send(&f, 4100));          /* acked, but not the gap yet */
 	CHECK(live_dc_may_send(&f, 4201));
-	live_dc_on_sent(&f, 8, 280000, 4300);
+	live_dc_on_sent(&f, 8, 280000, 0, 4300);
 	CHECK(!live_dc_may_send(&f, 5000));          /* the gap is over, but not acked */
 	live_dc_on_ack(&f, 8, 5100);
 	CHECK(live_dc_may_send(&f, 5100));
 	live_dc_flow_size(&f, 1920, 1080, 1000);     /* a test page's gap */
-	live_dc_on_sent(&f, 9, 280000, 5100);
+	live_dc_on_sent(&f, 9, 280000, 0, 5100);
 	live_dc_on_ack(&f, 9, 5300);
 	CHECK(!live_dc_may_send(&f, 5900) && live_dc_may_send(&f, 6101));
 	f.slow = false;
-	live_dc_on_sent(&f, 10, 400000, 6200);
+	/* slow mode paces: 1000 kbit/s to start, then the delivery rate of acknowledged frames + 25 %, halved on a loss */
+	live_dc_flow_t p;
+	live_dc_flow_reset(&p);
+	CHECK(live_dc_pace_kbps(&p) == 0);              /* not slow */
+	live_dc_flow_size(&p, 2048, 1536, 0);
+	CHECK(live_dc_pace_kbps(&p) == LIVE_DC_PACE_START_KBPS);
+	live_dc_on_sent(&p, 1, 150000, 1000, 10000);    /* 150 KB handed over in 1 s */
+	live_dc_on_ack(&p, 1, 11500);                   /* acked 1.5 s later: 1.2 Mbit over 2.5 s */
+	CHECK(p.rate_kbps == 480 && live_dc_pace_kbps(&p) == 600);
+	live_dc_on_sent(&p, 2, 150000, 1000, 12500);
+	CHECK(live_dc_may_send(&p, 12500 + LIVE_DC_ACK_TIMEOUT_MAX_MS + 1)); /* no ack: lost */
+	CHECK(p.rate_kbps == LIVE_DC_PACE_MIN_KBPS);
+	CHECK(live_dc_pace_kbps(&p) == 375);
+	live_dc_on_sent(&f, 10, 400000, 0, 6200);
 	CHECK(f.timeout_ms == LIVE_DC_ACK_TIMEOUT_MAX_MS);
 
 	CHECK(!live_dc_size_ok(1024, 768) && live_dc_size_ok(1600, 1200)); /* the sizes set above */
