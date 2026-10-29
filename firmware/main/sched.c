@@ -21,7 +21,8 @@
  * Powered mode: no deep sleep, MQTT stays connected, captures at the slots, live view on demand.
  * Night sleep (power.nightSleep, on by default, power.nightWindow 18:00-06:00 by default): inside the window the camera
  * deep sleeps in every power mode until the window ends, once the usual awake conditions hold (no request, live view or
- * update); the slots inside the window are skipped.
+ * update); the slots inside the window are skipped. It wakes as early as before a slot, and a wake that still comes after
+ * the window's end (up to half the slot interval) takes the slot at the end right away instead of skipping to the next.
  * The setup button (CAMOS_BUTTON_GPIO, IO0 on the S3 boards) wakes the camera from any deep sleep: it joins the
  * network and stays up BUTTON_AWAKE_S for the live view or settings, then sleeps again.
  */
@@ -49,6 +50,7 @@ static volatile int64_t last_activity_s; /* uptime second of the last capture en
 static volatile int64_t keep_awake_until_s;
 static volatile time_t wake_hint;        /* nextWakeAt from FlyBot */
 static volatile time_t next_capture;
+static RTC_DATA_ATTR time_t night_end_at; /* end of the night sleep the camera woke from (0 = none or already used) */
 
 #define CONNECT_GIVEUP_S 120  /* no MQTT after this long awake: sleep anyway (a flat network must not drain the cell) */
 #define CHECKIN_FULL_S 120
@@ -632,7 +634,9 @@ static void sched_task(void *arg)
 		time_t best = 0;
 		int best_i = -1;
 		for (int i = 0; i < n; i++) {
-			time_t t = next_fire(&list[i], now > last[i] ? now : last[i]);
+			/* just after a night sleep, the slot at the window's end counts even when the wake came a little late */
+			time_t from = (time_t)night_resume_after(now, night_end_at, list[i].every_min * 30);
+			time_t t = next_fire(&list[i], from > last[i] ? from : last[i]);
 			if (t && (!best || t < best)) {
 				best = t, best_i = i;
 			}
@@ -678,7 +682,9 @@ static void sched_task(void *arg)
 													 lt.tm_hour * 3600 + lt.tm_min * 60 + lt.tm_sec);
 		if (night_s && proto_provisioned() && !ota_running() && may_sleep()) {
 			ESP_LOGI(TAG, "night sleep until %02d:%02d", g_cfg.night_to / 60, g_cfg.night_to % 60);
-			deep_sleep_until(now + night_s, now, false);
+			/* woken early as before a slot, so the slot at the window's end is taken on time */
+			night_end_at = now + night_s;
+			deep_sleep_until(now + night_s, now, true);
 			continue; /* not asleep after all: a request came in */
 		}
 		if (deep && battery_protect()) {
@@ -755,6 +761,7 @@ static void sched_task(void *arg)
 		} else {
 			last[best_i] = best;
 		}
+		night_end_at = 0; /* the slot at the window's end, if it was missed, is this one */
 		scheduled_capture(list[best_i].id, "schedule");
 	}
 }

@@ -42,6 +42,14 @@ int main(void)
 	CHECK(night_sleep_left_s(true, 60, 240, 4 * H) == 0);
 	CHECK(night_sleep_left_s(true, 60, 240, 30 * 60) == 0);
 
+	/* after the night: a late wake still takes the slot at the window's end (30 min slots: up to 900 s late) */
+	const long long END = 1793228400LL; /* 2026-10-29 06:00 in Vietnam */
+	CHECK(night_resume_after(END - 90, END, 900) == END - 90);   /* woke early (the lead): from now, 06:00 comes next */
+	CHECK(night_resume_after(END + 5, END, 900) == END - 1);     /* booted after 06:00: 06:00 still counts */
+	CHECK(night_resume_after(END + 900, END, 900) == END - 1);
+	CHECK(night_resume_after(END + 901, END, 900) == END + 901); /* later: the next slot */
+	CHECK(night_resume_after(END + 5, 0, 900) == END + 5);       /* no night sleep */
+
 	printf("test_sched: %d failure(s)\n", failures);
 	return failures ? 1 : 0;
 }

@@ -47,3 +47,15 @@ static inline int night_sleep_left_s(bool enabled, int from_min, int to_min, int
 	}
 	return left >= NIGHT_MIN_SLEEP_S ? left : 0;
 }
+
+/* After a night sleep that ended at `night_end` (epoch seconds, 0 = none): the time to look for the next slot after.
+ * The slot at the window's end (06:00) is strictly after now only when the camera woke before it; a wake up to
+ * `max_late_s` late (the RTC drifts, the boot takes seconds) looks from just before the end, so that slot is taken now
+ * instead of being skipped for the next one (the first photo came at 06:30, 29 Oct 2026). Later than that: from now. */
+static inline long long night_resume_after(long long now, long long night_end, int max_late_s)
+{
+	if (night_end && now >= night_end && now - night_end <= max_late_s) {
+		return night_end - 1;
+	}
+	return now;
+}
