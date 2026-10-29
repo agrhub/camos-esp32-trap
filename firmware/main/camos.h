@@ -375,8 +375,9 @@ cJSON *sched_json(int n_next);                  /* {source, items[], next[]} for
 /* ------------------------------------------------------------------ battery and power (battery.c, power.c) */
 
 bool battery_sample(void);                      /* read the ADCs now (ESP32 ADC2: only while Wi-Fi is off) */
-int battery_mv(void);                           /* last cell voltage in mV, -1 unknown or no monitor */
-int battery_pct(void);
+int battery_mv(void);                           /* last cell voltage in mV as read (a charger lifts it), -1 unknown */
+int battery_cell_mv(void);                      /* the same without the charger's lift (battery_est.h): reported */
+int battery_pct(void);                          /* from battery_cell_mv() */
 int solar_mv(void);                             /* solar / charger input in mV, -1 unknown */
 bool battery_charging(void);                    /* charger status pin or solar input present */
 bool battery_charging_fast(void);               /* charging, the input at full voltage (not a sagging panel) */

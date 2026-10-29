@@ -102,7 +102,7 @@ cJSON *flybot_meta_json(const char *trigger, time_t captured_at)
 	cJSON_AddStringToObject(m, "trigger", trigger);
 	if (battery_mv() >= 0) {
 		cJSON *b = cJSON_AddObjectToObject(m, "battery");
-		cJSON_AddNumberToObject(b, "mv", battery_mv());
+		cJSON_AddNumberToObject(b, "mv", battery_cell_mv());
 		cJSON_AddNumberToObject(b, "pct", battery_pct());
 		cJSON_AddBoolToObject(b, "charging", battery_charging());
 		if (solar_mv() >= 0) {

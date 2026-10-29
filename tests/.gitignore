@@ -9,3 +9,4 @@ test_live_dc
 test_fleet
 test_logfwd
 test_sched
+test_battery

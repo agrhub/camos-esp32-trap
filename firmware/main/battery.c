@@ -18,12 +18,18 @@
 #include "esp_log.h"
 #include "esp_attr.h"
 #include "camos.h"
+#include "battery_est.h"
 
 static const char *TAG = "battery";
 
-static int last_mv = -1;   /* cell voltage in mV, -1 unknown */
+static int last_mv = -1;   /* cell voltage in mV as read (a charger lifts it), -1 unknown */
 static int last_solar = -1;
 static int last_charging = -1; /* -1 unknown */
+/* The charge's lift on the reading (battery_est.h), kept through deep sleep: the last reading without charge, and the
+ * first reading and lift of the charge in progress (lift -1: not charging) */
+static RTC_DATA_ATTR int rest_mv = -1;
+static RTC_DATA_ATTR int charge_start_mv = -1;
+static RTC_DATA_ATTR int charge_lift = -1;
 #define CHARGE_MARGIN_MV 100       /* the solar input this far above the cell: current flows into it */
 
 /* Typical single-cell LiPo discharge curve (approximation: it varies with load, temperature and cell) */
@@ -141,11 +147,26 @@ bool battery_sample(void)
 	last_charging = last_solar < 0 ? -1
 					: last_solar >= CONFIG_CAMOS_SOLAR_PRESENT_MV || (last_mv > 0 && last_solar >= last_mv + CHARGE_MARGIN_MV);
 #endif
+	if (mv >= 0) {
+		if (last_charging != 1) {
+			rest_mv = mv, charge_lift = -1;
+		} else if (charge_lift < 0) {
+			charge_start_mv = mv, charge_lift = charge_lift_mv(rest_mv, mv); /* first reading of this charge */
+		}
+	}
 	if (last_mv >= 0) {
-		ESP_LOGI(TAG, "battery %d mV (%d %%), solar %d mV, charging %s", last_mv, percent_from_mv(last_mv), last_solar,
-				 battery_charge_name());
+		ESP_LOGI(TAG, "battery %d mV (cell %d mV, %d %%), solar %d mV, charging %s", last_mv, battery_cell_mv(),
+				 battery_pct(), last_solar, battery_charge_name());
 	}
 	return mv >= 0;
+}
+
+int battery_cell_mv(void)
+{
+	if (last_mv < 0 || last_charging != 1 || charge_lift <= 0) {
+		return last_mv;
+	}
+	return cell_mv_while_charging(last_mv, charge_start_mv, charge_lift);
 }
 
 /* Slow: charging, but the input under CAMOS_SOLAR_PRESENT_MV, so the charger gets less than its set current (a small
@@ -163,7 +184,7 @@ const char *battery_charge_name(void)
 bool battery_charging_fast(void) { return last_charging == 1 && !charging_slow(); }
 
 int battery_mv(void) { return last_mv; }
-int battery_pct(void) { return last_mv >= 0 ? percent_from_mv(last_mv) : -1; }
+int battery_pct(void) { return last_mv >= 0 ? percent_from_mv(battery_cell_mv()) : -1; }
 int solar_mv(void) { return last_solar; }
 bool battery_charging(void) { return last_charging == 1; }
 
@@ -221,10 +242,14 @@ void battery_json(cJSON *parent)
 		return;
 	}
 	cJSON *b = cJSON_AddObjectToObject(parent, "battery");
-	cJSON_AddNumberToObject(b, "voltage", round(last_mv / 10.0) / 100.0); /* volts, 2 decimals (reference firmware) */
-	cJSON_AddNumberToObject(b, "percent", percent_from_mv(last_mv));
-	cJSON_AddNumberToObject(b, "mv", last_mv); /* CONTRACTS section 3 */
-	cJSON_AddNumberToObject(b, "pct", percent_from_mv(last_mv));
+	int cell = battery_cell_mv(); /* without the charger's lift */
+	cJSON_AddNumberToObject(b, "voltage", round(cell / 10.0) / 100.0); /* volts, 2 decimals (reference firmware) */
+	cJSON_AddNumberToObject(b, "percent", battery_pct());
+	cJSON_AddNumberToObject(b, "mv", cell); /* CONTRACTS section 3 */
+	cJSON_AddNumberToObject(b, "pct", battery_pct());
+	if (cell != last_mv) {
+		cJSON_AddNumberToObject(b, "measuredMv", last_mv); /* the reading itself, charger included */
+	}
 	cJSON_AddBoolToObject(b, "charging", last_charging == 1);
 	if (last_charging >= 0) {
 		cJSON_AddStringToObject(b, "charge", !last_charging ? "none" : charging_slow() ? "slow" : "normal");

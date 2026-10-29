@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Host unit tests (no ESP-IDF build needed): make -C tests (NMEA, power, registration, motion, SigV4, live data channel,
-# remote update / pause policy, remote log, boot photo)
+# remote update / pause policy, remote log, boot photo, battery under a charger)
 # test_reg and test_live_dc need cJSON: ESP-IDF's copy when IDF_PATH (or C:/dev/esp-idf) has it, else the system library (libcjson-dev).
 CC ?= gcc
 CFLAGS ?= -std=c99 -Wall -Wextra -O1
@@ -17,7 +17,7 @@ CJSON_SRC =
 CJSON_LIBS = -lcjson
 endif
 
-all: test_nmea test_power test_reg test_motion test_sigv4 test_live_dc test_fleet test_logfwd test_sched
+all: test_nmea test_power test_reg test_motion test_sigv4 test_live_dc test_fleet test_logfwd test_sched test_battery
 	./test_nmea
 	./test_power
 	./test_reg
@@ -27,6 +27,7 @@ all: test_nmea test_power test_reg test_motion test_sigv4 test_live_dc test_flee
 	./test_fleet
 	./test_logfwd
 	./test_sched
+	./test_battery
 
 test_nmea: test_nmea.c $(M)/nmea.c $(M)/nmea.h
 	$(CC) $(CFLAGS) -o $@ test_nmea.c $(M)/nmea.c -lm
@@ -55,7 +56,10 @@ test_logfwd: test_logfwd.c $(M)/logfwd_core.c $(M)/logfwd_core.h
 test_sched: test_sched.c $(M)/sched_policy.h
 	$(CC) $(CFLAGS) -o $@ test_sched.c
 
+test_battery: test_battery.c $(M)/battery_est.h
+	$(CC) $(CFLAGS) -o $@ test_battery.c
+
 clean:
-	rm -f test_nmea test_power test_reg test_motion test_sigv4 test_live_dc test_fleet test_logfwd test_sched *.exe
+	rm -f test_nmea test_power test_reg test_motion test_sigv4 test_live_dc test_fleet test_logfwd test_sched test_battery *.exe
 
 .PHONY: all clean
