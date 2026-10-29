@@ -111,6 +111,23 @@ static inline wake_budget_t wake_budget(int level, charge_t charge)
 	return b;
 }
 
+/* Battery protection (a cell under CAMOS_BATT_CRITICAL_MV with no charge): the camera takes no photo and keeps the radio
+ * off, and looks at the battery again after this many seconds: every hour by day, when a panel may start charging, and
+ * not before PROTECT_DAY_FROM_H through the night, when nothing can (at least an hour). `now_s`: local seconds after
+ * midnight. */
+#define PROTECT_DAY_FROM_H 6
+#define PROTECT_DAY_TO_H 18
+
+static inline int protect_sleep_s(int now_s)
+{
+	const int from = PROTECT_DAY_FROM_H * 3600, to = PROTECT_DAY_TO_H * 3600;
+	if (now_s >= from && now_s < to) {
+		return 3600;
+	}
+	int left = now_s >= to ? 24 * 3600 - now_s + from : from - now_s;
+	return left < 3600 ? 3600 : left;
+}
+
 /* After a night sleep that ended at `night_end` (epoch seconds, 0 = none): the time to look for the next slot after.
  * The slot at the window's end (06:00) is strictly after now only when the camera woke before it; a wake up to
  * `max_late_s` late (the RTC drifts, the boot takes seconds) looks from just before the end, so that slot is taken now

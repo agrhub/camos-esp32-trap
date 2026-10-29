@@ -25,11 +25,24 @@ static const char *TAG = "battery";
 static int last_mv = -1;   /* cell voltage in mV as read (a charger lifts it), -1 unknown */
 static int last_solar = -1;
 static int last_charging = -1; /* -1 unknown */
-/* The charge's lift on the reading (battery_est.h), kept through deep sleep: the last reading without charge, and the
- * first reading and lift of the charge in progress (lift -1: not charging) */
-static RTC_DATA_ATTR int rest_mv = -1;
-static RTC_DATA_ATTR int charge_start_mv = -1;
-static RTC_DATA_ATTR int charge_lift = -1;
+/* The charge's lift on the reading (battery_est.h): the last reading without charge, and the first reading and lift of
+ * the charge in progress (lift -1: not charging). In RTC memory that is not cleared at boot, so it survives deep sleep
+ * and every restart but a power-on: the Vinh Long trap restarted for an OTA on its charger on 29 Oct 2026, lost the
+ * reading from before the charge and reported 4.12 V / 92 % for a cell that was at 3.35 V. */
+#define BATT_MEM_MAGIC 0x42415431 /* "BAT1" */
+static RTC_NOINIT_ATTR struct {
+	uint32_t magic;
+	int rest_mv, charge_start_mv, charge_lift;
+} mem;
+
+static void mem_check(void)
+{
+	if (mem.magic != BATT_MEM_MAGIC || mem.rest_mv < -1 || mem.rest_mv > 5000 || mem.charge_lift < -1 || mem.charge_lift > CHARGE_LIFT_MAX_MV) {
+		mem.magic = BATT_MEM_MAGIC; /* a power-on: the memory holds noise */
+		mem.rest_mv = mem.charge_start_mv = mem.charge_lift = -1;
+	}
+}
+
 #define CHARGE_MARGIN_MV 100       /* the solar input this far above the cell: current flows into it */
 
 /* Typical single-cell LiPo discharge curve (approximation: it varies with load, temperature and cell) */
@@ -147,11 +160,12 @@ bool battery_sample(void)
 	last_charging = last_solar < 0 ? -1
 					: last_solar >= CONFIG_CAMOS_SOLAR_PRESENT_MV || (last_mv > 0 && last_solar >= last_mv + CHARGE_MARGIN_MV);
 #endif
+	mem_check();
 	if (mv >= 0) {
 		if (last_charging != 1) {
-			rest_mv = mv, charge_lift = -1;
-		} else if (charge_lift < 0) {
-			charge_start_mv = mv, charge_lift = charge_lift_mv(rest_mv, mv); /* first reading of this charge */
+			mem.rest_mv = mv, mem.charge_lift = -1;
+		} else if (mem.charge_lift < 0) {
+			mem.charge_start_mv = mv, mem.charge_lift = charge_lift_mv(mem.rest_mv, mv); /* first reading of this charge */
 		}
 	}
 	if (last_mv >= 0) {
@@ -163,10 +177,11 @@ bool battery_sample(void)
 
 int battery_cell_mv(void)
 {
-	if (last_mv < 0 || last_charging != 1 || charge_lift <= 0) {
+	mem_check();
+	if (last_mv < 0 || last_charging != 1 || mem.charge_lift <= 0) {
 		return last_mv;
 	}
-	return cell_mv_while_charging(last_mv, charge_start_mv, charge_lift);
+	return cell_mv_while_charging(last_mv, mem.charge_start_mv, mem.charge_lift);
 }
 
 /* Slow: charging, but the input under CAMOS_SOLAR_PRESENT_MV, so the charger gets less than its set current (a small
@@ -222,6 +237,11 @@ bool battery_protect(void)
 
 /* The warning before a protective sleep goes out once per spell (RTC memory, kept through the hourly sleeps) */
 static RTC_DATA_ATTR bool protect_noticed;
+
+bool battery_protect_notice_pending(void)
+{
+	return battery_protect() && !protect_noticed;
+}
 
 bool battery_protect_notice_due(void)
 {

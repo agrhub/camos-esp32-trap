@@ -390,6 +390,7 @@ bool battery_low_due(void);                     /* true once per 6 h while below
 bool battery_critical(void);
 bool battery_protect(void);                     /* critical and not charging: no photos, sleep an hour at a time */
 bool battery_protect_notice_due(void);          /* once per spell of battery_protect: the warning before its first sleep */
+bool battery_protect_notice_pending(void);      /* that warning is still to go out (no state change) */
 void battery_json(cJSON *parent);               /* adds battery {voltage, percent, mv, pct, charging, charge, solarMv} */
 
 power_mode_t power_effective(void);             /* auto resolved by battery voltage with hysteresis */

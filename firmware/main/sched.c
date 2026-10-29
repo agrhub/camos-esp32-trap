@@ -66,7 +66,6 @@ static RTC_DATA_ATTR time_t night_end_at; /* end of the night sleep the camera w
 #define CHECKIN_GIVEUP_S 25 /* no MQTT on a check-in after this long: back to sleep (no 4G fallback) */
 static RTC_DATA_ATTR uint8_t checkin_next; /* the next timer wake is a check-in */
 static bool checkin_boot;                  /* this wake is one */
-#define CRITICAL_SLEEP_S 3600     /* a critical cell with no charge: it looks again every hour (a panel may start charging) */
 #define PAUSED_SLEEP_S (6 * 3600) /* paused by FlyBot: it reads the shadow every 6 h */
 #define BUTTON_AWAKE_S 600        /* woken by the button: up this long for the live view or settings */
 
@@ -750,8 +749,10 @@ static void sched_task(void *arg)
 			deep_sleep_until(now + night_s, now, true);
 			continue; /* not asleep after all: a request came in */
 		}
-		if (deep && battery_protect()) {
-			net_ensure(); /* so that low_power can go out before the long sleep */
+		if (deep && battery_protect_notice_pending()) {
+			/* so that low_power can go out before the long sleep: once per spell, the later wakes keep the radio off (they
+			 * started it every hour, and a cell with no charge ran to its cutoff overnight, 30 Oct 2026) */
+			net_ensure();
 		}
 		if (deep && proto_provisioned() && may_sleep()) {
 			if (gps_fix_due() && !battery_protect() && sched_budget_allows(BUDGET_GPS_FIX) && !(checkin_boot && last_activity_s == 0)) {
@@ -762,13 +763,15 @@ static void sched_task(void *arg)
 				proto_flush(5000);
 			}
 			if (battery_protect() || paused) {
-				/* Protect a cell that gets no charge: no captures, a look at the battery every hour (low_power goes out when
-				 * connected); a paused camera looks every 6 h whether FlyBot resumed it */
+				/* Protect a cell that gets no charge: no captures and no radio, a look at the battery every hour by day and
+				 * none through the night (protect_sleep_s; low_power goes out once, when connected); a paused camera looks
+				 * every 6 h whether FlyBot resumed it */
+				int protect_s = protect_sleep_s(lt.tm_hour * 3600 + lt.tm_min * 60 + lt.tm_sec);
 				if (battery_protect_notice_due() && proto_connected()) {
-					ESP_LOGW(TAG, "cell at %d mV and no charge: sleeping %d s at a time to protect it", battery_mv(), CRITICAL_SLEEP_S);
-					proto_publish_low_power(CRITICAL_SLEEP_S);
+					ESP_LOGW(TAG, "cell at %d mV and no charge: sleeping %d s to protect it", battery_mv(), protect_s);
+					proto_publish_low_power(protect_s);
 				}
-				deep_sleep_until(now + (battery_protect() ? CRITICAL_SLEEP_S : PAUSED_SLEEP_S), now, false);
+				deep_sleep_until(now + (battery_protect() ? protect_s : PAUSED_SLEEP_S), now, false);
 			} else {
 				int ci = checkin_interval();
 				time_t target = best_i >= 0 ? best : now + CONFIG_CAMOS_NOSCHED_SLEEP_MIN * 60;

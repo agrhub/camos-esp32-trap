@@ -72,6 +72,14 @@ int main(void)
 	CHECK(adapt_interval_min(120, 3, CHARGE_NONE) == 240);       /* capped at 4 h */
 	CHECK(adapt_interval_min(360, 3, CHARGE_NONE) == 360);       /* a set interval over the cap stays */
 
+	/* battery protection: hourly by day, through the night to 06:00 */
+	CHECK(protect_sleep_s(10 * H) == H);
+	CHECK(protect_sleep_s(6 * H) == H);
+	CHECK(protect_sleep_s(18 * H) == 12 * H);                    /* 18:00 -> 06:00 */
+	CHECK(protect_sleep_s(23 * H) == 7 * H);
+	CHECK(protect_sleep_s(2 * H) == 4 * H);
+	CHECK(protect_sleep_s(5 * H + 30 * 60) == H);                /* at least an hour */
+
 	/* what a wake may spend */
 	wake_budget_t b = wake_budget(0, CHARGE_NONE);
 	CHECK(b.checkins && b.gps_fix && b.use_4g);
