@@ -14,6 +14,9 @@
  *                                ceiling, denoise); vflip / hmirror are orientation's bits 2 and 1
  *   power.mode                   v1 addition: "auto" | "battery" | "powered"; power.highMv / power.lowMv thresholds
  *   power.nightSleep             v1 addition: true = deep sleep through power.nightWindow {from, to} "HH:MM" (sched.c)
+ *   power.adaptive               v1 addition: true = a low cell saves power: the interval stretches (the one in use is
+ *                                reported as capture.effectiveIntervalMin), no check-ins, GPS fix or 4G fallback
+ *                                below set levels (sched_policy.h)
  *   motion.*                     v1 addition: enabled, sensitivity, cooldownS, upload, saveSd, area (motion.c)
  *   storage.sdSave               v1 addition: every photo also on the microSD card
  *   led.enabled                  v1 addition: the status LED
@@ -453,6 +456,12 @@ static void apply_power(const cJSON *item, settings_t *s, cJSON *errors)
 			} else {
 				store_apply_kv("nightSleep", cJSON_IsTrue(c) ? "1" : "0");
 			}
+		} else if (!strcmp(c->string, "adaptive")) {
+			if (!cJSON_IsBool(c)) {
+				add_error(errors, "power.adaptive", "BAD_VALUE");
+			} else {
+				store_apply_kv("adaptive", cJSON_IsTrue(c) ? "1" : "0");
+			}
 		} else if (!strcmp(c->string, "nightWindow")) {
 			int from = -1, to = -1;
 			if (cJSON_IsObject(c)) {
@@ -732,6 +741,7 @@ void shadow_image_json(cJSON *parent)
 	cJSON_AddStringToObject(cap, "resolution", g_cfg.capture_size);
 	cJSON_AddNumberToObject(cap, "jpegQuality", s.jpeg_quality);
 	cJSON_AddNumberToObject(cap, "intervalMin", shadow_interval_min());
+	cJSON_AddNumberToObject(cap, "effectiveIntervalMin", sched_effective_interval_min()); /* power.adaptive */
 	char hm[16];
 	cJSON *win = cJSON_AddObjectToObject(cap, "window");
 	snprintf(hm, sizeof(hm), "%02d:%02d", g_cfg.sched_from / 60, g_cfg.sched_from % 60);

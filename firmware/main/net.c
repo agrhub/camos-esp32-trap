@@ -315,8 +315,10 @@ static void watch_tick(void *arg)
 		return;
 	}
 	if (chosen == NET_WIFI) {
-		/* wifi.c clears wifi_new at the first IP; a check-in wake never goes to 4G (it sleeps again instead) */
-		bool can_4g = has_4g && (joined || !wifi_new) && !sched_checkin() && strcmp(g_cfg.net_prefer, "wifi") && !fourg_failed;
+		/* wifi.c clears wifi_new at the first IP; a check-in wake never goes to 4G (it sleeps again instead), nor a wake on a
+		 * cell too low for it (power.adaptive: that photo is not sent; with storage.sdSave it is on the memory card) */
+		bool can_4g = has_4g && (joined || !wifi_new) && !sched_checkin() && strcmp(g_cfg.net_prefer, "wifi") && !fourg_failed &&
+					  sched_budget_allows(BUDGET_4G);
 		if (!joined) {
 			if (wifi_up()) {
 				joined = true;

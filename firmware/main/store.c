@@ -258,6 +258,8 @@ static const int_field_t ints[] = {
 	{ "nightSleep", "night_sleep", &g_cfg.night_sleep, 1, 0, 1, false },
 	{ "nightFrom", "night_from", &g_cfg.night_from, 18 * 60, 0, 1439, false },
 	{ "nightTo", "night_to", &g_cfg.night_to, 6 * 60, 0, 1439, false },
+	/* adaptive interval: the capture interval stretches while the cell runs low with little charge coming in */
+	{ "adaptive", "adaptive", &g_cfg.adaptive, 1, 0, 1, false },
 	{ "motion", "motion", &g_cfg.motion, 0, 0, 1, false },
 	{ "motionSens", "mo_sens", &g_cfg.motion_sens, 50, 1, 100, false },
 	{ "motionCooldown", "mo_cool", &g_cfg.motion_cool, 60, 5, 3600, false },

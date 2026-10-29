@@ -50,6 +50,40 @@ int main(void)
 	CHECK(night_resume_after(END + 901, END, 900) == END + 901); /* later: the next slot */
 	CHECK(night_resume_after(END + 5, 0, 900) == END + 5);       /* no night sleep */
 
+	/* adaptive interval: levels by the cell's percent */
+	CHECK(adapt_level(80, 0) == 0);
+	CHECK(adapt_level(59, 0) == 1);
+	CHECK(adapt_level(39, 0) == 2);
+	CHECK(adapt_level(3, 0) == 3);                               /* the Vinh Long trap, 29 Oct */
+	CHECK(adapt_level(-1, 3) == 0);                              /* no battery monitor */
+	/* worse at once, better only 5 points above the threshold */
+	CHECK(adapt_level(61, 1) == 1);
+	CHECK(adapt_level(65, 1) == 0);
+	CHECK(adapt_level(22, 3) == 3);
+	CHECK(adapt_level(25, 3) == 2);
+	CHECK(adapt_level(70, 3) == 0);                              /* charged overnight: back in one go */
+	CHECK(adapt_level(18, 0) == 3);
+	/* the interval for a set 30 min */
+	CHECK(adapt_interval_min(30, 0, CHARGE_NONE) == 30);
+	CHECK(adapt_interval_min(30, 1, CHARGE_NONE) == 60);
+	CHECK(adapt_interval_min(30, 3, CHARGE_NONE) == 120);
+	CHECK(adapt_interval_min(30, 3, CHARGE_SLOW) == 90);         /* a weak panel: one level off */
+	CHECK(adapt_interval_min(30, 3, CHARGE_FULL) == 30);         /* a real charge: none */
+	CHECK(adapt_interval_min(120, 3, CHARGE_NONE) == 240);       /* capped at 4 h */
+	CHECK(adapt_interval_min(360, 3, CHARGE_NONE) == 360);       /* a set interval over the cap stays */
+
+	/* what a wake may spend */
+	wake_budget_t b = wake_budget(0, CHARGE_NONE);
+	CHECK(b.checkins && b.gps_fix && b.use_4g);
+	b = wake_budget(2, CHARGE_NONE);                             /* 20-39 %: no check-ins, no GPS fix, 4G still */
+	CHECK(!b.checkins && !b.gps_fix && b.use_4g);
+	b = wake_budget(3, CHARGE_NONE);                             /* under 20 %: Wi-Fi only */
+	CHECK(!b.checkins && !b.gps_fix && !b.use_4g);
+	b = wake_budget(3, CHARGE_SLOW);                             /* a weak panel: one level off */
+	CHECK(!b.checkins && !b.gps_fix && b.use_4g);
+	b = wake_budget(3, CHARGE_FULL);                             /* charging properly: everything */
+	CHECK(b.checkins && b.gps_fix && b.use_4g);
+
 	printf("test_sched: %d failure(s)\n", failures);
 	return failures ? 1 : 0;
 }

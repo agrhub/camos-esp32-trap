@@ -23,6 +23,10 @@
  * deep sleeps in every power mode until the window ends, once the usual awake conditions hold (no request, live view or
  * update); the slots inside the window are skipped. It wakes as early as before a slot, and a wake that still comes after
  * the window's end (up to half the slot interval) takes the slot at the end right away instead of skipping to the next.
+ * Adaptive interval (power.adaptive, on by default, sched_policy.h): while the cell runs low with little charge coming
+ * in, every slot interval stretches (x2 to x4, 4 h at most); the all-day one in use is capture.effectiveIntervalMin.
+ * The same levels set what a wake may spend (sched_budget_allows), from the battery read at boot before any radio:
+ * no check-ins and no daily GPS fix below 40 %, no 4G fallback below 20 %, everything while it charges at full current.
  * The setup button (CAMOS_BUTTON_GPIO, IO0 on the S3 boards) wakes the camera from any deep sleep: it joins the
  * network and stays up BUTTON_AWAKE_S for the live view or settings, then sleeps again.
  */
@@ -82,7 +86,7 @@ bool sched_checkin(void)
 /* Seconds to the next check-in, 0 for none: only on Wi-Fi with MQTT up (a failed check-in sleeps to the slot) */
 static int checkin_interval(void)
 {
-	if (net_type() != NET_WIFI || !proto_connected() || battery_protect()) {
+	if (net_type() != NET_WIFI || !proto_connected() || battery_protect() || !sched_budget_allows(BUDGET_CHECKINS)) {
 		return 0;
 	}
 	time_t now = time(NULL);
@@ -425,19 +429,78 @@ static time_t next_fire(const sched_t *s, time_t after)
 	return 0;
 }
 
-/* The effective schedule list: detections[] when present, else the all-day interval */
-static int schedules(const settings_t *s, sched_t out[MAX_SCHED])
+/* Adaptive interval: the level of the last look, kept through deep sleep for the hysteresis */
+static RTC_DATA_ATTR int adapt_prev = -1;
+
+/* The battery level for power.adaptive from the last reading (taken at every wake before any radio starts); -1 when the
+ * camera does not save power: off, no battery monitor, or powered mode */
+static bool saving_on(void)
 {
-	if (s->n_sched > 0) {
-		memcpy(out, s->sched, sizeof(sched_t) * s->n_sched);
-		return s->n_sched;
+	return g_cfg.adaptive && g_cfg.batt_mon && battery_pct() >= 0 && shadow_power_mode() != POWER_POWERED;
+}
+
+static int adapt_now(void)
+{
+	if (!saving_on()) {
+		adapt_prev = 0;
+		return -1;
 	}
+	int level = adapt_level(battery_pct(), adapt_prev);
+	if (level != adapt_prev) {
+		ESP_LOGI(TAG, "power saving: cell %d %%, charge %s -> level %d", battery_pct(), battery_charge_name(), level);
+		adapt_prev = level;
+	}
+	return level;
+}
+
+static charge_t charge_now(void)
+{
+	return battery_charging_fast() ? CHARGE_FULL : battery_charging() ? CHARGE_SLOW : CHARGE_NONE;
+}
+
+/* `every_min` as power.adaptive stretches it for the cell and the charge now */
+static int adapted(int every_min)
+{
+	int level = adapt_now();
+	return level < 0 ? every_min : adapt_interval_min(every_min, level, charge_now());
+}
+
+/* Pure: no log and no state change, as the network's timer task (small stack) asks it before the 4G fallback */
+bool sched_budget_allows(budget_t what)
+{
+	if (!saving_on()) {
+		return true;
+	}
+	wake_budget_t b = wake_budget(adapt_level(battery_pct(), adapt_prev), charge_now());
+	return what == BUDGET_CHECKINS ? b.checkins : what == BUDGET_GPS_FIX ? b.gps_fix : b.use_4g;
+}
+
+static int all_day_interval_min(void)
+{
 	int every = shadow_interval_min();
 	if (!shadow_claimed() && every < 60) {
 		every = 60; /* CONTRACTS 2a.3: an unclaimed camera uploads at most once an hour */
 	}
+	return every;
+}
+
+int sched_effective_interval_min(void)
+{
+	return adapted(all_day_interval_min());
+}
+
+/* The effective schedule list: detections[] when present, else the all-day interval; both stretched by power.adaptive */
+static int schedules(const settings_t *s, sched_t out[MAX_SCHED])
+{
+	if (s->n_sched > 0) {
+		memcpy(out, s->sched, sizeof(sched_t) * s->n_sched);
+		for (int i = 0; i < s->n_sched; i++) {
+			out[i].every_min = adapted(out[i].every_min);
+		}
+		return s->n_sched;
+	}
 	/* the local window from the console's Schedule page (all day by default) */
-	sched_t t = { .every_min = every, .from_min = g_cfg.sched_from, .to_min = g_cfg.sched_to };
+	sched_t t = { .every_min = sched_effective_interval_min(), .from_min = g_cfg.sched_from, .to_min = g_cfg.sched_to };
 	if (t.from_min == t.to_min) {
 		t.from_min = 0, t.to_min = 24 * 60 - 1;
 	}
@@ -691,7 +754,7 @@ static void sched_task(void *arg)
 			net_ensure(); /* so that low_power can go out before the long sleep */
 		}
 		if (deep && proto_provisioned() && may_sleep()) {
-			if (gps_fix_due() && !battery_protect() && !(checkin_boot && last_activity_s == 0)) {
+			if (gps_fix_due() && !battery_protect() && sched_budget_allows(BUDGET_GPS_FIX) && !(checkin_boot && last_activity_s == 0)) {
 				/* once a day, before the sleep; reported next connect. It gives way to a request (ota.apply waited behind a
 				 * 300 s fix and FlyBot gave up after 60 s, 25 Oct 2026) */
 				gps_fix_yielding(CONFIG_CAMOS_GPS_FIX_TIMEOUT_S);
@@ -727,7 +790,7 @@ static void sched_task(void *arg)
 		 * photo's upload) */
 		bool gps_idle = boot_capture_done && esp_timer_get_time() / 1000000 >= 120 && proto_idle() && !job && !live_active() &&
 					!ota_running() && (!best || best - now > CONFIG_CAMOS_GPS_FIX_TIMEOUT_S + 60);
-		if (!deep && gps_fix_due() && proto_connected() && gps_idle && !gps_task_running) {
+		if (!deep && gps_fix_due() && proto_connected() && gps_idle && !gps_task_running && sched_budget_allows(BUDGET_GPS_FIX)) {
 			gps_task_running = true;
 			if (xTaskCreate(gps_fix_task, "gps-fix", 8192, NULL, 3, NULL) != pdPASS) {
 				gps_fix(CONFIG_CAMOS_GPS_FIX_TIMEOUT_S, NULL); /* no memory for the task: here, as before */

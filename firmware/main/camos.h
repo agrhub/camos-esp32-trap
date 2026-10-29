@@ -57,6 +57,7 @@ typedef struct {
 	int night_sleep;      /* 1 = deep sleep through the night window, in every power mode (sched.c) */
 	int night_from;       /* night window, local minutes after midnight: [night_from, night_to), < crosses midnight */
 	int night_to;
+	int adaptive;         /* 1 = the capture interval stretches while the cell runs low (sched_policy.h) */
 	int motion;           /* 1 = frame-difference motion detection (powered mode, motion.c) */
 	int motion_sens;      /* 1..100 */
 	int motion_cool;      /* seconds between two motion triggers */
@@ -371,6 +372,9 @@ void sched_keep_awake(int seconds);             /* live view / console: no deep 
 time_t sched_next_capture(void);                /* 0 when none */
 void sched_wake_hint(time_t at);                /* nextWakeAt from the FlyBot snapshot response */
 cJSON *sched_json(int n_next);                  /* {source, items[], next[]} for the console's Schedule page */
+int sched_effective_interval_min(void);         /* the all-day interval in use: power.adaptive may stretch it */
+typedef enum { BUDGET_CHECKINS, BUDGET_GPS_FIX, BUDGET_4G } budget_t;
+bool sched_budget_allows(budget_t what);        /* power.adaptive: what a wake may spend on this cell (sched_policy.h) */
 
 /* ------------------------------------------------------------------ battery and power (battery.c, power.c) */
 

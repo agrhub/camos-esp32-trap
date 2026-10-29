@@ -108,6 +108,7 @@ void power_json(cJSON *parent)
 	cJSON_AddNumberToObject(p, "highMv", high);
 	cJSON_AddNumberToObject(p, "lowMv", low);
 	cJSON_AddBoolToObject(p, "nightSleep", g_cfg.night_sleep != 0);
+	cJSON_AddBoolToObject(p, "adaptive", g_cfg.adaptive != 0);
 	cJSON *night = cJSON_AddObjectToObject(p, "nightWindow");
 	char hm[16];
 	snprintf(hm, sizeof(hm), "%02d:%02d", g_cfg.night_from / 60, g_cfg.night_from % 60);
