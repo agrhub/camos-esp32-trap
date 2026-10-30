@@ -703,7 +703,10 @@ static void sched_task(void *arg)
 				best = t, best_i = i;
 			}
 		}
-		if (wake_hint > now && (!best || wake_hint < best || !shadow_claimed())) {
+		/* FlyBot's nextWakeAt is its own, unstretched interval: while power saving stretches the plan it must not pull the
+		 * wake back (rc.5 on a 9 % cell slept 29 min instead of the 2 h of its level, 30 Oct 2026) */
+		bool stretched = sched_effective_interval_min() > all_day_interval_min();
+		if (wake_hint > now && (!shadow_claimed() || (!stretched && (!best || wake_hint < best)))) {
 			/* FlyBot asked for an earlier wake; an unclaimed camera follows nextWakeAt even when it is later */
 			best = wake_hint, best_i = 0;
 		} else if (wake_hint && wake_hint <= now) {
